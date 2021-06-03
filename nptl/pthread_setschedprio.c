@@ -30,7 +30,8 @@ __pthread_setschedprio (pthread_t threadid, int prio)
   struct pthread *pd = (struct pthread *) threadid;
 
   /* Make sure the descriptor is valid.  */
-  if (INVALID_TD_P (pd))
+  int state = atomic_load_acquire (&pd->joinstate);
+  if (state == THREAD_STATE_EXITED || state == THREAD_STATE_EXITING)
     /* Not a valid thread handle.  */
     return ESRCH;
 
