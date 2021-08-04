@@ -342,7 +342,7 @@ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 auto inline void __attribute__ ((unused, always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
-		      int skip_ifunc)
+		      int profile, int skip_ifunc)
 {
   Elf32_Addr *const reloc_addr = (void *) (l_addr + reloc->r_offset);
   const unsigned int r_type = ELF32_R_TYPE (reloc->r_info);

@@ -797,7 +797,7 @@ elf_machine_rela_relative (Elf32_Addr l_addr,
 auto void __attribute__((always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
-		      int skip_ifunc)
+		      int profile, int skip_ifunc)
 {
   /* We don't have anything to do here.  elf_machine_runtime_setup has
      done all the relocs already.  */
