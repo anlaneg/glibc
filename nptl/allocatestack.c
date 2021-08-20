@@ -124,6 +124,7 @@ get_cached_stack (size_t *sizep, void **memp)
   result->canceltype = PTHREAD_CANCEL_DEFERRED;
   result->cleanup = NULL;
   result->setup_failed = 0;
+  result->killlock = 0;
 
   /* No pending event.  */
   result->nextevent = NULL;

@@ -531,6 +531,12 @@ start_thread (void *arg)
     /* This was the last thread.  */
     exit (0);
 
+  /* This prevents sending a signal from this thread to itself during its
+     final stages.  This must come after the exit call above because
+     atexit handlers must not run with signals blocked.  */
+  __libc_signal_block_all (NULL);
+  lll_lock (pd->killlock, LLL_PRIVATE);
+
   if (!pd->user_stack)
     advise_stack_range (pd->stackblock, pd->stackblock_size, (uintptr_t) pd,
 			pd->guardsize);
@@ -555,6 +561,7 @@ start_thread (void *arg)
     __nptl_free_tcb (pd);
 
   pd->tid = 0;
+  lll_unlock (pd->killlock, LLL_PRIVATE);
 
 out:
   /* We cannot call '_exit' here.  '_exit' will terminate the process.

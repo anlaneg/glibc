@@ -327,6 +327,9 @@ struct pthread
   /* Lock to synchronize access to the descriptor.  */
   int lock;
 
+  /* Lock to synchronize pthread_kill and thread exit.  */
+  int killlock;
+
   /* Indicate whether thread is supposed to change XID.  */
   int setxid_flag;
   /* Lock for synchronizing setxid calls.  */

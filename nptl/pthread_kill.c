@@ -26,6 +26,12 @@ __pthread_kill_internal (pthread_t threadid, int signo)
   pid_t tid;
   struct pthread *pd = (struct pthread *) threadid;
 
+  /* Block all signal, since the lock is recursive and used on pthread_cnacel
+     (which should be async-signal-safe).  */
+  sigset_t oldmask;
+  __libc_signal_block_all (&oldmask);
+  lll_lock (pd->killlock, LLL_PRIVATE);
+
   if (pd == THREAD_SELF)
     /* It is a special case to handle raise() implementation after a vfork
        call (which does not update the PD tid field).  */
@@ -47,6 +53,9 @@ __pthread_kill_internal (pthread_t threadid, int signo)
     }
   else
     val = 0;
+
+  lll_unlock (pd->killlock, LLL_PRIVATE);
+  __libc_signal_restore_set (&oldmask);
 
   return val;
 }
