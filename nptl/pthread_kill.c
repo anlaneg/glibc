@@ -46,7 +46,7 @@ __pthread_kill_internal (pthread_t threadid, int signo)
 	    ? INTERNAL_SYSCALL_ERRNO (val) : 0);
     }
   else
-    val = ESRCH;
+    val = 0;
 
   return val;
 }
