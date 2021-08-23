@@ -361,14 +361,15 @@ elf_machine_plt_value (struct link_map *map, const Elf64_Rela *reloc,
 
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela (struct link_map *map,
 		  const Elf64_Rela *reloc,
 		  const Elf64_Sym *sym,
 		  const struct r_found_version *version,
 		  void *const reloc_addr_arg,
-		  int skip_ifunc)
+		  int skip_ifunc,
+		  struct link_map *boot_map)
 {
   Elf64_Addr *const reloc_addr = reloc_addr_arg;
   unsigned long int const r_type = ELF64_R_TYPE (reloc->r_info);
@@ -411,7 +412,11 @@ elf_machine_rela (struct link_map *map,
       return;
   else
     {
+#if defined RTLD_BOOTSTRAP || defined STATIC_PIE_BOOTSTRAP
+      struct link_map *sym_map = boot_map;
+#else
       struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+#endif
       Elf64_Addr sym_value;
       Elf64_Addr sym_raw_value;
 
@@ -489,7 +494,7 @@ elf_machine_rela (struct link_map *map,
    can be skipped.  */
 #define ELF_MACHINE_REL_RELATIVE 1
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -506,7 +511,7 @@ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
   memcpy (reloc_addr_arg, &reloc_addr_val, 8);
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      Elf64_Addr l_addr, const Elf64_Rela *reloc,

@@ -475,11 +475,12 @@ elf_machine_plt_value (struct link_map *map, const ElfW(Rel) *reloc,
    by RELOC_ADDR.  SYM is the relocation symbol specified by R_INFO and
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_reloc (struct link_map *map, ElfW(Addr) r_info,
 		   const ElfW(Sym) *sym, const struct r_found_version *version,
-		   void *reloc_addr, ElfW(Addr) r_addend, int inplace_p)
+		   void *reloc_addr, ElfW(Addr) r_addend, int inplace_p,
+		   struct link_map *boot_map)
 {
   const unsigned long int r_type = ELFW(R_TYPE) (r_info);
   ElfW(Addr) *addr_field = (ElfW(Addr) *) reloc_addr;
@@ -507,7 +508,11 @@ elf_machine_reloc (struct link_map *map, ElfW(Addr) r_info,
     case R_MIPS_TLS_TPREL32:
 # endif
       {
-	struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+#if defined RTLD_BOOTSTRAP || defined STATIC_PIE_BOOTSTRAP
+      struct link_map *sym_map = boot_map;
+#else
+      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+#endif
 
 	switch (r_type)
 	  {
@@ -647,7 +652,11 @@ elf_machine_reloc (struct link_map *map, ElfW(Addr) r_info,
 	  _dl_signal_error (0, map->l_name, NULL,
 			    "found jump slot relocation with non-zero addend");
 
-	sym_map = RESOLVE_MAP (&sym, version, r_type);
+#if defined RTLD_BOOTSTRAP || defined STATIC_PIE_BOOTSTRAP
+        sym_map = boot_map;
+#else
+        sym_map = RESOLVE_MAP (&sym, version, r_type);
+#endif
 	value = SYMBOL_ADDRESS (sym_map, sym, true);
 	*addr_field = value;
 
@@ -661,7 +670,11 @@ elf_machine_reloc (struct link_map *map, ElfW(Addr) r_info,
 	ElfW(Addr) value;
 
 	/* Calculate the address of the symbol.  */
-	sym_map = RESOLVE_MAP (&sym, version, r_type);
+#if defined RTLD_BOOTSTRAP || defined STATIC_PIE_BOOTSTRAP
+        sym_map = boot_map;
+#else
+        sym_map = RESOLVE_MAP (&sym, version, r_type);
+#endif
 	value = SYMBOL_ADDRESS (sym_map, sym, true);
 
 	if (__builtin_expect (sym == NULL, 0))
@@ -708,16 +721,16 @@ elf_machine_reloc (struct link_map *map, ElfW(Addr) r_info,
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rel (struct link_map *map, const ElfW(Rel) *reloc,
 		 const ElfW(Sym) *sym, const struct r_found_version *version,
-		 void *const reloc_addr, int skip_ifunc)
+		 void *const reloc_addr, int skip_ifunc, struct link_map *boot_map)
 {
-  elf_machine_reloc (map, reloc->r_info, sym, version, reloc_addr, 0, 1);
+  elf_machine_reloc (map, reloc->r_info, sym, version, reloc_addr, 0, 1, boot_map);
 }
 
-auto inline void
+static inline void
 __attribute__((always_inline))
 elf_machine_rel_relative (ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
 			  void *const reloc_addr)
@@ -725,7 +738,7 @@ elf_machine_rel_relative (ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
   /* XXX Nothing to do.  There is no relative relocation, right?  */
 }
 
-auto inline void
+static inline void
 __attribute__((always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      ElfW(Addr) l_addr, const ElfW(Rel) *reloc,
@@ -748,17 +761,17 @@ elf_machine_lazy_rel (struct link_map *map,
     _dl_reloc_bad_type (map, r_type, 1);
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
 		  const ElfW(Sym) *sym, const struct r_found_version *version,
-		  void *const reloc_addr, int skip_ifunc)
+		  void *const reloc_addr, int skip_ifunc, struct link_map *boot_map)
 {
   elf_machine_reloc (map, reloc->r_info, sym, version, reloc_addr,
-		     reloc->r_addend, 0);
+		     reloc->r_addend, 0, boot_map);
 }
 
-auto inline void
+static inline void
 __attribute__((always_inline))
 elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
 			   void *const reloc_addr)
@@ -767,7 +780,7 @@ elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
 
 #ifndef RTLD_BOOTSTRAP
 /* Relocate GOT. */
-auto inline void
+static inline void
 __attribute__((always_inline))
 elf_machine_got_rel (struct link_map *map, int lazy)
 {
@@ -868,7 +881,7 @@ elf_machine_got_rel (struct link_map *map, int lazy)
 /* Set up the loaded object described by L so its stub function
    will jump to the on-demand fixup code __dl_runtime_resolve.  */
 
-auto inline int
+static inline int
 __attribute__((always_inline))
 elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 {

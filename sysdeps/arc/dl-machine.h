@@ -228,11 +228,11 @@ elf_machine_fixup_plt (struct link_map *map, lookup_t t,
 
 #ifdef RESOLVE_MAP
 
-inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
                   const ElfW(Sym) *sym, const struct r_found_version *version,
-                  void *const reloc_addr_arg, int skip_ifunc)
+                  void *const reloc_addr_arg, int skip_ifunc, struct link_map *boot_map)
 {
   ElfW(Addr) r_info = reloc->r_info;
   const unsigned long int r_type = ELFW (R_TYPE) (r_info);
@@ -245,7 +245,11 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
   else
     {
       const ElfW(Sym) *const refsym = sym;
+#if defined RTLD_BOOTSTRAP || defined STATIC_PIE_BOOTSTRAP
+      struct link_map *sym_map = boot_map;
+#else
       struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+#endif
       ElfW(Addr) value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       switch (r_type)

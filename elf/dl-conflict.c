@@ -27,17 +27,9 @@
 #include <sys/types.h>
 #include "dynamic-link.h"
 
-void
-_dl_resolve_conflicts (struct link_map *l, ElfW(Rela) *conflict,
-		       ElfW(Rela) *conflictend)
-{
-#if ! ELF_MACHINE_NO_RELA
-  if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_RELOC))
-    _dl_debug_printf ("\nconflict processing: %s\n", DSO_FILENAME (l->l_name));
-
-  {
-    /* Do the conflict relocation of the object and library GOT and other
-       data.  */
+/* Used by RESOLVE_CONFLICT_FIND_MAP at init time. Cannot be accessed
+ * concurrently.  */
+static struct link_map *resolve_conflict_map __attribute__ ((__unused__));
 
     /* This macro is used as a callback from the ELF_DYNAMIC_RELOCATE code.  */
 #define RESOLVE_MAP(ref, version, flags) (*ref = NULL, NULL)
@@ -51,12 +43,23 @@ _dl_resolve_conflicts (struct link_map *l, ElfW(Rela) *conflict,
     (map) = resolve_conflict_map;					      \
   } while (0)
 
+#include "dynamic-link.h"
+
+void
+_dl_resolve_conflicts (struct link_map *l, ElfW(Rela) *conflict,
+		       ElfW(Rela) *conflictend)
+{
+#if ! ELF_MACHINE_NO_RELA
+  if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_RELOC))
+    _dl_debug_printf ("\nconflict processing: %s\n", DSO_FILENAME (l->l_name));
+
+  {
+    /* Do the conflict relocation of the object and library GOT and other
+       data.  */
+
     /* Prelinking makes no sense for anything but the main namespace.  */
     assert (l->l_ns == LM_ID_BASE);
-    struct link_map *resolve_conflict_map __attribute__ ((__unused__))
-      = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
-
-#include "dynamic-link.h"
+    resolve_conflict_map = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
 
     /* Override these, defined in dynamic-link.h.  */
 #undef CHECK_STATIC_TLS
@@ -68,7 +71,7 @@ _dl_resolve_conflicts (struct link_map *l, ElfW(Rela) *conflict,
 
     for (; conflict < conflictend; ++conflict)
       elf_machine_rela (l, conflict, NULL, NULL, (void *) conflict->r_offset,
-			0);
+			0, NULL);
   }
 #endif
 }

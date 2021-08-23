@@ -549,13 +549,13 @@ dl_platform_init (void)
   (  (((as14) & 0x1fff) << 1) \
    | (((as14) & 0x2000) >> 13))
 
-auto void __attribute__((always_inline))
+static void __attribute__((always_inline))
 elf_machine_rela (struct link_map *map,
 		  const Elf32_Rela *reloc,
 		  const Elf32_Sym *sym,
 		  const struct r_found_version *version,
 		  void *const reloc_addr_arg,
-		  int skip_ifunc)
+		  int skip_ifunc, struct link_map *boot_map)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
   const Elf32_Sym *const refsym = sym;
@@ -581,7 +581,7 @@ elf_machine_rela (struct link_map *map,
 # ifdef RTLD_BOOTSTRAP
   /* RESOLVE_MAP in rtld.c doesn't have the local sym test.  */
   sym_map = (ELF32_ST_BIND (sym->st_info) != STB_LOCAL
-	     ? RESOLVE_MAP (&sym, version, r_type) : map);
+	     ? boot_map : map);
 # else
   sym_map = RESOLVE_MAP (&sym, version, r_type);
 # endif
@@ -741,7 +741,7 @@ elf_machine_rela (struct link_map *map,
 
 /* hppa doesn't have an R_PARISC_RELATIVE reloc, but uses relocs with
    ELF32_R_SYM (info) == 0 for a similar purpose.  */
-auto void __attribute__((always_inline))
+static void __attribute__((always_inline))
 elf_machine_rela_relative (Elf32_Addr l_addr,
 			   const Elf32_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -794,7 +794,7 @@ elf_machine_rela_relative (Elf32_Addr l_addr,
   *reloc_addr = value;
 }
 
-auto void __attribute__((always_inline))
+static void __attribute__((always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
 		      int skip_ifunc)

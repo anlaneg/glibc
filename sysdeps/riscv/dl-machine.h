@@ -161,11 +161,11 @@ elf_machine_fixup_plt (struct link_map *map, lookup_t t,
    by RELOC_ADDR.  SYM is the relocation symbol specified by R_INFO and
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
 		  const ElfW(Sym) *sym, const struct r_found_version *version,
-		  void *const reloc_addr, int skip_ifunc)
+		  void *const reloc_addr, int skip_ifunc, struct link_map *boot_map)
 {
   ElfW(Addr) r_info = reloc->r_info;
   const unsigned long int r_type = ELFW (R_TYPE) (r_info);
@@ -279,7 +279,7 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
     }
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
 			  void *const reloc_addr)
@@ -287,7 +287,7 @@ elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
   *(ElfW(Addr) *) reloc_addr = l_addr + reloc->r_addend;
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_lazy_rel (struct link_map *map, ElfW(Addr) l_addr,
 		      const ElfW(Rela) *reloc, int skip_ifunc)
@@ -320,7 +320,7 @@ elf_machine_lazy_rel (struct link_map *map, ElfW(Addr) l_addr,
 /* Set up the loaded object described by L so its stub function
    will jump to the on-demand fixup code __dl_runtime_resolve.  */
 
-auto inline int
+static inline int
 __attribute__ ((always_inline))
 elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 {

@@ -291,11 +291,11 @@ elf_machine_plt_value (struct link_map *map, const Elf32_Rel *reloc,
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute ((always_inline))
 elf_machine_rel (struct link_map *map, const Elf32_Rel *reloc,
 		 const Elf32_Sym *sym, const struct r_found_version *version,
-		 void *const reloc_addr_arg, int skip_ifunc)
+		 void *const reloc_addr_arg, int skip_ifunc, struct link_map *boot_map)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
   const unsigned int r_type = ELF32_R_TYPE (reloc->r_info);
@@ -498,11 +498,11 @@ and creates an unsatisfiable circular dependency.\n",
 }
 
 # ifndef RTLD_BOOTSTRAP
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 		  const Elf32_Sym *sym, const struct r_found_version *version,
-		  void *const reloc_addr_arg, int skip_ifunc)
+		  void *const reloc_addr_arg, int skip_ifunc, struct link_map *boot_map)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
   const unsigned int r_type = ELF32_R_TYPE (reloc->r_info);
@@ -647,7 +647,7 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 }
 # endif	/* !RTLD_BOOTSTRAP */
 
-auto inline void
+static inline void
 __attribute ((always_inline))
 elf_machine_rel_relative (Elf32_Addr l_addr, const Elf32_Rel *reloc,
 			  void *const reloc_addr_arg)
@@ -658,7 +658,7 @@ elf_machine_rel_relative (Elf32_Addr l_addr, const Elf32_Rel *reloc,
 }
 
 # ifndef RTLD_BOOTSTRAP
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -668,7 +668,7 @@ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 }
 # endif	/* !RTLD_BOOTSTRAP */
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_lazy_rel (struct link_map *map,
 		      Elf32_Addr l_addr, const Elf32_Rel *reloc,
@@ -707,12 +707,12 @@ elf_machine_lazy_rel (struct link_map *map,
 	  ElfW(Half) ndx = version[ELFW(R_SYM) (r->r_info)] & 0x7fff;
 	  elf_machine_rel (map, r, &symtab[ELFW(R_SYM) (r->r_info)],
 			   &map->l_versions[ndx],
-			   (void *) (l_addr + r->r_offset), skip_ifunc);
+			   (void *) (l_addr + r->r_offset), skip_ifunc, NULL);
 	}
 # ifndef RTLD_BOOTSTRAP
       else
 	elf_machine_rel (map, r, &symtab[ELFW(R_SYM) (r->r_info)], NULL,
-			 (void *) (l_addr + r->r_offset), skip_ifunc);
+			 (void *) (l_addr + r->r_offset), skip_ifunc, NULL);
 # endif
     }
   else if (__glibc_unlikely (r_type == R_386_IRELATIVE))
@@ -728,7 +728,7 @@ elf_machine_lazy_rel (struct link_map *map,
 
 # ifndef RTLD_BOOTSTRAP
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_lazy_rela (struct link_map *map,
 		       Elf32_Addr l_addr, const Elf32_Rela *reloc,
@@ -754,7 +754,7 @@ elf_machine_lazy_rela (struct link_map *map,
 
       /* Always initialize TLS descriptors completely at load time, in
 	 case static TLS is allocated for it that requires locking.  */
-      elf_machine_rela (map, reloc, sym, version, reloc_addr, skip_ifunc);
+      elf_machine_rela (map, reloc, sym, version, reloc_addr, skip_ifunc, NULL);
     }
   else if (__glibc_unlikely (r_type == R_386_IRELATIVE))
     {
