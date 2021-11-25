@@ -90,7 +90,7 @@ const struct _IO_jump_t _IO_strn_jumps libio_vtable attribute_hidden =
 
 
 int
-__vsnprintf_internal (char *string, size_t maxlen, const char *format,
+__vsnprintf_internal (char *string, size_t maxlen/*容许的最大长度*/, const char *format,
 		      va_list args, unsigned int mode_flags)
 {
   _IO_strnfile sf;
@@ -103,14 +103,17 @@ __vsnprintf_internal (char *string, size_t maxlen, const char *format,
      overflow buffer right from the start.  */
   if (maxlen == 0)
     {
+      /*0长度时，用于向用户返回当前格式化后字符串真实长度*/
       string = sf.overflow_buf;
       maxlen = sizeof (sf.overflow_buf);
     }
 
   _IO_no_init (&sf.f._sbf._f, _IO_USER_LOCK, -1, NULL, NULL);
   _IO_JUMPS (&sf.f._sbf) = &_IO_strn_jumps;
+  /*初始化为空*/
   string[0] = '\0';
   _IO_str_init_static_internal (&sf.f, string, maxlen - 1, string);
+  /*格式化并输出*/
   ret = __vfprintf_internal (&sf.f._sbf._f, format, args, mode_flags);
 
   if (sf.f._sbf._f._IO_buf_base != sf.overflow_buf)

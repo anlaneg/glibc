@@ -27,6 +27,7 @@
 
 /* We use this macro to refer to ELF types independent of the native wordsize.
    `ElfW(TYPE)' is used in place of `Elf32_TYPE' or `Elf64_TYPE'.  */
+/*生成例如Elf32_$type这样的类型*/
 #define ElfW(type)	_ElfW (Elf, __ELF_NATIVE_CLASS, type)
 #define _ElfW(e,w,t)	_ElfW_1 (e, w, _##t)
 #define _ElfW_1(e,w,t)	e##w##t

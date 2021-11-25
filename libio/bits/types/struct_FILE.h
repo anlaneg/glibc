@@ -57,7 +57,9 @@ struct _IO_FILE
   char *_IO_write_base;	/* Start of put area. */
   char *_IO_write_ptr;	/* Current put pointer. */
   char *_IO_write_end;	/* End of put area. */
+  /*buffer起始位置*/
   char *_IO_buf_base;	/* Start of reserve area. */
+  /*buffer终止地址*/
   char *_IO_buf_end;	/* End of reserve area. */
 
   /* The following fields are used to support backing up and undo. */

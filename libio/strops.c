@@ -40,9 +40,12 @@ _IO_str_init_static_internal (_IO_strfile *sf, char *ptr, size_t size,
   if (size == 0)
     end = __rawmemchr (ptr, '\0');
   else if ((size_t) ptr + size > (size_t) ptr)
+    /*取内存结尾*/
     end = ptr + size;
   else
+    /*会出现数值溢出，end置为最大值*/
     end = (char *) -1;
+  /*初始化fp中的buffer*/
   _IO_setb (fp, ptr, end, 0);
 
   fp->_IO_write_base = ptr;

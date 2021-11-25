@@ -334,6 +334,7 @@ _IO_setb (FILE *f, char *b, char *eb, int a)
   if (a)
     f->_flags &= ~_IO_USER_BUF;
   else
+    /*关闭时不释放此buffer*/
     f->_flags |= _IO_USER_BUF;
 }
 libc_hidden_def (_IO_setb)
@@ -526,6 +527,7 @@ _IO_enable_locks (void)
 }
 libc_hidden_def (_IO_enable_locks)
 
+/*初始化fp*/
 void
 _IO_old_init (FILE *fp, int flags)
 {
