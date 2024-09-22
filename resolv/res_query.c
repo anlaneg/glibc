@@ -128,6 +128,7 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 
 	if (type == T_QUERY_A_AND_AAAA)
 	  {
+		/*构建a及4a记录查询*/
 	    n = __res_context_mkquery (ctx, QUERY, name, class, T_A, NULL,
 				       query1, bufsize);
 	    if (n > 0)
@@ -349,9 +350,12 @@ __res_context_search (struct resolv_context *ctx,
 	__set_errno (0);
 	RES_SET_H_ERRNO(statp, HOST_NOT_FOUND);  /* True if we never query. */
 
+	/*检查域名中指定了几个'.'*/
 	dots = 0;
 	for (cp = name; *cp != '\0'; cp++)
 		dots += (*cp == '.');
+
+	/*检查域名结尾有几个'.'*/
 	trailing_dot = 0;
 	if (cp > name && *--cp == '.')
 		trailing_dot++;
@@ -359,6 +363,7 @@ __res_context_search (struct resolv_context *ctx,
 	/* If there aren't any dots, it could be a user-level alias. */
 	if (!dots && (cp = __res_context_hostalias
 		      (ctx, name, tmp, sizeof tmp))!= NULL)
+		/*一个'.'也没有，且与HOSTALIASES环境变量指定的内容匹配了，执行查询*/
 	  return __res_context_query (ctx, cp, class, type, answer,
 				      anslen, answerp, answerp2,
 				      nanswerp2, resplen2, answerp2_malloced);

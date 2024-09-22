@@ -135,6 +135,7 @@ __nss_lookup_function (nss_action_list ni, const char *fct_name)
 {
   if (ni->module == NULL)
     return NULL;
+  /*自此module中获取函数对应的函数指针*/
   return __nss_module_get_function (ni->module, fct_name);
 }
 libc_hidden_def (__nss_lookup_function)

@@ -34,6 +34,7 @@ __pthread_once (pthread_once_t *once_control, void (*init_routine) (void))
   ASSERT_TYPE_SIZE (pthread_once_t, __SIZEOF_PTHREAD_ONCE_T);
 
   atomic_full_barrier ();
+  /*先检查一遍是否初始化，如果未初始化，则加锁再检查一遍*/
   if (once_control->__run == 0)
     {
       __pthread_spin_wait (&once_control->__lock);
@@ -41,7 +42,7 @@ __pthread_once (pthread_once_t *once_control, void (*init_routine) (void))
       if (once_control->__run == 0)
 	{
 	  pthread_cleanup_push (clear_once_control, once_control);
-	  init_routine ();
+	  init_routine ();/*调用用户提供的初始化函数*/
 	  pthread_cleanup_pop (0);
 
 	  atomic_full_barrier ();

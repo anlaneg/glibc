@@ -36,6 +36,7 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
   MMAP_CHECK_PAGE_UNIT ();
 
   if (offset & MMAP_OFF_LOW_MASK)
+	  /*offset超过mmap mask*/
     return (void *) INLINE_SYSCALL_ERROR_RETURN_VALUE (EINVAL);
 
 #ifdef __NR_mmap2
@@ -46,7 +47,9 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 			     MMAP_ADJUST_OFFSET (offset));
 #endif
 }
+/*使mmap为函数__map的弱符号*/
 weak_alias (__mmap, mmap)
+/*hidden __map符号*/
 libc_hidden_def (__mmap)
 
 #endif /* __OFF_T_MATCHES_OFF64_T  */

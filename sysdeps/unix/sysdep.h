@@ -24,6 +24,7 @@
 #define	SYSCALL__(name, args)	PSEUDO (__##name, name, args)
 #define	SYSCALL(name, args)	PSEUDO (name, name, args)
 
+/*连接a,b*/
 #define __SYSCALL_CONCAT_X(a,b)     a##b
 #define __SYSCALL_CONCAT(a,b)       __SYSCALL_CONCAT_X (a, b)
 

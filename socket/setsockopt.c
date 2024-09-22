@@ -29,6 +29,7 @@ __setsockopt (int fd, int level, int optname, const void *optval,
   return -1;
 }
 
+/*定义setsockopt函数*/
 weak_alias (__setsockopt, setsockopt)
 
 stub_warning (setsockopt)

@@ -224,6 +224,7 @@ Legacy HWCAP subdirectories under library search path directories:\n");
     }
 }
 
+/*显示dl帮助信息*/
 void
 _dl_help (const char *argv0, struct dl_main_state *state)
 {

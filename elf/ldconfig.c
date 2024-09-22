@@ -1365,6 +1365,7 @@ set_hwcap (void)
 }
 
 
+/*ldconfig命令入口*/
 int
 main (int argc, char **argv)
 {

@@ -120,7 +120,7 @@
    aligning P to the next multiple of A + 1.  B and P must be of type
    char *.  A + 1 must be a power of 2.  */
 
-#define __BPTR_ALIGN(B, P, A) ((B) + (((P) - (B) + (A)) & ~(A)))
+#define __BPTR_ALIGN(B/*基准点*/, P/*B之后的一个obj*/, A/*对齐方式*/) ((B) + (((P) - (B) + (A)) & ~(A)))
 
 /* Similar to _BPTR_ALIGN (B, P, A), except optimize the common case
    where pointers can be converted to integers, aligned as integers,
@@ -146,6 +146,7 @@ extern "C" {
 struct _obstack_chunk           /* Lives at front of each chunk. */
 {
   char *limit;                  /* 1 past end of this chunk */
+  /*指向上一个chunk*/
   struct _obstack_chunk *prev;  /* address of prior chunk or NULL */
   char contents[4];             /* objects begin here */
 };
@@ -154,8 +155,11 @@ struct obstack          /* control current object in current chunk */
 {
   long chunk_size;              /* preferred size to allocate chunks in */
   struct _obstack_chunk *chunk; /* address of current struct obstack_chunk */
+  /*object的起始基准点（考虑了对齐）*/
   char *object_base;            /* address of object we are building */
+  /*指向首个可add的地址*/
   char *next_free;              /* where to add next char to current object */
+  /*当前chunk极限位置，指向chunk结尾*/
   char *chunk_limit;            /* address of char after current chunk */
   union
   {
@@ -166,10 +170,15 @@ struct obstack          /* control current object in current chunk */
   /* These prototypes vary based on 'use_extra_arg', and we use
      casts to the prototypeless function type in all assignments,
      but having prototypes here quiets -Wstrict-prototypes.  */
+  /*chunk申请函数*/
   struct _obstack_chunk *(*chunkfun) (void *, long);
+  /*chunk释放函数*/
   void (*freefun) (void *, struct _obstack_chunk *);
+  /*记录申请释放占用的参数*/
   void *extra_arg;              /* first arg for chunk alloc/dealloc funcs */
+  /*申请释放需要额外的参数*/
   unsigned use_extra_arg : 1;     /* chunk alloc/dealloc funcs take extra arg */
+  /*指明内容为空*/
   unsigned maybe_empty_object : 1; /* There is a possibility that the current
 				      chunk contains a zero-length object.  This
 				      prevents freeing the chunk if we allocate
@@ -270,6 +279,7 @@ extern int obstack_exit_failure;
 # define obstack_object_size(OBSTACK)					      \
   __extension__								      \
     ({ struct obstack const *__o = (OBSTACK);				      \
+    /*取object长度*/\
        (unsigned) (__o->next_free - __o->object_base); })
 
 # define obstack_room(OBSTACK)						      \
@@ -293,13 +303,16 @@ extern int obstack_exit_failure;
 					  __o->chunk->contents,		      \
 					  __o->alignment_mask)); })
 
-# define obstack_grow(OBSTACK, where, length)				      \
+# define obstack_grow(OBSTACK, where/*内存起始位置*/, length/*内存长度*/)				      \
   __extension__								      \
     ({ struct obstack *__o = (OBSTACK);					      \
        int __len = (length);						      \
        if (__o->next_free + __len > __o->chunk_limit)			      \
+       /*待添加的内容超过chunk_limit,执行chunk新增*/\
 	 _obstack_newchunk (__o, __len);				      \
+	 /*将where位置的内容，复制进去*/\
        memcpy (__o->next_free, where, __len);				      \
+       /*next_free增加len*/\
        __o->next_free += __len;						      \
        (void) 0; })
 
@@ -318,7 +331,9 @@ extern int obstack_exit_failure;
   __extension__								      \
     ({ struct obstack *__o = (OBSTACK);					      \
        if (__o->next_free + 1 > __o->chunk_limit)			      \
+       /*空间不足，增加新chunk*/\
 	 _obstack_newchunk (__o, 1);					      \
+	 /*向obstack中添加一个字符dataum*/\
        obstack_1grow_fast (__o, datum);					      \
        (void) 0; })
 
@@ -387,17 +402,21 @@ extern int obstack_exit_failure;
    when obstack_blank is called.  */
 # define obstack_finish(OBSTACK)					      \
   __extension__								      \
-    ({ struct obstack *__o1 = (OBSTACK);				      \
+    ({ struct obstack *__o1 = (OBSTACK);/*指向obstack*/				      \
        void *__value = (void *) __o1->object_base;			      \
        if (__o1->next_free == __value)					      \
+       /*next_free与__value相等，指明内容为空*/\
 	 __o1->maybe_empty_object = 1;					      \
+	 /*新的可填充的点*/\
        __o1->next_free							      \
 	 = __PTR_ALIGN (__o1->object_base, __o1->next_free,		      \
 			__o1->alignment_mask);				      \
        if (__o1->next_free - (char *) __o1->chunk			      \
 	   > __o1->chunk_limit - (char *) __o1->chunk)			      \
 	 __o1->next_free = __o1->chunk_limit;				      \
+	 /*新的可填充的obj起始点*/\
        __o1->object_base = __o1->next_free;				      \
+       /*返回object指针*/\
        __value; })
 
 # define obstack_free(OBSTACK, OBJ)					      \
@@ -405,6 +424,7 @@ extern int obstack_exit_failure;
     ({ struct obstack *__o = (OBSTACK);					      \
        void *__obj = (OBJ);						      \
        if (__obj > (void *) __o->chunk && __obj < (void *) __o->chunk_limit)  \
+       /*obj在范围以内，更新next_free到obj (这里将object_base也变更到obj???)*/\
 	 __o->next_free = __o->object_base = (char *) __obj;		      \
        else (__obstack_free) (__o, __obj); })
 

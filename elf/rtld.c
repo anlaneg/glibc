@@ -1138,6 +1138,7 @@ dl_main (const ElfW(Phdr) *phdr,
   _dl_starting_up = 1;
 #endif
 
+  /*ld名称*/
   const char *ld_so_name = _dl_argv[0];
   if (*user_entry == (ElfW(Addr)) ENTRY_POINT)
     {

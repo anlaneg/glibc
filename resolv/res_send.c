@@ -355,6 +355,7 @@ __res_context_send (struct resolv_context *ctx,
 	    same_ns:
 		if (__glibc_unlikely (v_circuit))       {
 			/* Use VC; at most one attempt per server. */
+			/*通过tcp发送请求*/
 			try = statp->retry;
 			n = send_vc(statp, buf, buflen, buf2, buflen2,
 				    &ans, &anssiz, &terrno,
@@ -370,6 +371,7 @@ __res_context_send (struct resolv_context *ctx,
 			DIAG_POP_NEEDS_COMMENT;
 		} else {
 			/* Use datagrams. */
+			/*通过udp方式发送*/
 			n = send_dg(statp, buf, buflen, buf2, buflen2,
 				    &ans, &anssiz, &terrno,
 				    ns, &v_circuit, &gotsomewhere, ansp,
@@ -604,6 +606,7 @@ send_vc(res_state statp,
 		if (statp->_vcsock >= 0)
 		  __res_iclose(statp, false);
 
+		/*先创建tcp socket*/
 		statp->_vcsock = __socket
 		  (nsap->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0);
 		if (statp->_vcsock < 0) {
@@ -613,6 +616,7 @@ send_vc(res_state statp,
 			return (-1);
 		}
 		__set_errno (0);
+		/*与对端建立连接*/
 		if (__connect (statp->_vcsock, nsap,
 			       nsap->sa_family == AF_INET
 			       ? sizeof (struct sockaddr_in)
@@ -1062,6 +1066,7 @@ send_dg(res_state statp,
 			},
 		      };
 
+		    /*向外发送消息*/
 		    int ndg = __sendmmsg (pfd[0].fd, reqs, 2, MSG_NOSIGNAL);
 		    if (__glibc_likely (ndg == 2))
 		      {

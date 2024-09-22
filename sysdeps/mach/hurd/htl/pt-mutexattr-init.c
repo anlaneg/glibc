@@ -35,7 +35,7 @@ __pthread_mutexattr_init (pthread_mutexattr_t *attrp)
 {
   ASSERT_TYPE_SIZE (pthread_mutexattr_t, __SIZEOF_PTHREAD_MUTEXATTR_T);
 
-  *attrp = dfl_attr;
+  *attrp = dfl_attr;/*初始化为默认属性*/
   return 0;
 }
 weak_alias (__pthread_mutexattr_init, pthread_mutexattr_init)

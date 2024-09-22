@@ -71,6 +71,7 @@ struct fooalign
    DEFAULT_ROUNDING.  So we prepare for it to do that.  */
 enum
 {
+    /*默认对齐按照c后添加int时，int的位置来决定对齐方式*/
   DEFAULT_ALIGNMENT = offsetof (struct fooalign, u),
   DEFAULT_ROUNDING = sizeof (union fooround)
 };
@@ -120,14 +121,18 @@ compat_symbol (libc, _obstack_compat, _obstack, GLIBC_2_0);
 
 # define CALL_CHUNKFUN(h, size) \
   (((h)->use_extra_arg)							      \
+          /*如果有额外参数，则提供额外参数及长度进行申请*/\
    ? (*(h)->chunkfun)((h)->extra_arg, (size))				      \
+           /*如果无额外参数，则直接申请*/\
    : (*(struct _obstack_chunk *(*)(long))(h)->chunkfun)((size)))
 
 # define CALL_FREEFUN(h, old_chunk) \
   do { \
       if ((h)->use_extra_arg)						      \
+      /*有额外参数，释放*/\
 	(*(h)->freefun)((h)->extra_arg, (old_chunk));			      \
       else								      \
+      /*无额外参数，释放*/\
 	(*(void (*)(void *))(h)->freefun)((old_chunk));			      \
     } while (0)
 
@@ -142,13 +147,14 @@ compat_symbol (libc, _obstack_compat, _obstack, GLIBC_2_0);
 
 int
 _obstack_begin (struct obstack *h,
-		int size, int alignment,
-		void *(*chunkfun) (long),
-		void (*freefun) (void *))
+		int size/*chunk大小*/, int alignment/*chunk对齐方式*/,
+		void *(*chunkfun/*申请chunk*/) (long),
+		void (*freefun/*释放chunk*/) (void *))
 {
   struct _obstack_chunk *chunk; /* points to new chunk */
 
   if (alignment == 0)
+    /*采用默认对齐*/
     alignment = DEFAULT_ALIGNMENT;
   if (size == 0)
     /* Default size is what GNU malloc can fit in a 4096-byte block.  */
@@ -164,6 +170,7 @@ _obstack_begin (struct obstack *h,
       int extra = ((((12 + DEFAULT_ROUNDING - 1) & ~(DEFAULT_ROUNDING - 1))
 		    + 4 + DEFAULT_ROUNDING - 1)
 		   & ~(DEFAULT_ROUNDING - 1));
+      /*采用默认大小*/
       size = 4096 - extra;
     }
 
@@ -173,9 +180,12 @@ _obstack_begin (struct obstack *h,
   h->alignment_mask = alignment - 1;
   h->use_extra_arg = 0;
 
+  /*调用chunkfun完成chunk申请，长度为chunk_size*/
   chunk = h->chunk = CALL_CHUNKFUN (h, h->chunk_size);
   if (!chunk)
+      /*申请失败，触发failed_handler*/
     (*obstack_alloc_failed_handler) ();
+  /*首次初始化，设置obj基准，next_free与object_base完全相等*/
   h->next_free = h->object_base = __PTR_ALIGN ((char *) chunk, chunk->contents,
 					       alignment - 1);
   h->chunk_limit = chunk->limit
@@ -244,6 +254,7 @@ _obstack_begin_1 (struct obstack *h, int size, int alignment,
 void
 _obstack_newchunk (struct obstack *h, int length)
 {
+  /*保存旧的chunk*/
   struct _obstack_chunk *old_chunk = h->chunk;
   struct _obstack_chunk *new_chunk;
   long new_size;
@@ -255,14 +266,17 @@ _obstack_newchunk (struct obstack *h, int length)
   /* Compute size for new chunk.  */
   new_size = (obj_size + length) + (obj_size >> 3) + h->alignment_mask + 100;
   if (new_size < h->chunk_size)
+      /*修正最小size*/
     new_size = h->chunk_size;
 
   /* Allocate and initialize the new chunk.  */
   new_chunk = CALL_CHUNKFUN (h, new_size);
   if (!new_chunk)
+      /*申请chunk失败，执行失败处理*/
     (*obstack_alloc_failed_handler)();
-  h->chunk = new_chunk;
-  new_chunk->prev = old_chunk;
+  h->chunk = new_chunk;/*指向新申请的chunk*/
+  new_chunk->prev = old_chunk;/*指向旧的chunk*/
+  /*指向chunk极限位置*/
   new_chunk->limit = h->chunk_limit = (char *) new_chunk + new_size;
 
   /* Compute an aligned object_base in the new chunk */

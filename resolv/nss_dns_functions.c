@@ -20,6 +20,7 @@
 #include <nss_dns.h>
 #include <string.h>
 
+/*内置的dns相关的函数*/
 void
 __nss_dns_functions (nss_module_functions_untyped pointers)
 {
@@ -28,7 +29,7 @@ __nss_dns_functions (nss_module_functions_untyped pointers)
       .getcanonname_r = &_nss_dns_getcanonname_r,
       .gethostbyname3_r = &_nss_dns_gethostbyname3_r,
       .gethostbyname2_r = &_nss_dns_gethostbyname2_r,
-      .gethostbyname_r = &_nss_dns_gethostbyname_r,
+      .gethostbyname_r = &_nss_dns_gethostbyname_r,/*gethostbyname_r函数实现*/
       .gethostbyname4_r = &_nss_dns_gethostbyname4_r,
       .gethostbyaddr2_r = &_nss_dns_gethostbyaddr2_r,
       .gethostbyaddr_r = &_nss_dns_gethostbyaddr_r,

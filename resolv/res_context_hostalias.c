@@ -99,10 +99,16 @@ __res_context_hostalias (struct resolv_context *ctx,
   FILE *fp;
 
   if (ctx->resp->options & RES_NOALIASES)
+	  /*指明不看别名，直接返回NULL*/
     return NULL;
+
+  /*检查是否有环境变量指明了host别名*/
   file = getenv ("HOSTALIASES");
   if (file == NULL || (fp = fopen (file, "rce")) == NULL)
+	  /*未指定此环境变量，或者此文件不存在,直接返回NULL*/
     return NULL;
+
+  /*与文件内容进行比较*/
   buf[sizeof (buf) - 1] = '\0';
   while (__fgets_unlocked (buf, sizeof (buf), fp))
     {

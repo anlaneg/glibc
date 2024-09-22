@@ -106,6 +106,7 @@ __nss_module_allocate (const char *name, size_t name_length)
    longest entry in that list.  */
 typedef char function_name[sizeof("getprotobynumber_r")];
 
+/*函数名称数组*/
 static const function_name nss_function_name_array[] =
   {
 #undef DEFINE_NSS_FUNCTION
@@ -159,6 +160,7 @@ module_load_nss_files (struct nss_module *module)
       _nss_files_init (cb);
     }
 #endif
+  /*加载files相关的api函数*/
   return module_load_builtin (module, __nss_files_functions);
 }
 
@@ -166,6 +168,7 @@ module_load_nss_files (struct nss_module *module)
 static bool
 module_load_nss_dns (struct nss_module *module)
 {
+	/*加载内置的dns相关的api函数*/
   return module_load_builtin (module, __nss_dns_functions);
 }
 
@@ -188,7 +191,7 @@ module_load (struct nss_module *module)
          call.  */
       return false;
 
-    handle = __libc_dlopen (shlib_name);
+    handle = __libc_dlopen (shlib_name);/*加载libnss_XXX.soXX库*/
     free (shlib_name);
   }
 
@@ -208,6 +211,7 @@ module_load (struct nss_module *module)
       switch ((enum nss_module_state) atomic_load_acquire (&module->state))
         {
         case nss_module_uninitialized:
+        	/*打开so失败，当前为未初始化状态，故转失败状态*/
           atomic_store_release (&module->state, nss_module_failed);
           result = false;
           break;
@@ -222,13 +226,14 @@ module_load (struct nss_module *module)
       return result;
     }
 
-  nss_module_functions_untyped pointers;
+  nss_module_functions_untyped pointers;/*用于填充nss_function_name_array对应的每个函数指针*/
 
   /* Look up and store locally all the function pointers we may need
      later.  Doing this now means the data will not change in the
      future.  */
   for (size_t idx = 0; idx < array_length (nss_function_name_array); ++idx)
     {
+	  /*将函数名称转换为lib中的函数实际名称*/
       char *function_name;
       if (__asprintf (&function_name, "_nss_%s_%s",
                       module->name, nss_function_name_array[idx]) < 0)
@@ -237,7 +242,7 @@ module_load (struct nss_module *module)
           __libc_dlclose (handle);
           return false;
         }
-      pointers[idx] = __libc_dlsym (handle, function_name);
+      pointers[idx] = __libc_dlsym (handle, function_name);/*自so中取函数对应的地址*/
       free (function_name);
 #ifdef PTR_MANGLE
       PTR_MANGLE (pointers[idx]);
@@ -281,10 +286,10 @@ module_load (struct nss_module *module)
     case nss_module_uninitialized:
     case nss_module_failed:
       memcpy (module->functions.untyped, pointers,
-              sizeof (module->functions.untyped));
+              sizeof (module->functions.untyped));/*将这些函数指针，填写进变量*/
       module->handle = handle;
       /* Synchronizes with unlocked __nss_module_load atomic_load_acquire.  */
-      atomic_store_release (&module->state, nss_module_loaded);
+      atomic_store_release (&module->state, nss_module_loaded);/*将状态转为已加载*/
       break;
     case nss_module_loaded:
       /* If the module was already loaded, close our own handle.  This
@@ -307,13 +312,13 @@ __nss_module_load (struct nss_module *module)
   switch ((enum nss_module_state) atomic_load_acquire (&module->state))
     {
     case nss_module_uninitialized:
-      return module_load (module);
+      return module_load (module);/*当前此module还未初始化，初始化它*/
     case nss_module_loaded:
       /* Loading has already succeeded.  */
-      return true;
+      return true;/*已初始化，直接返回*/
     case nss_module_failed:
       /* Loading previously failed.  */
-      return false;
+      return false;/*初始化时失败*/
     }
   __builtin_unreachable ();
 }
@@ -331,14 +336,16 @@ void *
 __nss_module_get_function (struct nss_module *module, const char *name)
 {
   if (!__nss_module_load (module))
+	  /*尝试加载此module失败，获取函数指针失败*/
     return NULL;
 
+  /*利用名称查询nss_function_name_array*/
   function_name *name_entry = bsearch (name, nss_function_name_array,
                                        array_length (nss_function_name_array),
                                        sizeof (function_name), name_search);
   assert (name_entry != NULL);
-  size_t idx = name_entry - nss_function_name_array;
-  void *fptr = module->functions.untyped[idx];
+  size_t idx = name_entry - nss_function_name_array;/*取得此函数对应的idx*/
+  void *fptr = module->functions.untyped[idx];/*取得此函数对应的函数回调指针*/
 #ifdef PTR_DEMANGLE
   PTR_DEMANGLE (fptr);
 #endif

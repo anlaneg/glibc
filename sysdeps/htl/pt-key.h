@@ -73,5 +73,5 @@ __pthread_key_lock_ready (void)
     assert_perror (err);
   }
 
-  __pthread_once (&o, do_init);
+  __pthread_once (&o, do_init);/*保证只调用一次do_init*/
 }

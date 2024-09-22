@@ -62,7 +62,7 @@ struct nss_module
 {
   /* Actual type is enum nss_module_state.  Use int due to atomic
      access.  Used in a double-checked locking idiom.  */
-  int state;
+  int state;/*此模块的加载情况1。未初始化；2。初始化完成；3。加载失败*/
 
   /* The function pointers in the module.  */
   union
@@ -72,13 +72,13 @@ struct nss_module
   } functions;
 
   /* Only used for __libc_freeres unloading.  */
-  void *handle;
+  void *handle;/*此模块对应的dlopen handle*/
 
   /* The next module in the list. */
   struct nss_module *next;
 
   /* The name of the module (as it appears in /etc/nsswitch.conf).  */
-  char name[];
+  char name[];/*要加载的module名称*/
 };
 
 /* Allocates the NSS module NAME (of NAME_LENGTH bytes) and places it

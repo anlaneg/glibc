@@ -116,8 +116,8 @@ __res_context_mkquery (struct resolv_context *ctx, int op, const char *dname,
   /* We randomize the IDs every time.  The old code just incremented
      by one after the initial randomization which still predictable if
      the application does multiple requests.  */
-  hp->id = random_bits ();
-  hp->opcode = op;
+  hp->id = random_bits ();/*生成随机数做为查询id*/
+  hp->opcode = op;/*取操作码*/
   if (ctx->resp->options & RES_TRUSTAD)
     hp->ad = 1;
   hp->rd = (ctx->resp->options & RES_RECURSE) != 0;

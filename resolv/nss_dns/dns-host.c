@@ -171,8 +171,8 @@ _nss_dns_gethostbyname3_r (const char *name, int af, struct hostent *result,
 libc_hidden_def (_nss_dns_gethostbyname3_r)
 
 static enum nss_status
-gethostbyname3_context (struct resolv_context *ctx,
-			const char *name, int af, struct hostent *result,
+gethostbyname3_context (struct resolv_context *ctx/*缓存保存在这里*/,
+			const char *name/*域名*/, int af/*协议族，例如ipv6*/, struct hostent *result,
 			char *buffer, size_t buflen, int *errnop,
 			int *h_errnop, int32_t *ttlp, char **canonp)
 {
@@ -192,11 +192,11 @@ gethostbyname3_context (struct resolv_context *ctx,
   switch (af) {
   case AF_INET:
     size = INADDRSZ;
-    type = T_A;
+    type = T_A;/*a记录*/
     break;
   case AF_INET6:
     size = IN6ADDRSZ;
-    type = T_AAAA;
+    type = T_AAAA;/*取4a记录*/
     break;
   default:
     *h_errnop = NO_DATA;
@@ -212,7 +212,7 @@ gethostbyname3_context (struct resolv_context *ctx,
    * this is also done in res_query() since we are not the only
    * function that looks up host names.
    */
-  if (strchr (name, '.') == NULL
+  if (strchr (name, '.') == NULL/*名称中没有.*/
       && (cp = __res_context_hostalias (ctx, name, tmp, sizeof (tmp))) != NULL)
     name = cp;
 
@@ -319,9 +319,11 @@ _nss_dns_gethostbyname_r (const char *name, struct hostent *result,
     }
   status = NSS_STATUS_NOTFOUND;
   if (res_use_inet6 ())
+	  /*使用inet6进行查询*/
     status = gethostbyname3_context (ctx, name, AF_INET6, result, buffer,
 				     buflen, errnop, h_errnop, NULL, NULL);
   if (status == NSS_STATUS_NOTFOUND)
+	  /*使用inet进行查询*/
     status = gethostbyname3_context (ctx, name, AF_INET, result, buffer,
 				     buflen, errnop, h_errnop, NULL, NULL);
   __resolv_context_put (ctx);

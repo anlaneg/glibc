@@ -97,6 +97,7 @@ ptrace (enum __ptrace_request request, ...)
       break;
 
     default:
+    	/*当前不认识的选项*/
       __set_errno (EINVAL);
       return -1;
     }
