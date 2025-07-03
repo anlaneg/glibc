@@ -1,7 +1,6 @@
 /* Cache handling for host lookup.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2004.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -46,7 +45,7 @@ static const initgr_response_header notfound =
 };
 
 
-#include "../grp/compat-initgroups.c"
+#include "../nss/initgroups-fallback.c"
 
 
 static time_t
@@ -94,7 +93,7 @@ addinitgroupsX (struct database_dyn *db, int fd, request_header *req,
 
   long int size;
   if (limit > 0)
-    /* We limit the size of the intially allocated array.  */
+    /* We limit the size of the initially allocated array.  */
     size = MIN (limit, 64);
   else
     /* No fixed limit on groups.  Pick a starting buffer size.  */

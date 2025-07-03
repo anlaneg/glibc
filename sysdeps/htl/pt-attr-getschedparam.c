@@ -1,5 +1,5 @@
 /* pthread_attr_getschedparam.  Generic version.
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <string.h>
+#include <shlib-compat.h>
 
 #include <pt-internal.h>
 
@@ -26,8 +27,12 @@ int
 __pthread_attr_getschedparam (const pthread_attr_t *attr,
 			      struct sched_param *param)
 {
-  memcpy (param, &attr->__schedparam, sizeof *param);
+  param->sched_priority = attr->__schedparam.__sched_priority;
   return 0;
 }
 
-weak_alias (__pthread_attr_getschedparam, pthread_attr_getschedparam);
+versioned_symbol (libc, __pthread_attr_getschedparam, pthread_attr_getschedparam, GLIBC_2_21);
+
+#if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_12, GLIBC_2_21)
+compat_symbol (libc, __pthread_attr_getschedparam, pthread_attr_getschedparam, GLIBC_2_12);
+#endif

@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@uni-paderborn.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -68,7 +67,8 @@ libc_locked_map_ptr (static, map_handle);
 /* Note that we only free the structure if necessary.  The memory
    mapping is not removed since it is not visible to the malloc
    handling.  */
-libc_freeres_fn (pw_map_free)
+void
+__nscd_pw_map_freemem (void)
 {
   if (map_handle.mapped != NO_MAPPING)
     {
@@ -226,7 +226,7 @@ nscd_getpw_r (const char *key, size_t keylen, request_type type,
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}

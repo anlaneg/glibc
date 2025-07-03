@@ -1,6 +1,6 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
-   Written by Per Bothner <bothner@cygnus.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -127,15 +127,48 @@ _IO_new_file_init (struct _IO_FILE_plus *fp)
 int
 _IO_new_file_close_it (FILE *fp)
 {
-  int write_status;
+  int flush_status = 0;
   if (!_IO_file_is_open (fp))
     return EOF;
 
   if ((fp->_flags & _IO_NO_WRITES) == 0
       && (fp->_flags & _IO_CURRENTLY_PUTTING) != 0)
-    write_status = _IO_do_flush (fp);
-  else
-    write_status = 0;
+    flush_status = _IO_do_flush (fp);
+  else if (fp->_fileno >= 0
+	   /* If this is the active handle, we must seek the
+	      underlying open file description (possibly shared with
+	      other file descriptors that remain open) to the correct
+	      offset.  But if this stream is in a state such that some
+	      other handle might have become the active handle, then
+	      (a) at the time it entered that state, the underlying
+	      open file description had the correct offset, and (b)
+	      seeking the underlying open file description, even to
+	      its newly determined current offset, is not safe because
+	      it can race with operations on a different active
+	      handle.  So check here for cases where it is necessary
+	      to seek, while avoiding seeking in cases where it is
+	      unsafe to do so.  */
+	   && (_IO_in_backup (fp)
+	       || (fp->_mode <= 0 && fp->_IO_read_ptr < fp->_IO_read_end)
+	       || (_IO_vtable_offset (fp) == 0
+		   && fp->_mode > 0 && (fp->_wide_data->_IO_read_ptr
+					< fp->_wide_data->_IO_read_end))))
+    {
+      off64_t o = _IO_SEEKOFF (fp, 0, _IO_seek_cur, 0);
+      if (o == EOF)
+	{
+	  if (errno != ESPIPE)
+	    flush_status = EOF;
+	}
+      else
+	{
+	  if (_IO_in_backup (fp))
+	    o -= fp->_IO_save_end - fp->_IO_save_base;
+	  flush_status = (_IO_SYSSEEK (fp, o, SEEK_SET) < 0 && errno != ESPIPE
+			  ? EOF
+			  : 0);
+	}
+    }
 
   _IO_unsave_markers (fp);
 
@@ -160,7 +193,7 @@ _IO_new_file_close_it (FILE *fp)
   fp->_fileno = -1;
   fp->_offset = _IO_pos_BAD;
 
-  return close_status ? close_status : write_status;
+  return close_status ? close_status : flush_status;
 }
 libc_hidden_ver (_IO_new_file_close_it, _IO_file_close_it)
 
@@ -221,7 +254,7 @@ _IO_new_file_fopen (FILE *fp, const char *filename, const char *mode,
   const char *last_recognized;
 
   if (_IO_file_is_open (fp))
-    return 0;
+    return NULL;
   switch (*mode)
     {
     case 'r':
@@ -248,6 +281,7 @@ _IO_new_file_fopen (FILE *fp, const char *filename, const char *mode,
       switch (*++mode)
 	{
 	case '\0':
+	case ',':
 	  break;
 	case '+':
 	  omode = O_RDWR;
@@ -480,7 +514,7 @@ _IO_new_file_underflow (FILE *fp)
       /* Maybe we already have a push back pointer.  */
       if (fp->_IO_save_base != NULL)
 	{
-	  free (fp->_IO_save_base);
+	  _IO_free_backup_buf (fp, fp->_IO_save_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -798,6 +832,11 @@ _IO_new_file_sync (FILE *fp)
   if (fp->_IO_write_ptr > fp->_IO_write_base)
     if (_IO_do_flush(fp)) return EOF;
   delta = fp->_IO_read_ptr - fp->_IO_read_end;
+  if (_IO_in_backup (fp))
+    {
+      _IO_switch_to_main_get_area (fp);
+      delta += fp->_IO_read_ptr - fp->_IO_read_end;
+    }
   if (delta != 0)
     {
       off64_t new_pos = _IO_SYSSEEK (fp, delta, 1);
@@ -816,20 +855,24 @@ _IO_new_file_sync (FILE *fp)
 }
 libc_hidden_ver (_IO_new_file_sync, _IO_file_sync)
 
-static int
+int
 _IO_file_sync_mmap (FILE *fp)
 {
+  off64_t o = fp->_offset - (fp->_IO_read_end - fp->_IO_read_ptr);
   if (fp->_IO_read_ptr != fp->_IO_read_end)
     {
-      if (__lseek64 (fp->_fileno, fp->_IO_read_ptr - fp->_IO_buf_base,
-		     SEEK_SET)
-	  != fp->_IO_read_ptr - fp->_IO_buf_base)
+      if (_IO_in_backup (fp))
+	{
+	  _IO_switch_to_main_get_area (fp);
+	  o -= fp->_IO_read_end - fp->_IO_read_base;
+	}
+      if (__lseek64 (fp->_fileno, o, SEEK_SET) != o)
 	{
 	  fp->_flags |= _IO_ERR_SEEN;
 	  return EOF;
 	}
     }
-  fp->_offset = fp->_IO_read_ptr - fp->_IO_buf_base;
+  fp->_offset = o;
   fp->_IO_read_end = fp->_IO_read_ptr = fp->_IO_read_base;
   return 0;
 }
@@ -885,6 +928,16 @@ do_ftell (FILE *fp)
   if (result == EOF)
     return result;
 
+  if (result == 0 && offset < 0)
+    {
+      /* This happens for some character devices that always report
+	 file offset 0 even after some data has been read (instead of
+	 failing with ESPIPE).  The fclose path ignores this
+	 error.  */
+      __set_errno (ESPIPE);
+      return EOF;
+    }
+
   result += offset;
 
   if (result < 0)
@@ -932,7 +985,7 @@ _IO_new_file_seekoff (FILE *fp, off64_t offset, int dir, int mode)
       /* It could be that we already have a pushback buffer.  */
       if (fp->_IO_read_base != NULL)
 	{
-	  free (fp->_IO_read_base);
+	  _IO_free_backup_buf (fp, fp->_IO_read_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -1067,11 +1120,18 @@ _IO_file_seekoff_mmap (FILE *fp, off64_t offset, int dir, int mode)
   if (mode == 0)
     return fp->_offset - (fp->_IO_read_end - fp->_IO_read_ptr);
 
+  if (_IO_in_backup (fp))
+    {
+      if (dir == _IO_seek_cur)
+	offset += fp->_IO_read_ptr - fp->_IO_read_end;
+      _IO_switch_to_main_get_area (fp);
+    }
+
   switch (dir)
     {
     case _IO_seek_cur:
       /* Adjust for read-ahead (bytes is buffer). */
-      offset += fp->_IO_read_ptr - fp->_IO_read_base;
+      offset += fp->_offset - (fp->_IO_read_end - fp->_IO_read_ptr);
       break;
     case _IO_seek_set:
       break;
@@ -1110,7 +1170,7 @@ _IO_file_seekoff_mmap (FILE *fp, off64_t offset, int dir, int mode)
   return offset;
 }
 
-static off64_t
+off64_t
 _IO_file_seekoff_maybe_mmap (FILE *fp, off64_t offset, int dir,
 			     int mode)
 {
@@ -1184,6 +1244,7 @@ _IO_new_file_write (FILE *f, const void *data, ssize_t n)
 	  f->_flags |= _IO_ERR_SEEN;
 	  break;
 	}
+      f->_total_written += count;
       to_do -= count;
       data = (void *) ((char *) data + count);
     }
@@ -1282,7 +1343,7 @@ _IO_file_xsgetn (FILE *fp, void *data, size_t n)
       /* Maybe we already have a push back pointer.  */
       if (fp->_IO_save_base != NULL)
 	{
-	  free (fp->_IO_save_base);
+	  _IO_free_backup_buf (fp, fp->_IO_save_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -1361,7 +1422,7 @@ _IO_file_xsgetn (FILE *fp, void *data, size_t n)
 }
 libc_hidden_def (_IO_file_xsgetn)
 
-static size_t
+size_t
 _IO_file_xsgetn_mmap (FILE *fp, void *data, size_t n)
 {
   size_t have;
@@ -1406,7 +1467,7 @@ _IO_file_xsgetn_mmap (FILE *fp, void *data, size_t n)
   return s - (char *) data;
 }
 
-static size_t
+size_t
 _IO_file_xsgetn_maybe_mmap (FILE *fp, void *data, size_t n)
 {
   /* We only get here if this is the first attempt to read something.
@@ -1429,76 +1490,3 @@ versioned_symbol (libc, _IO_new_file_seekoff, _IO_file_seekoff, GLIBC_2_1);
 versioned_symbol (libc, _IO_new_file_underflow, _IO_file_underflow, GLIBC_2_1);
 versioned_symbol (libc, _IO_new_file_write, _IO_file_write, GLIBC_2_1);
 versioned_symbol (libc, _IO_new_file_xsputn, _IO_file_xsputn, GLIBC_2_1);
-
-const struct _IO_jump_t _IO_file_jumps libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_file_finish),
-  JUMP_INIT(overflow, _IO_file_overflow),
-  JUMP_INIT(underflow, _IO_file_underflow),
-  JUMP_INIT(uflow, _IO_default_uflow),
-  JUMP_INIT(pbackfail, _IO_default_pbackfail),
-  JUMP_INIT(xsputn, _IO_file_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn),
-  JUMP_INIT(seekoff, _IO_new_file_seekoff),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, _IO_new_file_setbuf),
-  JUMP_INIT(sync, _IO_new_file_sync),
-  JUMP_INIT(doallocate, _IO_file_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};
-libc_hidden_data_def (_IO_file_jumps)
-
-const struct _IO_jump_t _IO_file_jumps_mmap libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_file_finish),
-  JUMP_INIT(overflow, _IO_file_overflow),
-  JUMP_INIT(underflow, _IO_file_underflow_mmap),
-  JUMP_INIT(uflow, _IO_default_uflow),
-  JUMP_INIT(pbackfail, _IO_default_pbackfail),
-  JUMP_INIT(xsputn, _IO_new_file_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn_mmap),
-  JUMP_INIT(seekoff, _IO_file_seekoff_mmap),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, (_IO_setbuf_t) _IO_file_setbuf_mmap),
-  JUMP_INIT(sync, _IO_file_sync_mmap),
-  JUMP_INIT(doallocate, _IO_file_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close_mmap),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};
-
-const struct _IO_jump_t _IO_file_jumps_maybe_mmap libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_file_finish),
-  JUMP_INIT(overflow, _IO_file_overflow),
-  JUMP_INIT(underflow, _IO_file_underflow_maybe_mmap),
-  JUMP_INIT(uflow, _IO_default_uflow),
-  JUMP_INIT(pbackfail, _IO_default_pbackfail),
-  JUMP_INIT(xsputn, _IO_new_file_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn_maybe_mmap),
-  JUMP_INIT(seekoff, _IO_file_seekoff_maybe_mmap),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, (_IO_setbuf_t) _IO_file_setbuf_mmap),
-  JUMP_INIT(sync, _IO_new_file_sync),
-  JUMP_INIT(doallocate, _IO_file_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};

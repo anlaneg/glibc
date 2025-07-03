@@ -1,8 +1,6 @@
 /* Mapping tables for JOHAB handling.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jungshik Shin <jshin@pantheon.yale.edu>
-   and Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -132,7 +130,7 @@ static const uint16_t jamo_from_ucs_table[51] =
 
 
 static uint32_t
-johab_sym_hanja_to_ucs (uint_fast32_t idx, uint_fast32_t c1, uint_fast32_t c2)
+johab_sym_hanja_to_ucs (uint32_t idx, uint32_t c1, uint32_t c2)
 {
   if (idx <= 0xdefe)
     return (uint32_t) __ksc5601_sym_to_ucs[(c1 - 0xd9) * 188 + c2
@@ -191,7 +189,7 @@ johab_sym_hanja_to_ucs (uint_fast32_t idx, uint_fast32_t c1, uint_fast32_t c2)
 	    /* Two-byte character.  First test whether the next		      \
 	       character is also available.  */				      \
 	    uint32_t ch2;						      \
-	    uint_fast32_t idx;						      \
+	    uint32_t idx;						      \
 									      \
 	    if (__glibc_unlikely (inptr + 1 >= inend))			      \
 	      {								      \
@@ -206,7 +204,7 @@ johab_sym_hanja_to_ucs (uint_fast32_t idx, uint_fast32_t c1, uint_fast32_t c2)
 	    if (__glibc_likely (ch <= 0xd3))				      \
 	      {								      \
 		/* Hangul */						      \
-		int_fast32_t i, m, f;					      \
+		int i, m, f;					      \
 									      \
 		i = init[(idx & 0x7c00) >> 10];				      \
 		m = mid[(idx & 0x03e0) >> 5];				      \

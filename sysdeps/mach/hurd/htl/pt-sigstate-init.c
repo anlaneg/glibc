@@ -1,5 +1,5 @@
 /* Initialize the signal state.  Hurd on Mach version.
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -37,7 +37,7 @@ __pthread_sigstate_init (struct __pthread *thread)
       struct hurd_sigstate *ss = _hurd_thread_sigstate (thread->kernel_thread);
       _hurd_sigstate_set_global_rcv (ss);
     }
-  else if (__pthread_num_threads >= 2)
+  else if (GL (dl_pthread_num_threads) >= 2)
     do_init_global = 1;
 
   return 0;

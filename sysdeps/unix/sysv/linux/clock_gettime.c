@@ -1,5 +1,5 @@
 /* clock_gettime -- Get current time from a POSIX clockid_t.  Linux version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ __clock_gettime64 (clockid_t clock_id, struct __timespec64 *tp)
     {
       struct timespec tp32;
       r = INTERNAL_VSYSCALL_CALL (vdso_time, 2, clock_id, &tp32);
-      if (r == 0 && tp32.tv_sec > 0)
+      if (r == 0 && tp32.tv_sec >= 0)
 	{
 	  *tp = valid_timespec_to_timespec64 (tp32);
 	  return 0;

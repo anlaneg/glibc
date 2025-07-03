@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -245,7 +244,14 @@ _nl_find_locale (const char *locale_path, size_t locale_path_len,
       locale_file = locale_file->successor[cnt];
 
       if (locale_file == NULL)
-	return NULL;
+	{
+	  /* If this is the second time we tried to load a failed
+	     locale then the locale_file value comes from the cache
+	     and we will not carry out any actual filesystem
+	     operations so we must set ENOENT here.  */
+	  __set_errno (ENOENT);
+	  return NULL;
+	}
     }
 
   /* The LC_CTYPE category allows to check whether a locale is really
@@ -292,8 +298,14 @@ _nl_find_locale (const char *locale_path, size_t locale_path_len,
       if (__gconv_compare_alias (upstr (ccodeset, ccodeset),
 				 upstr (clocale_codeset,
 					clocale_codeset)) != 0)
-	/* The codesets are not identical, don't use the locale.  */
-	return NULL;
+	{
+	  /* The codesets are not identical, don't use the locale.
+	     If this is the second time we tried to load a locale
+	     whose codeset doesn't match then the result came from
+	     the cache and must set ENOENT here.  */
+	  __set_errno (ENOENT);
+	  return NULL;
+	}
     }
 
   /* Determine the locale name for which loading succeeded.  This
@@ -349,6 +361,6 @@ _nl_remove_locale (int locale, struct __locale_data *data)
 	}
 
       /* This does the real work.  */
-      _nl_unload_locale (data);
+      _nl_unload_locale (locale, data);
     }
 }

@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.ai.mit.edu>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -29,13 +28,12 @@ __wcpcpy_chk (wchar_t *dest, const wchar_t *src, size_t destlen)
 {
   wchar_t *wcp = (wchar_t *) dest - 1;
   wint_t c;
-  const ptrdiff_t off = src - dest + 1;
 
   do
     {
       if (__glibc_unlikely (destlen-- == 0))
 	__chk_fail ();
-      c = wcp[off];
+      c = *src++;
       *++wcp = c;
     }
   while (c != L'\0');

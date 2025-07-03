@@ -1,6 +1,5 @@
-/* Copyright (C) 2004-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contribute by Ulrich Drepper <drepper@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,9 +32,9 @@
 
 /* Defined in the kernel headers: */
 #define NOTIFY_COOKIE_LEN	32	/* Length of the cookie used.  */
-#define NOTIFY_WOKENUP		1	/* Code for notifcation.  */
+#define NOTIFY_WOKENUP		1	/* Code for notification.  */
 #define NOTIFY_REMOVED		2	/* Code for closed message queue
-					   of de-notifcation.  */
+					   of de-notification.  */
 
 
 /* Data structure for the queued notification requests.  */
@@ -62,7 +61,7 @@ static int netlink_socket = -1;
 
 
 /* Barrier used to make sure data passed to the new thread is not
-   resused by the parent.  */
+   reused by the parent.  */
 static pthread_barrier_t notify_barrier;
 
 

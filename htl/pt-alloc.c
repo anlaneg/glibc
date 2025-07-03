@@ -1,5 +1,5 @@
 /* Allocate a new thread structure.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,18 +28,8 @@
    of the threads functions "shall fail" if "No thread could be found
    corresponding to that specified by the given thread ID."  */
 
-/* Thread ID lookup table.  */
-struct __pthread **__pthread_threads;
-
 /* The size of the thread ID lookup table.  */
 int __pthread_max_threads;
-
-/* The total number of thread IDs currently in use, or on the list of
-   available thread IDs.  */
-int __pthread_num_threads;
-
-/* A lock for the table, and the other variables above.  */
-pthread_rwlock_t __pthread_threads_lock;
 
 /* List of thread structures corresponding to free thread IDs.  */
 struct __pthread *__pthread_free_threads;
@@ -64,6 +54,7 @@ initialize_pthread (struct __pthread *new)
 
   new->state_lock = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
   new->state_cond = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
+  new->terminated = FALSE;
 
   memset (&new->res_state, '\0', sizeof (new->res_state));
 
@@ -94,10 +85,10 @@ __pthread_alloc (struct __pthread **pthread)
     {
       /* There is no need to take NEW->STATE_LOCK: if NEW is on this
          list, then it is protected by __PTHREAD_FREE_THREADS_LOCK
-         except in __pthread_dealloc where after it is added to the
+         except in __pthread_dealloc_finish where after it is added to the
          list (with the lock held), it drops the lock and then sets
          NEW->STATE and immediately stops using NEW.  */
-      if (new->state == PTHREAD_TERMINATED)
+      if (new->terminated)
 	{
 	  __pthread_dequeue (new);
 	  break;
@@ -132,25 +123,25 @@ __pthread_alloc (struct __pthread **pthread)
     }
 
 retry:
-  __pthread_rwlock_wrlock (&__pthread_threads_lock);
+  __libc_rwlock_wrlock (GL (dl_pthread_threads_lock));
 
-  if (__pthread_num_threads < __pthread_max_threads)
+  if (GL (dl_pthread_num_threads) < __pthread_max_threads)
     {
       /* We have a free slot.  Use the slot number plus one as the
          thread ID for the new thread.  */
-      new->thread = 1 + __pthread_num_threads++;
-      __pthread_threads[new->thread - 1] = NULL;
+      new->thread = 1 + GL (dl_pthread_num_threads)++;
+      GL (dl_pthread_threads)[new->thread - 1] = NULL;
 
-      __pthread_rwlock_unlock (&__pthread_threads_lock);
+      __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
       *pthread = new;
       return 0;
     }
 #ifdef PTHREAD_THREADS_MAX
-  else if (__pthread_num_threads >= PTHREAD_THREADS_MAX)
+  else if (GL (dl_pthread_num_threads) >= PTHREAD_THREADS_MAX)
     {
       /* We have reached the limit on the number of threads per process.  */
-      __pthread_rwlock_unlock (&__pthread_threads_lock);
+      __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
       free (new);
       return EAGAIN;
@@ -162,7 +153,7 @@ retry:
      memory allocation, since that's a potentially blocking operation.  */
   max_threads = __pthread_max_threads;
 
-  __pthread_rwlock_unlock (&__pthread_threads_lock);
+  __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
   /* Allocate a new lookup table that's twice as large.  */
   new_max_threads
@@ -174,13 +165,13 @@ retry:
       return ENOMEM;
     }
 
-  __pthread_rwlock_wrlock (&__pthread_threads_lock);
+  __libc_rwlock_wrlock (GL (dl_pthread_threads_lock));
 
   /* Check if nobody else has already enlarged the table.  */
   if (max_threads != __pthread_max_threads)
     {
       /* Yep, they did.  */
-      __pthread_rwlock_unlock (&__pthread_threads_lock);
+      __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
       /* Free the newly allocated table and try again to allocate a slot.  */
       free (threads);
@@ -188,22 +179,22 @@ retry:
     }
 
   /* Copy over the contents of the old table.  */
-  memcpy (threads, __pthread_threads,
+  memcpy (threads, GL (dl_pthread_threads),
 	  __pthread_max_threads * sizeof (struct __pthread *));
 
   /* Save the location of the old table.  We want to deallocate its
      storage after we released the lock.  */
-  old_threads = __pthread_threads;
+  old_threads = GL (dl_pthread_threads);
 
   /* Replace the table with the new one.  */
   __pthread_max_threads = new_max_threads;
-  __pthread_threads = threads;
+  GL (dl_pthread_threads) = threads;
 
   /* And allocate ourselves one of the newly created slots.  */
-  new->thread = 1 + __pthread_num_threads++;
-  __pthread_threads[new->thread - 1] = NULL;
+  new->thread = 1 + GL (dl_pthread_num_threads)++;
+  GL (dl_pthread_threads)[new->thread - 1] = NULL;
 
-  __pthread_rwlock_unlock (&__pthread_threads_lock);
+  __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
   free (old_threads);
 
@@ -217,10 +208,10 @@ __pthread_init_static_tls (struct link_map *map)
 {
   int i;
 
-  __pthread_rwlock_wrlock (&__pthread_threads_lock);
-  for (i = 0; i < __pthread_num_threads; ++i)
+  __libc_rwlock_wrlock (GL (dl_pthread_threads_lock));
+  for (i = 0; i < GL (dl_pthread_num_threads); ++i)
     {
-      struct __pthread *t = __pthread_threads[i];
+      struct __pthread *t = GL (dl_pthread_threads)[i];
 
       if (t == NULL)
 	continue;
@@ -237,5 +228,5 @@ __pthread_init_static_tls (struct link_map *map)
       memset (__mempcpy (dest, map->l_tls_initimage, map->l_tls_initimage_size),
 	      '\0', map->l_tls_blocksize - map->l_tls_initimage_size);
     }
-  __pthread_rwlock_unlock (&__pthread_threads_lock);
+  __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 }

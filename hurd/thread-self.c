@@ -1,5 +1,5 @@
 /* Cheap function to get current thread from sigstate without a syscall.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,10 +16,14 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
+#include <hurd.h>
 #include <hurd/signal.h>
 
 thread_t
-hurd_thread_self (void)
+__hurd_thread_self (void)
 {
   return _hurd_self_sigstate ()->thread;
 }
+
+libc_hidden_def (__hurd_thread_self)
+weak_alias (__hurd_thread_self, hurd_thread_self)

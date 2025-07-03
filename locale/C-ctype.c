@@ -1,6 +1,5 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1995.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -20,6 +19,7 @@
 #include <endian.h>
 #include <stdalign.h>
 #include <stdint.h>
+#include <wcsmbs/wcsmbsload.h>
 
 #include "C-translit.h"
 
@@ -539,11 +539,17 @@ _nl_C_LC_CTYPE_width attribute_hidden =
    NR_FIXED == _NL_ITEM_INDEX (_NL_CTYPE_EXTRA_MAP_1). */
 typedef int assertion1[1 - 2 * (NR_FIXED != _NL_ITEM_INDEX (_NL_CTYPE_EXTRA_MAP_1))];
 
+static const struct lc_ctype_data lc_ctype_data =
+  {
+    .fcts = &__wcsmbs_gconv_fcts_c,
+    .outdigit_bytes_all_equal = 1,
+  };
+
 const struct __locale_data _nl_C_LC_CTYPE attribute_hidden =
 {
   _nl_C_name,
   NULL, 0, 0,			/* no file mapped */
-  { NULL, },			/* no cached data */
+  (void *) &lc_ctype_data,
   UNDELETABLE,
   1,		/* Enable transliteration by default.  */
   NR_FIXED + NR_CLASSES + NR_MAPS,

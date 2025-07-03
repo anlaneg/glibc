@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,17 +18,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 #include <libc-lock.h>
+#include <set-freeres.h>
 #include "exit.h"
-
-#include "set-hooks.h"
-DEFINE_HOOK (__libc_atexit, (void))
 
 /* Initialize the flag that indicates exit function processing
    is complete. See concurrency notes in stdlib/exit.h where
    __exit_funcs_lock is declared.  */
 bool __exit_funcs_done = false;
+
+/* The lock handles concurrent exit() and quick_exit(), even though the
+   C/POSIX standard states that calling exit() more than once is UB.  The
+   recursive lock allows atexit() handlers or destructors to call exit()
+   itself.  In this case, the  handler list execution will resume at the
+   point of the current handler.  */
+__libc_lock_define_initialized_recursive (static, __exit_lock)
 
 /* Call all functions registered with `atexit' and `on_exit',
    in the reverse of the order in which they were registered
@@ -38,12 +43,12 @@ attribute_hidden
 __run_exit_handlers (int status, struct exit_function_list **listp,
 		     bool run_list_atexit, bool run_dtors)
 {
+  /* The exit should never return, so there is no need to unlock it.  */
+  __libc_lock_lock_recursive (__exit_lock);
+
   /* First, call the TLS destructors.  */
-#ifndef SHARED
-  if (&__call_tls_dtors != NULL)
-#endif
-    if (run_dtors)
-      __call_tls_dtors ();
+  if (run_dtors)
+    call_function_static_weak (__call_tls_dtors);
 
   __libc_lock_lock (__exit_funcs_lock);
 
@@ -53,7 +58,10 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
      exit (). */
   while (true)
     {
-      struct exit_function_list *cur = *listp;
+      struct exit_function_list *cur;
+
+    restart:
+      cur = *listp;
 
       if (cur == NULL)
 	{
@@ -81,9 +89,8 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
 	    case ef_on:
 	      onfct = f->func.on.fn;
 	      arg = f->func.on.arg;
-#ifdef PTR_DEMANGLE
 	      PTR_DEMANGLE (onfct);
-#endif
+
 	      /* Unlock the list while we call a foreign function.  */
 	      __libc_lock_unlock (__exit_funcs_lock);
 	      onfct (status, arg);
@@ -91,9 +98,8 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
 	      break;
 	    case ef_at:
 	      atfct = f->func.at;
-#ifdef PTR_DEMANGLE
 	      PTR_DEMANGLE (atfct);
-#endif
+
 	      /* Unlock the list while we call a foreign function.  */
 	      __libc_lock_unlock (__exit_funcs_lock);
 	      atfct ();
@@ -105,9 +111,8 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
 	      f->flavor = ef_free;
 	      cxafct = f->func.cxa.fn;
 	      arg = f->func.cxa.arg;
-#ifdef PTR_DEMANGLE
 	      PTR_DEMANGLE (cxafct);
-#endif
+
 	      /* Unlock the list while we call a foreign function.  */
 	      __libc_lock_unlock (__exit_funcs_lock);
 	      cxafct (arg, status);
@@ -118,7 +123,7 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
 	  if (__glibc_unlikely (new_exitfn_called != __new_exitfn_called))
 	    /* The last exit function, or another thread, has registered
 	       more exit functions.  Start the loop over.  */
-            continue;
+	    goto restart;
 	}
 
       *listp = cur->next;
@@ -131,7 +136,7 @@ __run_exit_handlers (int status, struct exit_function_list **listp,
   __libc_lock_unlock (__exit_funcs_lock);
 
   if (run_list_atexit)
-    RUN_HOOK (__libc_atexit, ());
+    call_function_static_weak (_IO_cleanup);
 
   _exit (status);
 }

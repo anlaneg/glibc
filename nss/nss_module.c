@@ -1,5 +1,5 @@
 /* Global list of NSS service modules.
-   Copyright (c) 2020-2021 Free Software Foundation, Inc.
+   Copyright (c) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 /* Suffix after .so of NSS service modules.  This is a bit of magic,
    but we assume LIBNSS_FILES_SO looks like "libnss_files.so.2" and we
@@ -53,7 +53,7 @@ static struct nss_module *nss_module_list;
    modules.  */
 __libc_lock_define (static, nss_module_list_lock);
 
-#if defined USE_NSCD && (!defined DO_STATIC_NSS || defined SHARED)
+#if defined SHARED && defined USE_NSCD
 /* Nonzero if this is the nscd process.  */
 static bool is_nscd;
 /* The callback passed to the init functions when nscd is used.  */
@@ -129,10 +129,8 @@ module_load_builtin (struct nss_module *module,
     case nss_module_failed:
       bind (module->functions.untyped);
 
-#ifdef PTR_MANGLE
       for (int i = 0; i < nss_module_functions_count; ++i)
 	PTR_MANGLE (module->functions.untyped[i]);
-#endif
 
       module->handle = NULL;
       /* Synchronizes with unlocked __nss_module_load atomic_load_acquire.  */
@@ -150,13 +148,11 @@ module_load_builtin (struct nss_module *module,
 static bool
 module_load_nss_files (struct nss_module *module)
 {
-#ifdef USE_NSCD
+#if defined SHARED && defined USE_NSCD
   if (is_nscd)
     {
       void (*cb) (size_t, struct traced_file *) = nscd_init_cb;
-# ifdef PTR_DEMANGLE
       PTR_DEMANGLE (cb);
-# endif
       _nss_files_init (cb);
     }
 #endif
@@ -244,12 +240,10 @@ module_load (struct nss_module *module)
         }
       pointers[idx] = __libc_dlsym (handle, function_name);/*自so中取函数对应的地址*/
       free (function_name);
-#ifdef PTR_MANGLE
       PTR_MANGLE (pointers[idx]);
-#endif
     }
 
-# ifdef USE_NSCD
+# if defined SHARED && defined USE_NSCD
   if (is_nscd)
     {
       /* Call the init function when nscd is used.  */
@@ -269,9 +263,7 @@ module_load (struct nss_module *module)
       if (ifct != NULL)
 	{
 	  void (*cb) (size_t, struct traced_file *) = nscd_init_cb;
-#  ifdef PTR_DEMANGLE
 	  PTR_DEMANGLE (cb);
-#  endif
 	  ifct (cb);
 	}
     }
@@ -335,9 +327,19 @@ name_search (const void *left, const void *right)
 void *
 __nss_module_get_function (struct nss_module *module, const char *name)
 {
+  /* A successful dlopen might clobber errno.   */
+  int saved_errno = errno;
+
   if (!__nss_module_load (module))
-	  /*尝试加载此module失败，获取函数指针失败*/
-    return NULL;
+    {
+      /* Reporting module load failure is currently inaccurate.  See
+	 bug 22041.  Not changing errno is the conservative choice.  */
+      __set_errno (saved_errno);
+      /*尝试加载此module失败，获取函数指针失败*/
+      return NULL;
+    }
+
+  __set_errno (saved_errno);
 
   /*利用名称查询nss_function_name_array*/
   function_name *name_entry = bsearch (name, nss_function_name_array,
@@ -346,9 +348,7 @@ __nss_module_get_function (struct nss_module *module, const char *name)
   assert (name_entry != NULL);
   size_t idx = name_entry - nss_function_name_array;/*取得此函数对应的idx*/
   void *fptr = module->functions.untyped[idx];/*取得此函数对应的函数回调指针*/
-#ifdef PTR_DEMANGLE
   PTR_DEMANGLE (fptr);
-#endif
   return fptr;
 }
 
@@ -379,9 +379,7 @@ __nss_disable_nscd (void (*cb) (size_t, struct traced_file *))
 {
   void (*cb1) (size_t, struct traced_file *);
   cb1 = cb;
-# ifdef PTR_MANGLE
   PTR_MANGLE (cb);
-# endif
   nscd_init_cb = cb;
   is_nscd = true;
 
@@ -425,7 +423,7 @@ __nss_module_disable_loading (void)
   __libc_lock_unlock (nss_module_list_lock);
 }
 
-void __libc_freeres_fn_section
+void
 __nss_module_freeres (void)
 {
   struct nss_module *current = nss_module_list;

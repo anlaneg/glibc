@@ -1,5 +1,5 @@
 /* Checking memmove for x86-64.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,4 +30,5 @@ ENTRY (__memmove_chk)
 	jb	__chk_fail
 	jmp	memmove
 END (__memmove_chk)
+libc_hidden_builtin_def (MEMMOVE_CHK)
 #endif

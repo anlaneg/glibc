@@ -1,5 +1,5 @@
 /* ioctl commands which must be done in the C library.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -70,7 +70,7 @@ fioctl (int fd,
 
     case FIONREAD:
       {
-	mach_msg_type_number_t navail;
+	vm_size_t navail;
 	err = HURD_DPORT_USE (fd, __io_readable (port, &navail));
 	if (!err)
 	  *arg = (int) navail;
@@ -311,7 +311,7 @@ static int
 siocgifconf (int fd, int request, struct ifconf *ifc)
 {
   error_t err;
-  size_t data_len = ifc->ifc_len;
+  mach_msg_type_number_t data_len = ifc->ifc_len;
   char *data = ifc->ifc_buf;
 
   if (data_len <= 0)

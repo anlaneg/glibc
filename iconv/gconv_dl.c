@@ -1,7 +1,6 @@
 /* Handle loading/unloading of shared object for transformation.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,7 +26,7 @@
 #include <sys/param.h>
 
 #include <gconv_int.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 
 #ifdef DEBUG
@@ -128,11 +127,9 @@ __gconv_find_shlib (const char *name)
 		  found->init_fct = __libc_dlsym (found->handle, "gconv_init");
 		  found->end_fct = __libc_dlsym (found->handle, "gconv_end");
 
-#ifdef PTR_MANGLE
 		  PTR_MANGLE (found->fct);
 		  PTR_MANGLE (found->init_fct);
 		  PTR_MANGLE (found->end_fct);
-#endif
 
 		  /* We have succeeded in loading the shared object.  */
 		  found->counter = 1;
@@ -187,7 +184,7 @@ __gconv_release_shlib (struct __gconv_loaded_object *handle)
 
 
 /* We run this if we debug the memory allocation.  */
-static void __libc_freeres_fn_section
+static void
 do_release_all (void *nodep)
 {
   struct __gconv_loaded_object *obj = (struct __gconv_loaded_object *) nodep;
@@ -199,7 +196,8 @@ do_release_all (void *nodep)
   free (obj);
 }
 
-libc_freeres_fn (free_mem)
+void
+__gconv_dl_freemem (void)
 {
   __tdestroy (loaded, do_release_all);
   loaded = NULL;

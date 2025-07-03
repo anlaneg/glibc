@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright (C) 2015-2021 Free Software Foundation, Inc.
+# Copyright (C) 2015-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -136,6 +136,4 @@ def parse_bench(filename, schema_filename):
         with open(filename, 'r') as benchfile:
             bench = json.load(benchfile)
             validator.validate(bench, schema)
-            do_for_all_timings(bench, lambda b, f, v:
-                    b['functions'][f][v]['timings'].sort())
             return bench

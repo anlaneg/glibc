@@ -1,5 +1,5 @@
 /* x86 cache info.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,11 +21,9 @@
 #include <cpuid.h>
 #include <cpu-features.h>
 
-#if HAVE_TUNABLES
-# define TUNABLE_NAMESPACE cpu
-# include <unistd.h>		/* Get STDOUT_FILENO for _dl_printf.  */
-# include <elf/dl-tunables.h>
-#endif
+#define TUNABLE_NAMESPACE cpu
+#include <unistd.h>		/* Get STDOUT_FILENO for _dl_printf.  */
+#include <elf/dl-tunables.h>
 
 #if IS_IN (libc)
 /* Data cache size for use in memory and string routines, typically
@@ -37,8 +35,11 @@ long int __x86_data_cache_size attribute_hidden = 32 * 1024;
 long int __x86_shared_cache_size_half attribute_hidden = 1024 * 1024 / 2;
 long int __x86_shared_cache_size attribute_hidden = 1024 * 1024;
 
-/* Threshold to use non temporal store.  */
+/* Threshold to use non temporal store in memmove.  */
 long int __x86_shared_non_temporal_threshold attribute_hidden;
+
+/* Threshold to use non temporal store in memset.  */
+long int __x86_memset_non_temporal_threshold attribute_hidden;
 
 /* Threshold to use Enhanced REP MOVSB.  */
 long int __x86_rep_movsb_threshold attribute_hidden = 2048;
@@ -61,17 +62,26 @@ init_cacheinfo (void)
   long int data = cpu_features->data_cache_size;
   /* Round data cache size to multiple of 256 bytes.  */
   data = data & ~255L;
-  __x86_data_cache_size_half = data / 2;
-  __x86_data_cache_size = data;
+  if (data > 0)
+    {
+      __x86_data_cache_size_half = data / 2;
+      __x86_data_cache_size = data;
+    }
 
   long int shared = cpu_features->shared_cache_size;
   /* Round shared cache size to multiple of 256 bytes.  */
   shared = shared & ~255L;
-  __x86_shared_cache_size_half = shared / 2;
-  __x86_shared_cache_size = shared;
+  if (shared > 0)
+    {
+      __x86_shared_cache_size_half = shared / 2;
+      __x86_shared_cache_size = shared;
+    }
 
   __x86_shared_non_temporal_threshold
     = cpu_features->non_temporal_threshold;
+
+  __x86_memset_non_temporal_threshold
+      = cpu_features->memset_non_temporal_threshold;
 
   __x86_rep_movsb_threshold = cpu_features->rep_movsb_threshold;
   __x86_rep_stosb_threshold = cpu_features->rep_stosb_threshold;

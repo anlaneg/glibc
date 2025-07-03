@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # Build many configurations of glibc.
-# Copyright (C) 2016-2021 Free Software Foundation, Inc.
+# Copyright (C) 2016-2025 Free Software Foundation, Inc.
+# Copyright The GNU Toolchain Authors.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -55,6 +56,26 @@ import sys
 import time
 import urllib.request
 
+# This is a list of system utilities that are expected to be available
+# to this script, and, if a non-zero version is included, the minimum
+# version required to work with this sccript.
+def get_list_of_required_tools():
+    global REQUIRED_TOOLS
+    REQUIRED_TOOLS = {
+        'awk'      : (get_version_awk,   (0,0,0)),
+        'bison'    : (get_version,       (0,0)),
+        'flex'     : (get_version,       (0,0,0)),
+        'git'      : (get_version,       (1,8,3)),
+        'make'     : (get_version,       (4,0)),
+        'makeinfo' : (get_version,       (0,0)),
+        'patch'    : (get_version,       (0,0,0)),
+        'sed'      : (get_version,       (0,0)),
+        'tar'      : (get_version,       (0,0,0)),
+        'gzip'     : (get_version,       (0,0)),
+        'bzip2'    : (get_version_bzip2, (0,0,0)),
+        'xz'       : (get_version,       (0,0,0)),
+    }
+
 try:
     subprocess.run
 except:
@@ -86,7 +107,7 @@ class Context(object):
     """The global state associated with builds in a given directory."""
 
     def __init__(self, topdir, parallelism, keep, replace_sources, strip,
-                 full_gcc, action, shallow=False):
+                 full_gcc, action, exclude, shallow=False):
         """Initialize the context."""
         self.topdir = topdir
         self.parallelism = parallelism
@@ -94,6 +115,7 @@ class Context(object):
         self.replace_sources = replace_sources
         self.strip = strip
         self.full_gcc = full_gcc
+        self.exclude = exclude
         self.shallow = shallow
         self.srcdir = os.path.join(topdir, 'src')
         self.versions_json = os.path.join(self.srcdir, 'versions.json')
@@ -149,7 +171,7 @@ class Context(object):
             if l.startswith(starttext):
                 l = l[len(starttext):]
                 l = l.rstrip('"\n')
-                m = re.fullmatch('([0-9]+)\.([0-9]+)[.0-9]*', l)
+                m = re.fullmatch(r'([0-9]+)\.([0-9]+)[.0-9]*', l)
                 return '%s.%s' % m.group(1, 2)
         print('error: could not determine glibc version')
         exit(1)
@@ -168,9 +190,6 @@ class Context(object):
         self.add_config(arch='arc',
                         os_name='linux-gnuhf',
                         gcc_cfg=['--disable-multilib', '--with-cpu=hs38_linux'])
-        self.add_config(arch='arceb',
-                        os_name='linux-gnu',
-                        gcc_cfg=['--disable-multilib', '--with-cpu=hs38'])
         self.add_config(arch='alpha',
                         os_name='linux-gnu')
         self.add_config(arch='arm',
@@ -213,10 +232,14 @@ class Context(object):
                         os_name='linux-gnu')
         self.add_config(arch='i686',
                         os_name='gnu')
-        self.add_config(arch='ia64',
+        self.add_config(arch='loongarch64',
                         os_name='linux-gnu',
-                        first_gcc_cfg=['--with-system-libunwind'],
-                        binutils_cfg=['--enable-obsolete'])
+                        variant='lp64d',
+                        gcc_cfg=['--with-abi=lp64d','--disable-multilib'])
+        self.add_config(arch='loongarch64',
+                        os_name='linux-gnu',
+                        variant='lp64s',
+                        gcc_cfg=['--with-abi=lp64s','--disable-multilib'])
         self.add_config(arch='m68k',
                         os_name='linux-gnu',
                         gcc_cfg=['--disable-multilib'])
@@ -332,8 +355,11 @@ class Context(object):
                                  'ccopts': '-mabi=32'},
                                 {'variant': 'n64',
                                  'ccopts': '-mabi=64'}])
-        self.add_config(arch='nios2',
-                        os_name='linux-gnu')
+        self.add_config(arch='or1k',
+                        os_name='linux-gnu',
+                        gcc_cfg=['--with-multilib-list=mcmov,mhard-float'],
+                        glibcs=[{'variant': 'soft'},
+                                {'variant': 'hard', 'ccopts': '-mhard-float'}])
         self.add_config(arch='powerpc',
                         os_name='linux-gnu',
                         gcc_cfg=['--disable-multilib', '--enable-secureplt'],
@@ -350,7 +376,9 @@ class Context(object):
                         gcc_cfg=['--disable-multilib', '--enable-secureplt'])
         self.add_config(arch='powerpc64le',
                         os_name='linux-gnu',
-                        gcc_cfg=['--disable-multilib', '--enable-secureplt'])
+                        gcc_cfg=['--disable-multilib', '--enable-secureplt'],
+                        extra_glibcs=[{'variant': 'disable-multi-arch',
+                                       'cfg': ['--disable-multi-arch']}])
         self.add_config(arch='riscv32',
                         os_name='linux-gnu',
                         variant='rv32imac-ilp32',
@@ -386,7 +414,22 @@ class Context(object):
                         glibcs=[{},
                                 {'arch': 's390', 'ccopts': '-m31'}],
                         extra_glibcs=[{'variant': 'O3',
-                                       'cflags': '-O3'}])
+                                       'cflags': '-O3'},
+                                      {'variant': 'zEC12',
+                                       'ccopts': '-march=zEC12'},
+                                      {'variant': 'z13',
+                                       'ccopts': '-march=z13'},
+                                      {'variant': 'z15',
+                                       'ccopts': '-march=z15'},
+                                      {'variant': 'zEC12-disable-multi-arch',
+                                       'ccopts': '-march=zEC12',
+                                       'cfg': ['--disable-multi-arch']},
+                                      {'variant': 'z13-disable-multi-arch',
+                                       'ccopts': '-march=z13',
+                                       'cfg': ['--disable-multi-arch']},
+                                      {'variant': 'z15-disable-multi-arch',
+                                       'ccopts': '-march=z15',
+                                       'cfg': ['--disable-multi-arch']}])
         self.add_config(arch='sh3',
                         os_name='linux-gnu')
         self.add_config(arch='sh3eb',
@@ -405,18 +448,20 @@ class Context(object):
                         gcc_cfg=['--without-fp'])
         self.add_config(arch='sparc64',
                         os_name='linux-gnu',
-                        glibcs=[{},
-                                {'arch': 'sparcv9',
+                        glibcs=[{'cfg' : ['--disable-default-pie']},
+                                {'cfg' : ['--disable-default-pie'],
+                                 'arch': 'sparcv9',
                                  'ccopts': '-m32 -mlong-double-128 -mcpu=v9'}],
                         extra_glibcs=[{'variant': 'leon3',
+                                       'cfg' : ['--disable-default-pie'],
                                        'arch' : 'sparcv8',
                                        'ccopts' : '-m32 -mlong-double-128 -mcpu=leon3'},
                                       {'variant': 'disable-multi-arch',
-                                       'cfg': ['--disable-multi-arch']},
+                                       'cfg': ['--disable-multi-arch', '--disable-default-pie']},
                                       {'variant': 'disable-multi-arch',
                                        'arch': 'sparcv9',
                                        'ccopts': '-m32 -mlong-double-128 -mcpu=v9',
-                                       'cfg': ['--disable-multi-arch']}])
+                                       'cfg': ['--disable-multi-arch', '--disable-default-pie']}])
         self.add_config(arch='x86_64',
                         os_name='linux-gnu',
                         gcc_cfg=['--with-multilib-list=m64,m32,mx32'],
@@ -430,20 +475,17 @@ class Context(object):
                                                '--disable-profile',
                                                '--disable-timezone-tools',
                                                '--disable-mathvec',
-                                               '--disable-tunables',
-                                               '--disable-crypt',
-                                               '--disable-experimental-malloc',
                                                '--disable-build-nscd',
                                                '--disable-nscd']},
-                                      {'variant': 'static-pie',
-                                       'cfg': ['--enable-static-pie']},
-                                      {'variant': 'x32-static-pie',
+                                      {'variant': 'no-pie',
+                                       'cfg': ['--disable-default-pie']},
+                                      {'variant': 'x32-no-pie',
                                        'ccopts': '-mx32',
-                                       'cfg': ['--enable-static-pie']},
-                                      {'variant': 'static-pie',
+                                       'cfg': ['--disable-default-pie']},
+                                      {'variant': 'no-pie',
                                        'arch': 'i686',
                                        'ccopts': '-m32 -march=i686',
-                                       'cfg': ['--enable-static-pie']},
+                                       'cfg': ['--disable-default-pie']},
                                       {'variant': 'disable-multi-arch',
                                        'arch': 'i686',
                                        'ccopts': '-m32 -march=i686',
@@ -451,11 +493,18 @@ class Context(object):
                                       {'arch': 'i486',
                                        'ccopts': '-m32 -march=i486'},
                                       {'arch': 'i586',
-                                       'ccopts': '-m32 -march=i586'}])
+                                       'ccopts': '-m32 -march=i586'},
+                                      {'variant': 'enable-fortify-source',
+                                       'cfg': ['--enable-fortify-source']}])
+        self.add_config(arch='x86_64',
+                        os_name='gnu',
+                        gcc_cfg=['--disable-multilib'])
 
     def add_config(self, **args):
         """Add an individual build configuration."""
         cfg = Config(self, **args)
+        if self.exclude and cfg.name in self.exclude:
+            return
         if cfg.name in self.configs:
             print('error: duplicate config %s' % cfg.name)
             exit(1)
@@ -530,7 +579,7 @@ class Context(object):
                 print(config.name, config.compiler.name)
             return
         self.clear_last_build_state(action)
-        build_time = datetime.datetime.utcnow()
+        build_time = datetime.datetime.now(datetime.timezone.utc)
         if action == 'host-libraries':
             build_components = ('gmp', 'mpfr', 'mpc')
             old_components = ()
@@ -693,7 +742,13 @@ class Context(object):
         logsdir = os.path.join(self.logsdir, 'host-libraries')
         self.remove_recreate_dirs(installdir, builddir, logsdir)
         cmdlist = CommandList('host-libraries', self.keep)
-        self.build_host_library(cmdlist, 'gmp')
+        # This CFLAGS setting works around GMP 6.3.0's configure
+        # script being incompatible with compilers defaulting to C23
+        # and should be removed when this script is updated to use a
+        # release of GMP from after that configure test was fixed in
+        # Jan 2025.
+        self.build_host_library(cmdlist, 'gmp',
+                                ['CFLAGS=-Wall -O2 -std=gnu17'])
         self.build_host_library(cmdlist, 'mpfr',
                                 ['--with-gmp=%s' % installdir])
         self.build_host_library(cmdlist, 'mpc',
@@ -778,13 +833,13 @@ class Context(object):
 
     def checkout(self, versions):
         """Check out the desired component versions."""
-        default_versions = {'binutils': 'vcs-2.37',
-                            'gcc': 'vcs-11',
+        default_versions = {'binutils': 'vcs-2.44',
+                            'gcc': 'vcs-14',
                             'glibc': 'vcs-mainline',
-                            'gmp': '6.2.1',
-                            'linux': '5.13',
-                            'mpc': '1.2.1',
-                            'mpfr': '4.1.0',
+                            'gmp': '6.3.0',
+                            'linux': '6.15',
+                            'mpc': '1.3.1',
+                            'mpfr': '4.2.2',
                             'mig': 'vcs-mainline',
                             'gnumach': 'vcs-mainline',
                             'hurd': 'vcs-mainline'}
@@ -843,7 +898,7 @@ class Context(object):
         """Check out the given version of the given component from version
         control.  Return a revision identifier."""
         if component == 'binutils':
-            git_url = 'git://sourceware.org/git/binutils-gdb.git'
+            git_url = 'https://sourceware.org/git/binutils-gdb.git'
             if version == 'mainline':
                 git_branch = 'master'
             else:
@@ -857,7 +912,7 @@ class Context(object):
                 branch = 'releases/gcc-%s' % version
             return self.gcc_checkout(branch, update)
         elif component == 'glibc':
-            git_url = 'git://sourceware.org/git/glibc.git'
+            git_url = 'https://sourceware.org/git/glibc.git'
             if version == 'mainline':
                 git_branch = 'master'
             else:
@@ -946,7 +1001,7 @@ class Context(object):
             shutil.rmtree(self.component_srcdir('gcc'))
             update = False
         if not update:
-            self.git_checkout('gcc', 'git://gcc.gnu.org/git/gcc.git',
+            self.git_checkout('gcc', 'https://gcc.gnu.org/git/gcc.git',
                               branch, update)
         subprocess.run(['contrib/gcc_update', '--silent'],
                        cwd=self.component_srcdir('gcc'), check=True)
@@ -1024,7 +1079,8 @@ class Context(object):
     def update_build_state(self, action, build_time, build_versions):
         """Update the build state after a build."""
         build_time = build_time.replace(microsecond=0)
-        self.build_state[action]['build-time'] = str(build_time)
+        self.build_state[action]['build-time'] = build_time.strftime(
+            '%Y-%m-%d %H:%M:%S')
         self.build_state[action]['build-versions'] = build_versions
         build_results = {}
         for log in self.status_log_list:
@@ -1070,15 +1126,17 @@ class Context(object):
         old_time_str = self.build_state[action]['build-time']
         if not old_time_str:
             return True
-        old_time = datetime.datetime.strptime(old_time_str,
-                                              '%Y-%m-%d %H:%M:%S')
-        new_time = datetime.datetime.utcnow()
+        old_time = datetime.datetime.strptime(
+            old_time_str, '%Y-%m-%d %H:%M:%S').replace(
+                tzinfo=datetime.timezone.utc)
+        new_time = datetime.datetime.now(datetime.timezone.utc)
         delta = new_time - old_time
         return delta.total_seconds() >= delay
 
     def bot_cycle(self):
         """Run a single round of checkout and builds."""
-        print('Bot cycle starting %s.' % str(datetime.datetime.utcnow()))
+        print('Bot cycle starting %s.'
+              % str(datetime.datetime.now(datetime.timezone.utc)))
         self.load_bot_config_json()
         actions = ('host-libraries', 'compilers', 'glibcs')
         self.bot_run_self(['--replace-sources'], 'checkout')
@@ -1130,12 +1188,13 @@ class Context(object):
             shutil.copytree(self.logsdir, self.logsdir_old)
         for a in actions:
             if must_build[a]:
-                build_time = datetime.datetime.utcnow()
+                build_time = datetime.datetime.now(datetime.timezone.utc)
                 print('Rebuilding %s at %s.' % (a, str(build_time)))
                 self.bot_run_self([], a)
                 self.load_build_state_json()
                 self.bot_build_mail(a, build_time)
-        print('Bot cycle done at %s.' % str(datetime.datetime.utcnow()))
+        print('Bot cycle done at %s.'
+              % str(datetime.datetime.now(datetime.timezone.utc)))
 
     def bot_build_mail(self, action, build_time):
         """Send email with the results of a build."""
@@ -1151,7 +1210,7 @@ class Context(object):
         build_time = build_time.replace(microsecond=0)
         subject = (self.bot_config['email-subject'] %
                    {'action': action,
-                    'build-time': str(build_time)})
+                    'build-time': build_time.strftime('%Y-%m-%d %H:%M:%S')})
         results = self.build_state[action]['build-results']
         changes = self.build_state[action]['result-changes']
         ever_passed = set(self.build_state[action]['ever-passed'])
@@ -1200,7 +1259,8 @@ class Context(object):
         msg['From'] = self.bot_config['email-from']
         msg['To'] = self.bot_config['email-to']
         msg['Message-ID'] = email.utils.make_msgid()
-        msg['Date'] = email.utils.format_datetime(datetime.datetime.utcnow())
+        msg['Date'] = email.utils.format_datetime(
+            datetime.datetime.now(datetime.timezone.utc))
         with smtplib.SMTP(self.bot_config['email-server']) as s:
             s.send_message(msg)
 
@@ -1263,11 +1323,11 @@ def install_linux_headers(policy, cmdlist):
                 'i586': 'x86',
                 'i686': 'x86',
                 'i786': 'x86',
-                'ia64': 'ia64',
+                'loongarch64': 'loongarch',
                 'm68k': 'm68k',
                 'microblaze': 'microblaze',
                 'mips': 'mips',
-                'nios2': 'nios2',
+                'or1k': 'openrisc',
                 'powerpc': 'powerpc',
                 's390': 's390',
                 'riscv32': 'riscv',
@@ -1413,6 +1473,7 @@ class Config(object):
                              '--build=%s' % self.ctx.build_triplet,
                              '--host=%s' % self.triplet,
                              '--prefix=',
+                             '--disable-user32',
                              'CC=%s-gcc -nostdlib' % self.triplet])
         cmdlist.add_command('install', ['make', 'DESTDIR=%s' % self.sysroot,
                                         'install-data'])
@@ -1443,8 +1504,11 @@ class Config(object):
         # checking support.  libcilkrts does not support GNU/Hurd (and
         # has been removed in GCC 8, so --disable-libcilkrts can be
         # removed once glibc no longer supports building with older
-        # GCC versions).
+        # GCC versions).  --enable-initfini-array is enabled by default
+        # in GCC 12, which can be removed when GCC 12 becomes the
+        # minimum requirement.
         cfg_opts = list(self.gcc_cfg)
+        cfg_opts += ['--enable-initfini-array']
         cfg_opts += ['--disable-libssp', '--disable-libcilkrts']
         host_libs = self.ctx.host_libraries_installdir
         cfg_opts += ['--with-gmp=%s' % host_libs,
@@ -1463,6 +1527,7 @@ class Config(object):
                          '--disable-threads',
                          '--disable-libatomic',
                          '--disable-decimal-float',
+                         '--disable-gcov',
                          '--disable-libffi',
                          '--disable-libgomp',
                          '--disable-libitm',
@@ -1501,15 +1566,6 @@ class GlibcPolicyDefault(object):
             '--host=%s' % glibc.triplet,
             'CC=%s' % glibc.tool_name('gcc'),
             'CXX=%s' % glibc.tool_name('g++'),
-            'AR=%s' % glibc.tool_name('ar'),
-            'AS=%s' % glibc.tool_name('as'),
-            'LD=%s' % glibc.tool_name('ld'),
-            'NM=%s' % glibc.tool_name('nm'),
-            'OBJCOPY=%s' % glibc.tool_name('objcopy'),
-            'OBJDUMP=%s' % glibc.tool_name('objdump'),
-            'RANLIB=%s' % glibc.tool_name('ranlib'),
-            'READELF=%s' % glibc.tool_name('readelf'),
-            'STRIP=%s' % glibc.tool_name('strip'),
         ]
         if glibc.os == 'gnu':
             self.configure_args.append('MIG=%s' % glibc.tool_name('mig'))
@@ -1553,15 +1609,13 @@ class GlibcPolicyForBuild(GlibcPolicyDefault):
 
     def extra_commands(self, cmdlist):
         if self.strip:
-            # Avoid picking up libc.so and libpthread.so, which are
-            # linker scripts stored in /lib on Hurd.  libc and
-            # libpthread are still stripped via their libc-X.YY.so
-            # implementation files.
-            find_command = (('find %s/lib* -name "*.so"'
-                             + r' \! -name libc.so \! -name libpthread.so')
-                            % self.installdir)
-            cmdlist.add_command('strip', ['sh', '-c', ('%s $(%s)' %
-                                  (self.strip, find_command))])
+            # Avoid stripping libc.so and libpthread.so, which are
+            # linker scripts stored in /lib on Hurd.
+            find_command = 'find %s/lib* -name "*.so*"' % self.installdir
+            cmdlist.add_command('strip', ['sh', '-c', (
+                'set -e; for f in $(%s); do '
+                'if ! head -c16 $f | grep -q "GNU ld script"; then %s $f; fi; '
+                'done' % (find_command, self.strip))])
         cmdlist.add_command('check', ['make', 'check'])
         cmdlist.add_command('save-logs', [self.save_logs], always_run=True)
 
@@ -1839,6 +1893,8 @@ def get_parser():
                         help='Build GCC with all languages and libsanitizer')
     parser.add_argument('--shallow', action='store_true',
                         help='Do not download Git history during checkout')
+    parser.add_argument('--exclude', dest='exclude',
+                        help='Targets to be excluded', nargs='*')
     parser.add_argument('topdir',
                         help='Toplevel working directory')
     parser.add_argument('action',
@@ -1853,13 +1909,87 @@ def get_parser():
     return parser
 
 
+def get_version_common(progname,line,word,arg1):
+    try:
+        out = subprocess.run([progname, arg1],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL,
+                             stdin=subprocess.DEVNULL,
+                             check=True, universal_newlines=True)
+        v = out.stdout.splitlines()[line].split()[word]
+        v = re.match(r'[0-9]+(.[0-9]+)*', v).group()
+        return [int(x) for x in v.split('.')]
+    except:
+        return 'missing';
+
+def get_version_common_stderr(progname,line,word,arg1):
+    try:
+        out = subprocess.run([progname, arg1],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.PIPE,
+                             stdin=subprocess.DEVNULL,
+                             check=True, universal_newlines=True)
+        v = out.stderr.splitlines()[line].split()[word]
+        v = re.match(r'[0-9]+(.[0-9]+)*', v).group()
+        return [int(x) for x in v.split('.')]
+    except:
+        return 'missing';
+
+def get_version(progname):
+    return get_version_common(progname, 0, -1, '--version');
+
+def get_version_awk(progname):
+    return get_version_common(progname, 0, 2, '--version');
+
+def get_version_bzip2(progname):
+    return get_version_common_stderr(progname, 0, 6, '-h');
+
+def check_version(ver, req):
+    for v, r in zip(ver, req):
+        if v > r:
+            return True
+        if v < r:
+            return False
+    return True
+
+def version_str(ver):
+    return '.'.join([str (x) for x in ver])
+
+def check_for_required_tools():
+    get_list_of_required_tools()
+    count_old_tools = 0
+    count_missing_tools = 0
+
+    for k, v in REQUIRED_TOOLS.items():
+        version = v[0](k)
+        if version == 'missing':
+            ok = 'missing'
+        else:
+            ok = 'ok' if check_version (version, v[1]) else 'old'
+        if ok == 'old':
+            if count_old_tools == 0:
+                print("One or more required tools are too old:")
+            count_old_tools = count_old_tools + 1
+            print('{:9}: {:3} (obtained=\"{}\" required=\"{}\")'.format(k, ok,
+                    version_str(version), version_str(v[1])))
+        if ok == 'missing':
+            if count_missing_tools == 0:
+                print("One or more required tools are missing:")
+            count_missing_tools = count_missing_tools + 1
+            print('{:9}: {:3} (required=\"{}\")'.format(k, ok,
+                    version_str(v[1])))
+
+    if count_old_tools > 0 or count_missing_tools > 0:
+        exit (1);
+
 def main(argv):
     """The main entry point."""
+    check_for_required_tools();
     parser = get_parser()
     opts = parser.parse_args(argv)
     topdir = os.path.abspath(opts.topdir)
     ctx = Context(topdir, opts.parallelism, opts.keep, opts.replace_sources,
-                  opts.strip, opts.full_gcc, opts.action,
+                  opts.strip, opts.full_gcc, opts.action, opts.exclude,
                   shallow=opts.shallow)
     ctx.run_builds(opts.action, opts.configs)
 

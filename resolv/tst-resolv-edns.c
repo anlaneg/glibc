@@ -1,5 +1,5 @@
 /* Test EDNS handling in the stub resolver.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ struct response_data
    response data.  The test DNS server returns the index of the array
    element which contains the actual response data.  This enables the
    test case to return arbitrary amounts of data with the limited
-   number of bits which fit into an IP addres.
+   number of bits which fit into an IP address.
 
    The volatile specifier is needed because the test case accesses
    these variables from a callback function called from a function

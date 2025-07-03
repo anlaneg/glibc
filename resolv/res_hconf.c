@@ -1,6 +1,5 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by David Mosberger (davidm@azstarnet.com).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -43,6 +42,7 @@
 #include "res_hconf.h"
 #include <wchar.h>
 #include <atomic.h>
+#include <set-freeres.h>
 
 #if IS_IN (libc)
 # define fgets_unlocked __fgets_unlocked
@@ -118,12 +118,12 @@ arg_trimdomain_list (const char *fname, int line_num, const char *args)
 	  if (__asprintf (&buf, _("\
 %s: line %d: cannot specify more than %d trim domains"),
 			  fname, line_num, TRIMDOMAINS_MAX) < 0)
-	    return 0;
+	    return NULL;
 
 	  __fxprintf (NULL, "%s", buf);
 
 	  free (buf);
-	  return 0;
+	  return NULL;
 	}
       _res_hconf.trimdomain[_res_hconf.num_trimdomains++] =
 	__strndup (start, len);
@@ -139,12 +139,12 @@ arg_trimdomain_list (const char *fname, int line_num, const char *args)
 	      if (__asprintf (&buf, _("\
 %s: line %d: list delimiter not followed by domain"),
 			      fname, line_num) < 0)
-		return 0;
+		return NULL;
 
 	      __fxprintf (NULL, "%s", buf);
 
 	      free (buf);
-	      return 0;
+	      return NULL;
 	    }
 	default:
 	  break;
@@ -175,12 +175,12 @@ arg_bool (const char *fname, int line_num, const char *args, unsigned flag)
       if (__asprintf (&buf,
 		      _("%s: line %d: expected `on' or `off', found `%s'\n"),
 		      fname, line_num, args) < 0)
-	return 0;
+	return NULL;
 
       __fxprintf (NULL, "%s", buf);
 
       free (buf);
-      return 0;
+      return NULL;
     }
   return args;
 }
@@ -190,7 +190,7 @@ static void
 parse_line (const char *fname, int line_num, const char *str)
 {
   const char *start;
-  const struct cmd *c = 0;
+  const struct cmd *c = NULL;
   size_t len;
   size_t i;
 
@@ -331,19 +331,8 @@ _res_hconf_init (void)
 #if IS_IN (libc)
 # if defined SIOCGIFCONF && defined SIOCGIFNETMASK
 /* List of known interfaces.  */
-libc_freeres_ptr (
-static struct netaddr
-{
-  int addrtype;
-  union
-  {
-    struct
-    {
-      uint32_t	addr;
-      uint32_t	mask;
-    } ipv4;
-  } u;
-} *ifaddrs);
+static struct netaddr *ifaddrs;
+weak_alias (ifaddrs, __libc_resolv_res_hconf_freemem_ptr)
 # endif
 
 /* Reorder addresses returned in a hostent such that the first address

@@ -1,6 +1,11 @@
 GLIBC_PROVIDES dnl See aclocal.m4 in the top level source directory.
 # Local configure fragment for sysdeps/i386.
 
+# CET is only supported for x86-64.
+if test $enable_cet != no; then
+  AC_MSG_ERROR(["CET is only supported on x86_64 or x32"])
+fi
+
 # We no longer support i386 since it lacks the atomic instructions
 # required to implement NPTL threading.
 if test "$config_machine" = i386; then
@@ -53,30 +58,8 @@ rm -f conftest*])
   fi
 fi
 
-dnl Check whether asm supports Intel MPX
-AC_CACHE_CHECK(for Intel MPX support, libc_cv_asm_mpx, [dnl
-cat > conftest.s <<\EOF
-        bndmov %bnd0,(%esp)
-EOF
-if AC_TRY_COMMAND(${CC-cc} -c $ASFLAGS conftest.s 1>&AS_MESSAGE_LOG_FD); then
-  libc_cv_asm_mpx=yes
-else
-  libc_cv_asm_mpx=no
-fi
-rm -f conftest*])
-if test $libc_cv_asm_mpx = yes; then
-  AC_DEFINE(HAVE_MPX_SUPPORT)
-fi
-
-dnl It is always possible to access static and hidden symbols in an
-dnl position independent way.
-AC_DEFINE(PI_STATIC_AND_HIDDEN)
-
 dnl When multi-arch is enabled, all external functions must be called
 dnl via PIC PLT in PIE, which requires setting up EBX register.
 if test x"$multi_arch" != xno; then
   AC_DEFINE(NO_HIDDEN_EXTERN_FUNC_IN_PIE)
 fi
-
-dnl Static PIE is supported.
-AC_DEFINE(SUPPORT_STATIC_PIE)

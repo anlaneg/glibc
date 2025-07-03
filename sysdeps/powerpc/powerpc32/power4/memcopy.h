@@ -1,7 +1,6 @@
 /* memcopy.h -- definitions for memory copy functions.  Generic C version.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -50,11 +49,6 @@
    MERGE(old_word, sh_1, new_word, sh_2)
      [I fail to understand.  I feel stupid.  --roland]
 */
-
-
-/* Threshold value for when to enter the unrolled loops.  */
-#undef	OP_T_THRES
-#define OP_T_THRES 16
 
 /* Copy exactly NBYTES bytes from SRC_BP to DST_BP,
    without any assumptions about alignment of the pointers.  */

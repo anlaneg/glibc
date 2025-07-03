@@ -1,6 +1,6 @@
 /* Multiple versions of memrchr
    All versions must be listed in ifunc-impl-list.c.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,5 +27,6 @@
 # include "ifunc-avx2.h"
 
 libc_ifunc_redirected (__redirect_memrchr, __memrchr, IFUNC_SELECTOR ());
+libc_hidden_def (__memrchr)
 weak_alias (__memrchr, memrchr)
 #endif

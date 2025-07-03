@@ -1,5 +1,5 @@
 /* Test case for async-signal-safe _Fork (with respect to malloc).
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -142,7 +142,7 @@ do_test (void)
   sigusr2_sender = xpthread_create (NULL, signal_sender, &sigusr2_args);
 
   /* Send SIGUSR1 signals from several threads.  Hopefully, one
-     signal will hit one of the ciritical functions.  Use a barrier to
+     signal will hit one of the critical functions.  Use a barrier to
      avoid sending signals while not running fork/free/malloc.  */
   struct signal_send_args sigusr1_args = { self, SIGUSR1, false };
   xpthread_barrier_init (&barrier, NULL,

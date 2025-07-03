@@ -1,5 +1,5 @@
 /* Definition for thread-local data handling.  NPTL/PowerPC version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,6 +26,7 @@
 # include <stddef.h>
 # include <stdint.h>
 # include <dl-dtv.h>
+# include <thread_pointer.h>
 
 #else /* __ASSEMBLER__ */
 # include <tcb-offsets.h>
@@ -36,21 +37,13 @@
 #ifndef __powerpc64__
 /* Register r2 (tp) is reserved by the ABI as "thread pointer". */
 # define PT_THREAD_POINTER PT_R2
-# ifndef __ASSEMBLER__
-register void *__thread_register __asm__ ("r2");
-# endif
 
 #else /* __powerpc64__ */
 /* Register r13 (tp) is reserved by the ABI as "thread pointer". */
 # define PT_THREAD_POINTER PT_R13
-# ifndef __ASSEMBLER__
-register void *__thread_register __asm__ ("r13");
-# endif
 #endif /* __powerpc64__ */
 
 #ifndef __ASSEMBLER__
-
-# include <hwcapinfo.h>
 
 /* Get system call information.  */
 # include <sysdep.h>
@@ -71,6 +64,9 @@ register void *__thread_register __asm__ ("r13");
    are private.  */
 typedef struct
 {
+  /* Reservation for HWCAP3 and HWCAP4 data.  To be accessed by GCC in
+     __builtin_cpu_supports(), so it is a part of the public ABI.  */
+  uint64_t hwcap_extn;
   /* Reservation for HWCAP data.  To be accessed by GCC in
      __builtin_cpu_supports(), so it is a part of public ABI.  */
   uint64_t hwcap;
@@ -105,22 +101,21 @@ typedef struct
   dtv_t *dtv;
 } tcbhead_t;
 
+extern tcbhead_t __tcb attribute_hidden;
+
+# include <hwcapinfo.h>
+
 /* This is the size of the initial TCB.  */
 # define TLS_INIT_TCB_SIZE	0
-
-/* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN	__alignof__ (struct pthread)
 
 /* This is the size of the TCB.  */
 # define TLS_TCB_SIZE		0
 
-/* Alignment requirements for the TCB.  */
-# define TLS_TCB_ALIGN		__alignof__ (struct pthread)
-
 /* This is the size we need before TCB.  */
 # define TLS_PRE_TCB_SIZE \
   (sizeof (struct pthread)						      \
-   + ((sizeof (tcbhead_t) + TLS_TCB_ALIGN - 1) & ~(TLS_TCB_ALIGN - 1)))
+   + ((sizeof (tcbhead_t) + __alignof (struct pthread) - 1)		      \
+      & ~(__alignof (struct pthread) - 1)))
 
 /* The following assumes that TP (R2 or R13) points to the end of the
    TCB + 0x7000 (per the ABI).  This implies that TCB address is
@@ -147,9 +142,10 @@ typedef struct
 # define TLS_INIT_TP(tcbp) \
   ({ 									      \
     __thread_register = (void *) (tcbp) + TLS_TCB_OFFSET;		      \
-    THREAD_SET_HWCAP (__tcb_hwcap);					      \
-    THREAD_SET_AT_PLATFORM (__tcb_platform);				      \
-    NULL;								      \
+    THREAD_SET_HWCAP (__tcb.hwcap);					      \
+    THREAD_SET_HWCAP_EXTN (__tcb.hwcap_extn);				      \
+    THREAD_SET_AT_PLATFORM (__tcb.at_platform);				      \
+    true;								      \
   })
 
 /* Value passed to 'clone' for initialization of the thread register.  */
@@ -157,6 +153,8 @@ typedef struct
     void *tp = (void *) (pd) + TLS_TCB_OFFSET + TLS_PRE_TCB_SIZE;	      \
     (((tcbhead_t *) ((char *) tp - TLS_TCB_OFFSET))[-1].hwcap) =	      \
       THREAD_GET_HWCAP ();						      \
+    (((tcbhead_t *) ((char *) tp - TLS_TCB_OFFSET))[-1].hwcap_extn) =	      \
+      THREAD_GET_HWCAP_EXTN ();						      \
     (((tcbhead_t *) ((char *) tp - TLS_TCB_OFFSET))[-1].at_platform) =	      \
       THREAD_GET_AT_PLATFORM ();
 
@@ -176,20 +174,7 @@ typedef struct
   REGISTER (64, 64, PT_THREAD_POINTER * 8,				      \
 	    - TLS_TCB_OFFSET - TLS_PRE_TCB_SIZE)
 
-/* Read member of the thread descriptor directly.  */
-# define THREAD_GETMEM(descr, member) ((void)(descr), (THREAD_SELF)->member)
-
-/* Same as THREAD_GETMEM, but the member offset can be non-constant.  */
-# define THREAD_GETMEM_NC(descr, member, idx) \
-    ((void)(descr), (THREAD_SELF)->member[idx])
-
-/* Set member of the thread descriptor directly.  */
-# define THREAD_SETMEM(descr, member, value) \
-    ((void)(descr), (THREAD_SELF)->member = (value))
-
-/* Same as THREAD_SETMEM, but the member offset can be non-constant.  */
-# define THREAD_SETMEM_NC(descr, member, idx, value) \
-    ((void)(descr), (THREAD_SELF)->member[idx] = (value))
+# include <tcb-access.h>
 
 /* Set the stack guard field in TCB head.  */
 # define THREAD_SET_STACK_GUARD(value) \
@@ -212,12 +197,17 @@ typedef struct
 		     + TLS_PRE_TCB_SIZE))[-1].pointer_guard		      \
      = THREAD_GET_POINTER_GUARD())
 
-/* hwcap field in TCB head.  */
+/* hwcap & hwcap_extn fields in TCB head.  */
 # define THREAD_GET_HWCAP() \
     (((tcbhead_t *) ((char *) __thread_register				      \
 		     - TLS_TCB_OFFSET))[-1].hwcap)
+# define THREAD_GET_HWCAP_EXTN() \
+    (((tcbhead_t *) ((char *) __thread_register				      \
+		     - TLS_TCB_OFFSET))[-1].hwcap_extn)
 # define THREAD_SET_HWCAP(value) \
     (THREAD_GET_HWCAP () = (value))
+# define THREAD_SET_HWCAP_EXTN(value) \
+    (THREAD_GET_HWCAP_EXTN () = (value))
 
 /* at_platform field in TCB head.  */
 # define THREAD_GET_AT_PLATFORM() \
@@ -231,14 +221,13 @@ typedef struct
 # define NO_TLS_OFFSET		-1
 
 /* Get and set the global scope generation counter in struct pthread.  */
-#define THREAD_GSCOPE_IN_TCB      1
 #define THREAD_GSCOPE_FLAG_UNUSED 0
 #define THREAD_GSCOPE_FLAG_USED   1
 #define THREAD_GSCOPE_FLAG_WAIT   2
 #define THREAD_GSCOPE_RESET_FLAG() \
   do									     \
     { int __res								     \
-	= atomic_exchange_rel (&THREAD_SELF->header.gscope_flag,	     \
+	= atomic_exchange_release (&THREAD_SELF->header.gscope_flag,	     \
 			       THREAD_GSCOPE_FLAG_UNUSED);		     \
       if (__res == THREAD_GSCOPE_FLAG_WAIT)				     \
 	lll_futex_wake (&THREAD_SELF->header.gscope_flag, 1, LLL_PRIVATE);   \

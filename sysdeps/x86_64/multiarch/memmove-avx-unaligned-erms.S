@@ -1,12 +1,16 @@
-#if IS_IN (libc)
-# define VEC_SIZE	32
-# define VEC(i)		ymm##i
-# define VMOVNT		vmovntdq
-# define VMOVU		vmovdqu
-# define VMOVA		vmovdqa
+#include <isa-level.h>
 
-# define SECTION(p)		p##.avx
-# define MEMMOVE_SYMBOL(p,s)	p##_avx_##s
+#if ISA_SHOULD_BUILD (3)
+
+# include "x86-avx-vecs.h"
+
+# ifndef MEMMOVE_SYMBOL
+#  define MEMMOVE_SYMBOL(p,s)	p##_avx_##s
+# endif
 
 # include "memmove-vec-unaligned-erms.S"
+
+# if MINIMUM_X86_ISA_LEVEL == 3
+#  include "memmove-shlib-compat.h"
+# endif
 #endif

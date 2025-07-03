@@ -1,5 +1,5 @@
 /* Report on what a thread in our task is waiting for.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -107,13 +107,8 @@ describe_port (char *description, mach_port_t port, size_t size)
 
 /* We want _HURD_ITIMER_THREAD, but don't want to link in the itimer code
    unnecessarily.  */
-#if 0 /* libc.so.0.0 needs this defined, so make it a weak alias for now.  */
 extern thread_t _hurd_itimer_thread; /* XXX */
 weak_extern (_hurd_itimer_thread)
-#else
-static thread_t default_hurd_itimer_thread;
-weak_alias (default_hurd_itimer_thread, _hurd_itimer_thread)
-#endif
 
 kern_return_t
 _S_msg_report_wait (mach_port_t msgport, thread_t thread,
@@ -239,7 +234,7 @@ _S_msg_report_wait (mach_port_t msgport, thread_t thread,
 
 kern_return_t
 _S_msg_describe_ports (mach_port_t msgport, mach_port_t refport,
-		       mach_port_t *ports, mach_msg_type_number_t nports,
+		       const mach_port_t *ports, mach_msg_type_number_t nports,
 		       char **desc, mach_msg_type_number_t *desclen)
 {
   char *p, *end;

@@ -1,4 +1,4 @@
-/* Copyright (C) 1999-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,12 +19,27 @@
 #include <stdlib.h>
 #include "exit.h"
 #include <register-atfork.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 #include <stdint.h>
 
 /* If D is non-NULL, call all functions registered with `__cxa_atexit'
    with the same dso handle.  Otherwise, if D is NULL, call all of the
-   registered handlers.  */
+   registered handlers.
+
+   A __cxa_finalize function is declared in the libstdc++ <cxxabi.h>
+   header, and the libstdc++ implementation calls this function.  GCC
+   calls the glibc variant directly from its CRT files, from an ELF
+   destructor.  this call always passes a non-null D argument.  In the
+   current implementation, the GCC-provided __cxa_finalize call is
+   responsible for removing the registered __cxa_atexit (C++)
+   destructors of an object that is undergoing dlclose.  Note that
+   this is specific to dlclose.  During process termination, glibc
+   invokes the __run_exit_handlers, which calls registered
+   __cxa_atexit (C++) destructors in reverse registration order,
+   across all objects.  The subsequent GCC-provided __cxa_finalize
+   calls (which are ordered according to ELF object dependencies, not
+   __cxa_atexit call order, and group destructor calls per object
+   during dlclose) do not result in further destructor invocations.  */
 void
 __cxa_finalize (void *d)
 {
@@ -75,9 +90,8 @@ __cxa_finalize (void *d)
 	       parallel.  */
 	    f->flavor = ef_free;
 
-#ifdef PTR_DEMANGLE
 	    PTR_DEMANGLE (cxafn);
-#endif
+
 	    /* Unlock the list while we call a foreign function.  */
 	    __libc_lock_unlock (__exit_funcs_lock);
 	    cxafn (cxaarg, 0);

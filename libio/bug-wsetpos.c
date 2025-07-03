@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <wchar.h>
 
+#include <support/xunistd.h>
+
 static void do_prepare (void);
 #define PREPARE(argc, argv) do_prepare ()
 static int do_test (void);
@@ -22,7 +24,7 @@ do_prepare (void)
       printf ("cannot create temporary file: %m\n");
       exit (1);
     }
-  write (fd, pattern, sizeof (pattern));
+  xwrite (fd, pattern, sizeof (pattern));
   close (fd);
 }
 
@@ -35,7 +37,7 @@ do_test (void)
 
   if (fp == NULL)
     {
-      printf ("fdopen: %m\n");
+      printf ("fopen: %m\n");
       return 1;
     }
 

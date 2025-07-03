@@ -1,5 +1,5 @@
 /* Save current context.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -44,7 +44,7 @@ weak_alias (__getcontext, getcontext)
 
 
 /* An internal routine used by getcontext and setcontext.
-   The incomming return address register is $0.  */
+   The incoming return address register is $0.  */
 
 	.align	4
 	.globl	__getcontext_x

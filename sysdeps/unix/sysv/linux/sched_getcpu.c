@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,9 +19,10 @@
 #include <sched.h>
 #include <sysdep.h>
 #include <sysdep-vdso.h>
+#include <rseq-internal.h>
 
-int
-sched_getcpu (void)
+static int
+vsyscall_sched_getcpu (void)
 {
   unsigned int cpu;
   int r = -1;
@@ -31,4 +32,11 @@ sched_getcpu (void)
   r = INLINE_SYSCALL_CALL (getcpu, &cpu, NULL, NULL);
 #endif
   return r == -1 ? r : cpu;
+}
+
+int
+sched_getcpu (void)
+{
+  int cpu_id = RSEQ_GETMEM_ONCE (cpu_id);
+  return __glibc_likely (cpu_id >= 0) ? cpu_id : vsyscall_sched_getcpu ();
 }

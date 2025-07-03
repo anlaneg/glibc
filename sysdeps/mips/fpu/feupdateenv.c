@@ -1,7 +1,6 @@
 /* Install given floating-point environment and raise exceptions.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Andreas Jaeger <aj@suse.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -32,7 +31,7 @@ __feupdateenv (const fenv_t *envp)
   /* Install new environment.  */
   __fesetenv (envp);
 
-  /* Raise the safed exception.  Incidently for us the implementation
+  /* Raise the saved exception.  Incidentally for us the implementation
      defined format of the values in objects of type fexcept_t is the
      same as the ones specified using the FE_* constants.  */
   __feraiseexcept (temp);

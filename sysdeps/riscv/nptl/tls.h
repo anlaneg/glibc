@@ -1,5 +1,5 @@
 /* Definition for thread-local data handling.  NPTL/RISC-V version.
-   Copyright (C) 2011-2021 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -50,20 +50,15 @@ typedef struct
    pointer, we don't need this.  */
 # define TLS_INIT_TCB_SIZE	0
 
-/* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN	__alignof__ (struct pthread)
-
 /* This is the size of the TCB.  Because our TCB is before the thread
    pointer, we don't need this.  */
 # define TLS_TCB_SIZE		0
 
-/* Alignment requirements for the TCB.  */
-# define TLS_TCB_ALIGN		__alignof__ (struct pthread)
-
 /* This is the size we need before TCB - actually, it includes the TCB.  */
 # define TLS_PRE_TCB_SIZE \
   (sizeof (struct pthread)						      \
-   + ((sizeof (tcbhead_t) + TLS_TCB_ALIGN - 1) & ~(TLS_TCB_ALIGN - 1)))
+   + ((sizeof (tcbhead_t) + __alignof (struct pthread) - 1)		      \
+      & ~(__alignof (struct pthread) - 1)))
 
 /* The thread pointer tp points to the end of the TCB.
    The pthread_descr structure is immediately in front of the TCB.  */
@@ -84,7 +79,7 @@ typedef struct
 
 /* Code to initially initialize the thread pointer.  */
 # define TLS_INIT_TP(tcbp) \
-  ({ __thread_self = (char*)tcbp + TLS_TCB_OFFSET; NULL; })
+  ({ __thread_self = (char*)tcbp + TLS_TCB_OFFSET; true; })
 
 /* Return the address of the dtv for the current thread.  */
 # define THREAD_DTV() \
@@ -105,28 +100,20 @@ typedef struct
   REGISTER (64, 64, 4 * 8, - TLS_TCB_OFFSET - TLS_PRE_TCB_SIZE)
 
 /* Access to data in the thread descriptor is easy.  */
-# define THREAD_GETMEM(descr, member) \
-  descr->member
-# define THREAD_GETMEM_NC(descr, member, idx) \
-  descr->member[idx]
-# define THREAD_SETMEM(descr, member, value) \
-  descr->member = (value)
-# define THREAD_SETMEM_NC(descr, member, idx, value) \
-  descr->member[idx] = (value)
+# include <tcb-access.h>
 
 /* l_tls_offset == 0 is perfectly valid, so we have to use some different
    value to mean unset l_tls_offset.  */
 # define NO_TLS_OFFSET		-1
 
 /* Get and set the global scope generation counter in struct pthread.  */
-# define THREAD_GSCOPE_IN_TCB      1
 # define THREAD_GSCOPE_FLAG_UNUSED 0
 # define THREAD_GSCOPE_FLAG_USED   1
 # define THREAD_GSCOPE_FLAG_WAIT   2
 # define THREAD_GSCOPE_RESET_FLAG() \
   do									     \
     { int __res								     \
-	= atomic_exchange_rel (&THREAD_SELF->header.gscope_flag,	     \
+	= atomic_exchange_release (&THREAD_SELF->header.gscope_flag,	     \
 			       THREAD_GSCOPE_FLAG_UNUSED);		     \
       if (__res == THREAD_GSCOPE_FLAG_WAIT)				     \
 	lll_futex_wake (&THREAD_SELF->header.gscope_flag, 1, LLL_PRIVATE);   \

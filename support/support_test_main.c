@@ -1,5 +1,5 @@
 /* Main worker function for the test driver.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -195,16 +195,14 @@ run_test_function (int argc, char **argv, const struct test_config *config)
       char *gdb_script_name;
       int inside_container = 0;
 
-      mypid = getpid();
-      if (mypid < 3)
+      const char *outside_pid = getenv("PID_OUTSIDE_CONTAINER");
+      if (outside_pid)
 	{
-	  const char *outside_pid = getenv("PID_OUTSIDE_CONTAINER");
-	  if (outside_pid)
-	    {
-	      mypid = atoi (outside_pid);
-	      inside_container = 1;
-	    }
+	  mypid = atoi (outside_pid);
+	  inside_container = 1;
 	}
+      else
+	mypid = getpid();
 
       gdb_script_name = (char *) xmalloc (strlen (argv[0]) + strlen (".gdb") + 1);
       sprintf (gdb_script_name, "%s.gdb", argv[0]);
@@ -227,6 +225,18 @@ run_test_function (int argc, char **argv, const struct test_config *config)
   /* Wait for the debugger to set wait_for_debugger to zero.  */
   while (wait_for_debugger)
     usleep (1000);
+
+  if (config->run_command_mode)
+    {
+      /* In run-command-mode, the child process executes the command line
+	 arguments as a new program.  */
+      char **argv_ = xmalloc (sizeof (char *) * argc);
+      memcpy (argv_, &argv[1], sizeof (char *) * (argc - 1));
+      argv_[argc - 1] = NULL;
+      execv (argv_[0], argv_);
+      printf ("error: should not return here\n");
+      exit (1);
+    }
 
   if (config->test_function != NULL)
     return config->test_function ();
@@ -274,7 +284,7 @@ support_test_main (int argc, char **argv, const struct test_config *config)
   int direct = 0;       /* Directly call the test function?  */
   int status;
   int opt;
-  unsigned int timeoutfactor = 1;
+  unsigned int timeoutfactor = TIMEOUTFACTOR;
   pid_t termpid;
 
   /* If we're debugging the test, we need to disable timeouts and use
@@ -457,7 +467,7 @@ support_test_main (int argc, char **argv, const struct test_config *config)
       exit (1);
     }
 
-  /* Process terminated normaly without timeout etc.  */
+  /* Process terminated normally without timeout etc.  */
   if (WIFEXITED (status))
     {
       if (config->expected_status == 0)

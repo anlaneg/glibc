@@ -1,5 +1,5 @@
 /* Default strlen implementation for S/390.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,12 +21,14 @@
 #if HAVE_STRLEN_C
 # if HAVE_STRLEN_IFUNC
 #  define STRLEN STRLEN_C
-#  if defined SHARED && IS_IN (libc)
-#   undef libc_hidden_builtin_def
-#   define libc_hidden_builtin_def(name)		\
-  __hidden_ver1 (__strlen_c, __GI_strlen, __strlen_c);
-#  endif
 # endif
 
 # include <string/strlen.c>
+
+# if HAVE_STRLEN_IFUNC
+#  if defined SHARED && IS_IN (libc)
+__hidden_ver1 (__strlen_c, __GI_strlen, __strlen_c);
+#  endif
+# endif
+
 #endif

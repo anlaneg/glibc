@@ -1,5 +1,5 @@
 /* Test the creation of many struct __res_state objects.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -55,8 +55,8 @@ do_test (void)
           TEST_VERIFY (conf != NULL);
         }
       else
-        /* The underyling configuration should be identical across all
-           res_state opjects because resolv.conf did not change.  */
+        /* The underlying configuration should be identical across all
+           res_state objects because resolv.conf did not change.  */
         TEST_VERIFY (ctx->conf == conf);
     }
   qsort (array, count, sizeof (*array), sort_res_state);

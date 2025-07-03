@@ -1,5 +1,5 @@
 /* Run a test case in an isolated namespace.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,8 +16,7 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#define _FILE_OFFSET_BITS 64
-
+#include <array_length.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +37,7 @@
 #include <errno.h>
 #include <error.h>
 #include <libc-pointer-arith.h>
+#include <ftw.h>
 
 #ifdef __linux__
 #include <sys/mount.h>
@@ -97,6 +97,7 @@ int verbose = 0;
    * mytest.root/mytest.script has a list of "commands" to run:
        syntax:
          # comment
+	 pidns <comment>
          su
          mv FILE FILE
 	 cp FILE FILE
@@ -122,6 +123,8 @@ int verbose = 0;
 
        details:
          - '#': A comment.
+	 - 'pidns': Require a separate PID namespace, prints comment if it can't
+	    (default is a shared pid namespace)
          - 'su': Enables running test as root in the container.
          - 'mv': A minimal move files command.
          - 'cp': A minimal copy files command.
@@ -148,7 +151,7 @@ int verbose = 0;
    * Simple, easy to review code (i.e. prefer simple naive code over
      complex efficient code)
 
-   * The current implementation ist parallel-make-safe, but only in
+   * The current implementation is parallel-make-safe, but only in
      that it uses a lock to prevent parallel access to the testroot.  */
 
 
@@ -227,11 +230,39 @@ concat (const char *str, ...)
   return bufs[n];
 }
 
+#ifdef CLONE_NEWNS
+/* Like the above, but put spaces between words.  Caller frees.  */
+static char *
+concat_words (char **words, int num_words)
+{
+  int len = 0;
+  int i;
+  char *rv, *p;
+
+  for (i = 0; i < num_words; i ++)
+    {
+      len += strlen (words[i]);
+      len ++;
+    }
+
+  p = rv = (char *) xmalloc (len);
+
+  for (i = 0; i < num_words; i ++)
+    {
+      if (i > 0)
+	p = stpcpy (p, " ");
+      p = stpcpy (p, words[i]);
+    }
+
+  return rv;
+}
+#endif
+
 /* Try to mount SRC onto DEST.  */
 static void
 trymount (const char *src, const char *dest)
 {
-  if (mount (src, dest, "", MS_BIND, NULL) < 0)
+  if (mount (src, dest, "", MS_BIND | MS_REC, NULL) < 0)
     FAIL_EXIT1 ("can't mount %s onto %s\n", src, dest);
 }
 
@@ -249,7 +280,7 @@ devmount (const char *new_root_path, const char *which)
 	    concat (new_root_path, "/dev/", which, NULL));
 }
 
-/* Returns true if the string "looks like" an environement variable
+/* Returns true if the string "looks like" an environment variable
    being set.  */
 static int
 is_env_setting (const char *a)
@@ -375,32 +406,19 @@ file_exists (char *path)
   return 0;
 }
 
+static int
+unlink_cb (const char *fpath, const struct stat *sb, int typeflag,
+	   struct FTW *ftwbuf)
+{
+  return remove (fpath);
+}
+
 static void
 recursive_remove (char *path)
 {
-  pid_t child;
-  int status;
-
-  child = fork ();
-
-  switch (child) {
-  case -1:
-    perror("fork");
-    FAIL_EXIT1 ("Unable to fork");
-  case 0:
-    /* Child.  */
-    execlp ("rm", "rm", "-rf", path, NULL);
-    FAIL_EXIT1 ("exec rm: %m");
-  default:
-    /* Parent.  */
-    waitpid (child, &status, 0);
-    /* "rm" would have already printed a suitable error message.  */
-    if (! WIFEXITED (status)
-	|| WEXITSTATUS (status) != 0)
-      FAIL_EXIT1 ("exec child returned status: %d", status);
-
-    break;
-  }
+  int r = nftw (path, unlink_cb, 1000, FTW_DEPTH | FTW_PHYS);
+  if (r == -1)
+    FAIL_EXIT1 ("recursive_remove failed");
 }
 
 /* Used for both rsync and the mytest.script "cp" command.  */
@@ -422,7 +440,7 @@ copy_one_file (const char *sname, const char *dname)
   if (dfd < 0)
     FAIL_EXIT1 ("unable to open %s for writing\n", dname);
 
-  xcopy_file_range (sfd, 0, dfd, 0, st.st_size, 0);
+  xcopy_file_range (sfd, NULL, dfd, NULL, st.st_size, 0);
 
   xclose (sfd);
   xclose (dfd);
@@ -653,39 +671,45 @@ rsync (char *src, char *dest, int and_delete, int force_copies)
 /* See if we can detect what the user needs to do to get unshare
    support working for us.  */
 void
-check_for_unshare_hints (void)
+check_for_unshare_hints (int require_pidns)
 {
+  static struct {
+    const char *path;
+    int bad_value, good_value, for_pidns;
+  } files[] = {
+    /* Default Debian Linux disables user namespaces, but allows a way
+       to enable them.  */
+    { "/proc/sys/kernel/unprivileged_userns_clone", 0, 1, 0 },
+    /* ALT Linux has an alternate way of doing the same.  */
+    { "/proc/sys/kernel/userns_restrict", 1, 0, 0 },
+    /* AppArmor can also disable unprivileged user namespaces.  */
+    { "/proc/sys/kernel/apparmor_restrict_unprivileged_userns", 1, 0, 0 },
+    /* Linux kernel >= 4.9 has a configurable limit on the number of
+       each namespace.  Some distros set the limit to zero to disable the
+       corresponding namespace as a "security policy".  */
+    { "/proc/sys/user/max_user_namespaces", 0, 1024, 0 },
+    { "/proc/sys/user/max_mnt_namespaces", 0, 1024, 0 },
+    { "/proc/sys/user/max_pid_namespaces", 0, 1024, 1 },
+  };
   FILE *f;
-  int i;
+  int i, val;
 
-  /* Default Debian Linux disables user namespaces, but allows a way
-     to enable them.  */
-  f = fopen ("/proc/sys/kernel/unprivileged_userns_clone", "r");
-  if (f != NULL)
+  for (i = 0; i < array_length (files); i++)
     {
-      i = 99; /* Sentinel.  */
-      fscanf (f, "%d", &i);
-      if (i == 0)
-	{
-	  printf ("To enable test-container, please run this as root:\n");
-	  printf ("  echo 1 > /proc/sys/kernel/unprivileged_userns_clone\n");
-	}
-      fclose (f);
-      return;
-    }
+      if (!require_pidns && files[i].for_pidns)
+        continue;
 
-  /* ALT Linux has an alternate way of doing the same.  */
-  f = fopen ("/proc/sys/kernel/userns_restrict", "r");
-  if (f != NULL)
-    {
-      i = 99; /* Sentinel.  */
-      fscanf (f, "%d", &i);
-      if (i == 1)
-	{
-	  printf ("To enable test-container, please run this as root:\n");
-	  printf ("  echo 0 > /proc/sys/kernel/userns_restrict\n");
-	}
-      fclose (f);
+      f = fopen (files[i].path, "r");
+      if (f == NULL)
+        continue;
+
+      val = -1; /* Sentinel.  */
+      int cnt = fscanf (f, "%d", &val);
+      if (cnt == 1 && val != files[i].bad_value)
+	continue;
+
+      printf ("To enable test-container, please run this as root:\n");
+      printf ("  echo %d > %s\n", files[i].good_value, files[i].path);
       return;
     }
 }
@@ -726,6 +750,11 @@ main (int argc, char **argv)
   gid_t original_gid;
   /* If set, the test runs as root instead of the user running the testsuite.  */
   int be_su = 0;
+  int require_pidns = 0;
+#ifdef CLONE_NEWNS
+  const char *pidns_comment = NULL;
+#endif
+  int do_proc_mounts = 0;
   int UMAP;
   int GMAP;
   /* Used for "%lld %lld 1" so need not be large.  */
@@ -761,7 +790,7 @@ main (int argc, char **argv)
       --argc;
       while (is_env_setting (argv[1]))
 	{
-	  /* If there are variables we do NOT want to propogate, this
+	  /* If there are variables we do NOT want to propagate, this
 	     is where the test for them goes.  */
 	    {
 	      /* Need to keep these.  Note that putenv stores a
@@ -1011,6 +1040,14 @@ main (int argc, char **argv)
 	      {
 		be_su = 1;
 	      }
+	    else if (nt >= 1 && strcmp (the_words[0], "pidns") == 0)
+	      {
+		require_pidns = 1;
+#ifdef CLONE_NEWNS
+		if (nt > 1)
+		  pidns_comment = concat_words (the_words + 1, nt - 1);
+#endif
+	      }
 	    else if (nt == 3 && strcmp (the_words[0], "mkdirp") == 0)
 	      {
 		long int m;
@@ -1068,17 +1105,24 @@ main (int argc, char **argv)
 
 #ifdef CLONE_NEWNS
   /* The unshare here gives us our own spaces and capabilities.  */
-  if (unshare (CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNS) < 0)
+  if (unshare (CLONE_NEWUSER | CLONE_NEWNS
+	       | (require_pidns ? CLONE_NEWPID : 0)) < 0)
     {
       /* Older kernels may not support all the options, or security
 	 policy may block this call.  */
-      if (errno == EINVAL || errno == EPERM)
+      if (errno == EINVAL || errno == EPERM
+          || errno == ENOSPC || errno == EACCES)
 	{
 	  int saved_errno = errno;
-	  if (errno == EPERM)
-	    check_for_unshare_hints ();
+	  if (errno == EPERM || errno == ENOSPC || errno == EACCES)
+	    check_for_unshare_hints (require_pidns);
 	  FAIL_UNSUPPORTED ("unable to unshare user/fs: %s", strerror (saved_errno));
 	}
+      /* We're about to exit anyway, it's "safe" to call unshare again
+	 just to see if the CLONE_NEWPID caused the error.  */
+      else if (require_pidns && unshare (CLONE_NEWUSER | CLONE_NEWNS) >= 0)
+	FAIL_EXIT1 ("unable to unshare pid ns: %s : %s", strerror (errno),
+		    pidns_comment ? pidns_comment : "required by test");
       else
 	FAIL_EXIT1 ("unable to unshare user/fs: %s", strerror (errno));
     }
@@ -1094,10 +1138,22 @@ main (int argc, char **argv)
   trymount (support_srcdir_root, new_srcdir_path);
   trymount (support_objdir_root, new_objdir_path);
 
+  /* It may not be possible to mount /proc directly.  */
+  if (! require_pidns)
+  {
+    char *new_proc = concat (new_root_path, "/proc", NULL);
+    xmkdirp (new_proc, 0755);
+    trymount ("/proc", new_proc);
+    do_proc_mounts = 1;
+  }
+
   xmkdirp (concat (new_root_path, "/dev", NULL), 0755);
   devmount (new_root_path, "null");
   devmount (new_root_path, "zero");
   devmount (new_root_path, "urandom");
+#ifdef __linux__
+  devmount (new_root_path, "ptmx");
+#endif
 
   /* We're done with the "old" root, switch to the new one.  */
   if (chroot (new_root_path) < 0)
@@ -1113,7 +1169,7 @@ main (int argc, char **argv)
 
   /* To complete the containerization, we need to fork () at least
      once.  We can't exec, nor can we somehow link the new child to
-     our parent.  So we run the child and propogate it's exit status
+     our parent.  So we run the child and propagate it's exit status
      up.  */
   child = fork ();
   if (child < 0)
@@ -1124,7 +1180,7 @@ main (int argc, char **argv)
       int status;
 
       /* Send the child's "outside" pid to it.  */
-      write (pipes[1], &child, sizeof(child));
+      xwrite (pipes[1], &child, sizeof(child));
       close (pipes[0]);
       close (pipes[1]);
 
@@ -1155,7 +1211,8 @@ main (int argc, char **argv)
 
   /* Get our "outside" pid from our parent.  We use this to help with
      debugging from outside the container.  */
-  read (pipes[0], &child, sizeof(child));
+  xread (pipes[0], &child, sizeof(child));
+
   close (pipes[0]);
   close (pipes[1]);
   sprintf (pid_buf, "%lu", (long unsigned)child);
@@ -1163,42 +1220,68 @@ main (int argc, char **argv)
 
   maybe_xmkdir ("/tmp", 0755);
 
-  /* Now that we're pid 1 (effectively "root") we can mount /proc  */
-  maybe_xmkdir ("/proc", 0777);
-  if (mount ("proc", "/proc", "proc", 0, NULL) < 0)
-    FAIL_EXIT1 ("Unable to mount /proc: ");
+#ifdef __linux__
+  maybe_xmkdir ("/dev/pts", 0777);
+  if (mount ("/dev/pts", "/dev/pts", "devpts", 0, "newinstance,ptmxmode=0666,mode=0666") < 0)
+    FAIL_EXIT1 ("can't mount /dev/pts: %m\n");
+  if (mount ("/dev/pts/ptmx", "/dev/ptmx", "", MS_BIND | MS_REC, NULL) < 0)
+    FAIL_EXIT1 ("can't mount /dev/ptmx\n");
+#endif
 
-  /* We map our original UID to the same UID in the container so we
-     can own our own files normally.  */
-  UMAP = open ("/proc/self/uid_map", O_WRONLY);
-  if (UMAP < 0)
-    FAIL_EXIT1 ("can't write to /proc/self/uid_map\n");
-
-  sprintf (tmp, "%lld %lld 1\n",
-	   (long long) (be_su ? 0 : original_uid), (long long) original_uid);
-  write (UMAP, tmp, strlen (tmp));
-  xclose (UMAP);
-
-  /* We must disable setgroups () before we can map our groups, else we
-     get EPERM.  */
-  GMAP = open ("/proc/self/setgroups", O_WRONLY);
-  if (GMAP >= 0)
+  if (require_pidns)
     {
-      /* We support kernels old enough to not have this.  */
-      write (GMAP, "deny\n", 5);
-      xclose (GMAP);
+      /* Now that we're pid 1 (effectively "root") we can mount /proc  */
+      maybe_xmkdir ("/proc", 0777);
+      if (mount ("proc", "/proc", "proc", 0, NULL) != 0)
+	{
+	  /* This happens if we're trying to create a nested container,
+	     like if the build is running under podman, and we lack
+	     privileges.
+
+	     Ideally we would WARN here, but that would just add noise to
+	     *every* test-container test, and the ones that care should
+	     have their own relevant diagnostics.
+
+	     FAIL_EXIT1 ("Unable to mount /proc: ");  */
+	}
+      else
+	do_proc_mounts = 1;
     }
 
-  /* We map our original GID to the same GID in the container so we
-     can own our own files normally.  */
-  GMAP = open ("/proc/self/gid_map", O_WRONLY);
-  if (GMAP < 0)
-    FAIL_EXIT1 ("can't write to /proc/self/gid_map\n");
+  if (do_proc_mounts)
+    {
+      /* We map our original UID to the same UID in the container so we
+	 can own our own files normally.  */
+      UMAP = open ("/proc/self/uid_map", O_WRONLY);
+      if (UMAP < 0)
+	FAIL_EXIT1 ("can't write to /proc/self/uid_map\n");
 
-  sprintf (tmp, "%lld %lld 1\n",
-	   (long long) (be_su ? 0 : original_gid), (long long) original_gid);
-  write (GMAP, tmp, strlen (tmp));
-  xclose (GMAP);
+      sprintf (tmp, "%lld %lld 1\n",
+	       (long long) (be_su ? 0 : original_uid), (long long) original_uid);
+      xwrite (UMAP, tmp, strlen (tmp));
+      xclose (UMAP);
+
+      /* We must disable setgroups () before we can map our groups, else we
+	 get EPERM.  */
+      GMAP = open ("/proc/self/setgroups", O_WRONLY);
+      if (GMAP >= 0)
+	{
+	  /* We support kernels old enough to not have this.  */
+	  xwrite (GMAP, "deny\n", 5);
+	  xclose (GMAP);
+	}
+
+      /* We map our original GID to the same GID in the container so we
+	 can own our own files normally.  */
+      GMAP = open ("/proc/self/gid_map", O_WRONLY);
+      if (GMAP < 0)
+	FAIL_EXIT1 ("can't write to /proc/self/gid_map\n");
+
+      sprintf (tmp, "%lld %lld 1\n",
+	       (long long) (be_su ? 0 : original_gid), (long long) original_gid);
+      xwrite (GMAP, tmp, strlen (tmp));
+      xclose (GMAP);
+    }
 
   if (change_cwd)
     {

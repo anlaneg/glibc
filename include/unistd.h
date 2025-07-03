@@ -3,6 +3,10 @@
 
 # ifndef _ISOMAC
 
+#  include <stdbool.h>
+#  include <kernel-features.h>
+#  include <bits/unistd-decl.h>
+
 libc_hidden_proto (_exit, __noreturn__)
 #  ifndef NO_RTLD_HIDDEN
 rtld_hidden_proto (_exit, __noreturn__)
@@ -27,6 +31,10 @@ libc_hidden_proto (tcgetpgrp)
 libc_hidden_proto (readlinkat)
 libc_hidden_proto (fsync)
 libc_hidden_proto (fdatasync)
+
+libc_hidden_proto (__read_chk)
+libc_hidden_proto (__getdomainname_chk)
+libc_hidden_proto (__getlogin_r_chk)
 
 /* Now define the internal interfaces.  */
 extern int __access (const char *__name, int __type);
@@ -75,6 +83,7 @@ extern int __chown (const char *__file,
 libc_hidden_proto (__chown)
 extern int __fchown (int __fd,
 		     __uid_t __owner, __gid_t __group);
+extern int __fchownat (int __fd, const char *__file, uid_t __owner, gid_t __group, int __flag);
 extern int __lchown (const char *__file, __uid_t __owner,
 		     __gid_t __group);
 extern int __chdir (const char *__path) attribute_hidden;
@@ -143,11 +152,15 @@ libc_hidden_proto (__ttyname_r)
 extern __pid_t _Fork (void);
 libc_hidden_proto (_Fork);
 extern int __isatty (int __fd) attribute_hidden;
+extern int __isatty_nostatus (int __fd) attribute_hidden;
 extern int __link (const char *__from, const char *__to);
 extern int __symlink (const char *__from, const char *__to);
+extern int __symlinkat (const char *__from, int __fd, const char *__to);
 extern ssize_t __readlink (const char *__path, char *__buf, size_t __len)
      attribute_hidden;
+extern ssize_t __readlinkat (int __fd, const char *__file_name, char *__buf, size_t __len);
 extern int __unlink (const char *__name) attribute_hidden;
+extern int __unlinkat (int __fd, const char *__name, int __flag);
 extern int __gethostname (char *__name, size_t __len) attribute_hidden;
 extern int __revoke (const char *__file);
 extern int __profil (unsigned short int *__sample_buffer, size_t __size,
@@ -158,7 +171,14 @@ extern int __brk (void *__addr) attribute_hidden;
 extern int __close (int __fd);
 libc_hidden_proto (__close)
 extern int __libc_close (int __fd);
+#  if __ASSUME_CLOSE_RANGE
+static inline _Bool __closefrom_fallback (int __lowfd, _Bool dirfd_fallback)
+{
+  return false;
+}
+#  else
 extern _Bool __closefrom_fallback (int __lowfd, _Bool) attribute_hidden;
+#  endif
 extern ssize_t __read (int __fd, void *__buf, size_t __nbytes);
 libc_hidden_proto (__read)
 extern ssize_t __write (int __fd, const void *__buf, size_t __n);
@@ -173,6 +193,8 @@ extern int __truncate (const char *path, __off_t __length);
 extern void *__sbrk (intptr_t __delta);
 libc_hidden_proto (__sbrk)
 
+extern int __tcsetpgrp (int fd, __pid_t pgrp);
+libc_hidden_proto (__tcsetpgrp)
 
 /* This variable is set nonzero at startup if the process's effective
    IDs differ from its real IDs, or it is otherwise indicated that
@@ -180,7 +202,6 @@ libc_hidden_proto (__sbrk)
    and some functions contained in the C library ignore various
    environment variables that normally affect them.  */
 extern int __libc_enable_secure attribute_relro;
-extern int __libc_enable_secure_decided;
 rtld_hidden_proto (__libc_enable_secure)
 
 

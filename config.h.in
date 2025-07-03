@@ -43,21 +43,25 @@
 /* Define if the compiler supports __builtin_memset.  */
 #undef	HAVE_BUILTIN_MEMSET
 
-/* Define if compiler accepts -ftree-loop-distribute-patterns.  */
+/* Define if CC compiler accepts -ftree-loop-distribute-patterns.  */
 #undef  HAVE_CC_INHIBIT_LOOP_TO_LIBCALL
 
-/* Define if compiler accepts -fno-stack-protector in an
+/* Define if TEST_CC compiler accepts -ftree-loop-distribute-patterns.  */
+#undef  HAVE_TEST_CC_INHIBIT_LOOP_TO_LIBCALL
+
+/* Define if CC compiler accepts -fno-stack-protector in an
    __attribute__ ((__optimize__)).  */
 #undef	HAVE_CC_NO_STACK_PROTECTOR
+
+/* Define if TEST_CC compiler accepts -fno-stack-protector in an
+   __attribute__ ((__optimize__)).  */
+#undef	HAVE_TEST_CC_NO_STACK_PROTECTOR
 
 /* The level of stack protection in use for glibc as a whole.
    May be overridden on a file-by-file basis.  */
 #ifndef STACK_PROTECTOR_LEVEL
 #undef	STACK_PROTECTOR_LEVEL
 #endif
-
-/* Define if the linker supports the -z combreloc option.  */
-#undef	HAVE_Z_COMBRELOC
 
 /* Define if _rtld_local structure should be forced into .sdata section.  */
 #undef	HAVE_SDATA_SECTION
@@ -84,15 +88,12 @@
 /* Define if assembler supports arch13 instructions on S390.  */
 #undef  HAVE_S390_ARCH13_ASM_SUPPORT
 
-/* Define if assembler supports Intel MPX.  */
-#undef  HAVE_MPX_SUPPORT
-
 /* Define if the compiler\'s exception support is based on libunwind.  */
 #undef	HAVE_CC_WITH_LIBUNWIND
 
-/* Define if the access to static and hidden variables is position independent
-   and does not need relocations.  */
-#undef	PI_STATIC_AND_HIDDEN
+/* Define if the accesses to static and hidden variables in a shared object
+   need dynamic relocations.  */
+#undef	HIDDEN_VAR_NEEDS_DYNAMIC_RELOC
 
 /* Define this to disable the 'hidden_proto' et al macros in
    include/libc-symbols.h that avoid PLT slots in PIE.  */
@@ -112,25 +113,14 @@
 /* AArch64 big endian ABI */
 #undef HAVE_AARCH64_BE
 
-/* AArch64 BTI support enabled.  */
-#define HAVE_AARCH64_BTI 0
-
-/* AArch64 PAC-RET code generation is enabled.  */
-#define HAVE_AARCH64_PAC_RET 0
-
-/* Assembler support ARMv8.2-A SVE.
-   This macro becomes obsolete when glibc increased the minimum
-   required version of GNU 'binutils' to 2.28 or later. */
-#define HAVE_AARCH64_SVE_ASM 0
-
-/* ARC big endian ABI */
-#undef HAVE_ARC_BE
-
 /* C-SKY ABI version.  */
 #undef CSKYABI
 
-/* C-SKY floating-point ABI.  */
+/* C-SKY floating-point instructions.  */
 #undef CSKY_HARD_FLOAT
+
+/* C-SKY floating-point ABI.  */
+#undef CSKY_HARD_FLOAT_ABI
 
 /* RISC-V integer ABI for ld.so.  */
 #undef RISCV_ABI_XLEN
@@ -138,17 +128,41 @@
 /* RISC-V floating-point ABI for ld.so.  */
 #undef RISCV_ABI_FLEN
 
+/* LOONGARCH integer ABI for ld.so.  */
+#undef LOONGARCH_ABI_GRLEN
+
+/* LOONGARCH floating-point ABI for ld.so.  */
+#undef LOONGARCH_ABI_FRLEN
+
+/* Define whether compiler support vector.  */
+#undef HAVE_LOONGARCH_VEC_COM
+
+/* Define whether ARM used hard-float and support VFPvX-D32.  */
+#undef HAVE_ARM_PCS_VFP_D32
+
 /* Linux specific: minimum supported kernel version.  */
 #undef	__LINUX_KERNEL_VERSION
+
+/* Linux specific: __LINUX_KERNEL_VERSION as a string.  */
+#undef  __LINUX_KERNEL_VERSION_STR
 
 /* Override abi-tags ABI version if necessary.  */
 #undef  __ABI_TAG_VERSION
 
-/* Mach/Hurd specific: define if mig supports the `retcode' keyword.  */
-#undef	HAVE_MIG_RETCODE
-
 /* Mach specific: define if the `host_page_size' RPC is available.  */
 #undef	HAVE_HOST_PAGE_SIZE
+
+/* Mach specific: define if the `host_get_uptime64' RPC is available.  */
+#undef	HAVE_HOST_GET_UPTIME64
+
+/* Mach specific: define if the `host_get_time64' RPC is available.  */
+#undef	HAVE_HOST_GET_TIME64
+
+/* Mach specific: define if the `thread_set_name' RPC is available.  */
+#undef  HAVE_MACH_THREAD_SET_NAME
+
+/* Mach specific: define if the `thread_get_name' RPC is available.  */
+#undef  HAVE_MACH_THREAD_GET_NAME
 
 /* Mach/i386 specific: define if the `i386_io_perm_*' RPCs are available.  */
 #undef	HAVE_I386_IO_PERM_MODIFY
@@ -156,11 +170,11 @@
 /* Mach/i386 specific: define if the `i386_set_gdt' RPC is available.  */
 #undef	HAVE_I386_SET_GDT
 
+/* Hurd specific; define if the `proc_getchildren_rusage' RPC is available.  */
+#undef HAVE_HURD_PROC_GETCHILDREN_RUSAGE
+
 /* Define if inlined system calls are available.  */
 #undef HAVE_INLINED_SYSCALLS
-
-/* Define if your compiler defaults to -msecure-plt mode on ppc.  */
-#undef HAVE_PPC_SECURE_PLT
 
 /* Define if memory tagging support should be enabled.  */
 #undef USE_MTAG
@@ -199,6 +213,9 @@
 /* Define to 1 if libpthread actually resides in libc.  */
 #define PTHREAD_IN_LIBC 0
 
+/* An integer used to scale the timeout of test programs.  */
+#define TIMEOUTFACTOR 1
+
 /*
  */
 
@@ -231,10 +248,6 @@
 
 #ifdef	_LIBC
 
-/* The zic and zdump programs need these definitions.  */
-
-#define	HAVE_STRERROR	1
-
 /* The locale code needs these definitions.  */
 
 #define HAVE_REGEX 1
@@ -265,8 +278,8 @@
 /* PowerPC32 uses fctidz for floating point to long long conversions.  */
 #define HAVE_PPC_FCTIDZ 0
 
-/* Build glibc with tunables support.  */
-#define HAVE_TUNABLES 0
+/* Define if PIE is unsupported.  */
+#undef PIE_UNSUPPORTED
 
 /* Define if static PIE is supported.  */
 #undef SUPPORT_STATIC_PIE
@@ -274,20 +287,22 @@
 /* Define if static PIE is enabled.  */
 #define ENABLE_STATIC_PIE 0
 
-/* Some compiler options may now allow to use ebp in __asm__ (used mainly
-   in i386 6 argument syscall issue).  */
-#define CAN_USE_REGISTER_ASM_EBP 0
-
 /* The default value of x86 CET control.  */
 #define DEFAULT_DL_X86_CET_CONTROL cet_elf_property
 
 /* Define if x86 ISA level should be included in shared libraries.  */
 #undef INCLUDE_X86_ISA_LEVEL
 
+/* The x86 ISA level.  1 for baseline.  Undefined on non-x86.  */
+#undef MINIMUM_X86_ISA_LEVEL
+
 /* Define if -msahf is enabled by default on x86.  */
 #undef HAVE_X86_LAHF_SAHF
 
 /* Define if -mmovbe is enabled by default on x86.  */
 #undef HAVE_X86_MOVBE
+
+/* Define if -mapxf is enabled by default on x86.  */
+#undef HAVE_X86_APX
 
 #endif

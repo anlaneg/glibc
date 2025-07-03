@@ -1,6 +1,6 @@
-/* Test DTV size oveflow when pthread_create reuses old DTV and TLS is
+/* Test DTV size overflow when pthread_create reuses old DTV and TLS is
    used by dlopened shared object.
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@
 #include <assert.h>
 #include <pthread.h>
 
-/* The choices of thread count, and file counts are arbitary.
+/* The choices of thread count, and file counts are arbitrary.
    The point is simply to run enough threads that an exiting
    thread has it's stack reused by another thread at the same
    time as new libraries have been loaded.  */

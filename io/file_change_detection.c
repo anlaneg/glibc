@@ -1,5 +1,5 @@
 /* Detecting file changes using modification times.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -86,7 +86,7 @@ __file_change_detection_for_path (struct file_change_detection *file,
         /* Other errors are fatal.  */
         return false;
       }
-  else /* stat64 was successfull.  */
+  else /* stat64 was successful.  */
     {
       __file_change_detection_for_stat (file, &st);
       return true;

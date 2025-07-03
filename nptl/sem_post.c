@@ -1,7 +1,6 @@
 /* sem_post -- post to a POSIX semaphore.  Generic futex-using version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -92,7 +91,7 @@ __old_sem_post (sem_t *sem)
   /* We must need to synchronize with consumers of this token, so the atomic
      increment must have release MO semantics.  */
   atomic_write_barrier ();
-  (void) atomic_increment_val (futex);
+  atomic_fetch_add_release (futex, 1);
   /* We always have to assume it is a shared semaphore.  */
   futex_wake (futex, 1, LLL_SHARED);
   return 0;

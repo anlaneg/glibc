@@ -1,7 +1,6 @@
 /* Find path of executable.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,14 +17,11 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/param.h>
+#include <dl-dst.h>
+#include <fcntl.h>
 #include <ldsodefs.h>
 #include <sysdep.h>
-
-#include <dl-dst.h>
+#include <fd_to_filename.h>
 
 /* On Linux >= 2.1 systems which have the dcache implementation we can get
    the path of the application from the /proc/self/exe symlink.  Try this
@@ -38,9 +34,9 @@ _dl_get_origin (void)
   char *result;
   int len;
 
-  len = INTERNAL_SYSCALL_CALL (readlink, "/proc/self/exe", linkval,
-			       sizeof (linkval));
-  if (! INTERNAL_SYSCALL_ERROR_P (len) && len > 0 && linkval[0] != '[')
+  len = INTERNAL_SYSCALL_CALL (readlinkat, AT_FDCWD, "/proc/self/exe",
+			       linkval, sizeof (linkval));
+  if (len > 0 && linkval[0] != '[')
     {
       /* We can use this value.  */
       assert (linkval[0] == '/');
@@ -76,4 +72,26 @@ _dl_get_origin (void)
     }
 
   return result;
+}
+
+/* On Linux, readlink on the magic symlinks in /proc/self/fd also has
+   the same behavior of returning the canonical path from the dcache.
+   If it does not work, we do not bother to canonicalize. */
+
+char *
+_dl_canonicalize (int fd)
+{
+  struct fd_to_filename fdfilename;
+  char canonical[PATH_MAX];
+  char *path = __fd_to_filename (fd, &fdfilename);
+  int size = INTERNAL_SYSCALL_CALL (readlinkat, AT_FDCWD, path,
+                                    canonical, PATH_MAX - 1);
+
+  /* Check if the path was truncated.  */
+  if (size >= 0 && size < PATH_MAX - 1)
+    {
+      canonical[size] = '\0';
+      return __strdup (canonical);
+    }
+  return NULL;
 }

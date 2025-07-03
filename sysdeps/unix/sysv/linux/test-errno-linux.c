@@ -1,7 +1,7 @@
 /* Test that failing system calls do set errno to the correct value.
    Linux sycalls version.
 
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -70,7 +70,7 @@
    Some tests assume "/bin/sh" names a file that exists and is not a
    directory.  */
 
-/* Evalutes to the arguments in a list initializer which can be used
+/* Evaluates to the arguments in a list initializer which can be used
    as a single macro argument.  */
 #define LIST(...) { __VA_ARGS__ }
 

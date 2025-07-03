@@ -1,5 +1,5 @@
 /* Conversion module for UTF-32.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -52,10 +52,10 @@
 	    return (inptr == inend					      \
 		    ? __GCONV_EMPTY_INPUT : __GCONV_INCOMPLETE_INPUT);	      \
 									      \
-	  if (get32u (inptr) == BOM)					      \
+	  if (get32 (inptr) == BOM)					      \
 	    /* Simply ignore the BOM character.  */			      \
 	    *inptrp = inptr += 4;					      \
-	  else if (get32u (inptr) == BOM_OE)				      \
+	  else if (get32 (inptr) == BOM_OE)				      \
 	    {								      \
 	      data->__flags |= __GCONV_SWAP;				      \
 	      *inptrp = inptr += 4;					      \
@@ -69,7 +69,7 @@
       if (__glibc_unlikely (outbuf + 4 > outend))			      \
 	return __GCONV_FULL_OUTPUT;					      \
 									      \
-      put32u (outbuf, BOM);						      \
+      put32 (outbuf, BOM);						      \
       outbuf += 4;							      \
     }									      \
   else if (__builtin_expect (data->__invocation_counter == 0, 0)	      \
@@ -207,7 +207,7 @@ gconv_end (struct __gconv_step *data)
 	   We must catch this.  If we let surrogates pass through,	      \
 	   attackers could make a security hole exploit by		      \
 	   generating "irregular UTF-32" sequences.  */			      \
-	result = __GCONV_ILLEGAL_INPUT;					      \
+	result = __gconv_mark_illegal_input (step_data);		      \
 	if (! ignore_errors_p ())					      \
 	  break;							      \
 	inptr += 4;							      \

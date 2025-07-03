@@ -1,5 +1,5 @@
 /* Get the frequency of the time base.
-   Copyright (C) 2012-2021 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@ get_timebase_freq_fallback (void)
          the last 512 bytes of cpuinfo, so two 512 byte half_bufs
          will be sufficient to contain the timebase and will
          handle the case where the timebase spans the half_buf
-         boundry.  */
+         boundary.  */
       const ssize_t half_buf = sizeof (buf) / 2;
       while (n >= half_buf)
 	{

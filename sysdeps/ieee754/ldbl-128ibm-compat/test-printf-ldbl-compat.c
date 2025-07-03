@@ -1,5 +1,5 @@
 /* Test for the long double variants of *printf functions.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,12 +30,13 @@ do_test_call_varg (FILE *stream, const char *format, ...)
   char *buffer = NULL;
   char string[128];
   va_list args;
+  int ret;
 
   printf ("%15s", "vasprintf: ");
   va_start (args, format);
-  vasprintf (&buffer, format, args);
+  ret = vasprintf (&buffer, format, args);
   va_end (args);
-  if (buffer == NULL)
+  if (ret == -1 || buffer == NULL)
     printf ("Error using vasprintf\n");
   else
     {
@@ -82,10 +83,11 @@ do_test_call_rarg (FILE *stream, const char *format, long double ld, double d)
 {
   char *buffer = NULL;
   char string[128];
+  int ret;
 
   printf ("%15s", "asprintf: ");
-  asprintf (&buffer, format, ld, d);
-  if (buffer == NULL)
+  ret = asprintf (&buffer, format, ld, d);
+  if (ret == -1 || buffer == NULL)
     printf ("Error using asprintf\n");
   else
     {

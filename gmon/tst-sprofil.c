@@ -1,6 +1,5 @@
-/* Copyright (C) 2001-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by David Mosberger-Tang <davidm@hpl.hp.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -35,7 +34,6 @@ size_t taddr[] =
     0x00010000		/* Linux elf32/sparc */
 #if __WORDSIZE > 32
     ,
-    0x4000000000000000,	/* Linux elf64/ia64 */
     0x0000000120000000,	/* Linux elf64/alpha */
     0x4000000000001000,	/* elf64/hppa */
     0x0000000100000000	/* Linux elf64/sparc */
@@ -162,7 +160,7 @@ main (int argc, char **argv)
   for (i = 0; i < NELEMS (taddr); ++i)
     for (j = 0; j < 0x10000 / sizeof (int); ++j)
       if (buf[i][j] != 0)
-	printf ("%0*Zx\t%u\t(buffer %d)\n",
+	printf ("%0*zx\t%u\t(buffer %d)\n",
 		(int) (sizeof (size_t) * 2),
 		(taddr[i] + ((char *) &buf[i][j] - (char *) &buf[i][0])),
 		buf[i][j], i);

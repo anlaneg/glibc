@@ -1,7 +1,6 @@
 /* strncpy - copy at most n characters from a string from source to
    destination.  64 bit S/390 version
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
-   Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -53,7 +52,7 @@ ENTRY(STRNCPY_Z900_G5)
 	jz    .L8
 	icm   %r0,2,6(%r3)	    # seventh byte
 	jz    .L9
-	icm   %r0,1,7(%r3)	    # eigth byte
+	icm   %r0,1,7(%r3)	    # eighth byte
 	jz    .L10
 	stg   %r0,0(%r2,%r3)	    # store all eight to dest.
 	la    %r3,8(%r3)

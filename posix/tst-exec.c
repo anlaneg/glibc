@@ -1,7 +1,6 @@
 /* Tests for exec.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -132,7 +131,7 @@ do_test (int argc, char *argv[])
      - three parameters left if called through re-execution
        + file descriptor number which is supposed to be closed
        + the open file descriptor
-       + the name of the closed desriptor
+       + the name of the closed descriptor
   */
 
   if (restart)

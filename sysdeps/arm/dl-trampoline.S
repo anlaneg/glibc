@@ -1,5 +1,5 @@
 /* PLT trampolines.  ARM version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -70,7 +70,7 @@ _dl_runtime_resolve:
 	cfi_endproc
 	.size _dl_runtime_resolve, .-_dl_runtime_resolve
 
-#ifndef PROF
+#if !defined PROF && defined SHARED
 	.globl _dl_runtime_profile
 	.type _dl_runtime_profile, #function
 	CFI_SECTIONS
@@ -194,7 +194,7 @@ _dl_runtime_profile:
 	ldmia	ip, {r0,r1}
 	add	r2, r7, #72
 	add	r3, r7, #0
-	bl	_dl_call_pltexit
+	bl	_dl_audit_pltexit
 
 	@ Return to caller.
 	ldmia	r7, {r0-r3}

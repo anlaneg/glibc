@@ -1,4 +1,4 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -177,7 +177,8 @@ fstab_convert (struct fstab_state *state)
 
 /* Make sure the memory is freed if the programs ends while in
    memory-debugging mode and something actually was allocated.  */
-libc_freeres_fn (fstab_free)
+void
+__libc_fstab_freemem (void)
 {
   char *buffer;
 

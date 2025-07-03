@@ -1,5 +1,5 @@
 /* Compatibility routines for cthreads.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,8 +25,9 @@ void
 __cthread_detach (__cthread_t thread)
 {
   int err;
+  pthread_t pthread = (pthread_t) (uintptr_t) thread;
 
-  err = __pthread_detach ((pthread_t) thread);
+  err = __pthread_detach (pthread);
   assert_perror (err);
 }
 weak_alias (__cthread_detach, cthread_detach)
@@ -40,7 +41,7 @@ __cthread_fork (__cthread_fn_t func, void *arg)
   err = __pthread_create (&thread, NULL, func, arg);
   assert_perror (err);
 
-  return (__cthread_t) thread;
+  return (__cthread_t) (uintptr_t) thread;
 }
 weak_alias (__cthread_fork, cthread_fork)
 

@@ -1,5 +1,5 @@
 /* PLT trampolines.  s390 version.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -148,7 +148,7 @@ _dl_runtime_resolve:
 #undef F0_OFF
 #undef F2_OFF
 
-#ifndef PROF
+#if !defined PROF && defined SHARED
 # define SIZEOF_STRUCT_LA_S390_32_REGS 168
 # define REGS_OFF -264
 # define R2_OFF -264
@@ -282,7 +282,7 @@ _dl_runtime_profile:
 	basr   %r1,0
 5:	l      %r14,7f-5b(%r1)
 	la     %r5,CFA_OFF+RETVAL_OFF(%r12)	# struct La_s390_32_retval *
-	bas    %r14,0(%r14,%r1)			# call _dl_call_pltexit
+	bas    %r14,0(%r14,%r1)			# call _dl_audit_pltexit
 
 	lr     %r15,%r12			# remove stack frame
 # undef FRAME_SIZE
@@ -301,7 +301,7 @@ _dl_runtime_profile:
 	br     %r14
 
 6:	.long  _dl_profile_fixup - 0b
-7:	.long  _dl_call_pltexit - 5b
+7:	.long  _dl_audit_pltexit - 5b
 	cfi_endproc
 	.size _dl_runtime_profile, .-_dl_runtime_profile
 # undef SIZEOF_STRUCT_LA_S390_32_REGS

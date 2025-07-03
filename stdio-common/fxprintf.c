@@ -1,6 +1,5 @@
-/* Copyright (C) 2005-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.org>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -16,6 +15,7 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
+#include <scratch_buffer.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,20 +35,18 @@ locked_vfxprintf (FILE *fp, const char *fmt, va_list ap,
   wchar_t *wfmt;
   mbstate_t mbstate;
   int res;
-  int used_malloc = 0;
   size_t len = strlen (fmt) + 1;
+  struct scratch_buffer buf;
+  scratch_buffer_init (&buf);
 
   if (__glibc_unlikely (len > SIZE_MAX / sizeof (wchar_t)))
     {
       __set_errno (EOVERFLOW);
       return -1;
     }
-  if (__libc_use_alloca (len * sizeof (wchar_t)))
-    wfmt = alloca (len * sizeof (wchar_t));
-  else if ((wfmt = malloc (len * sizeof (wchar_t))) == NULL)
+  if (!scratch_buffer_set_array_size (&buf, sizeof (wchar_t), len))
     return -1;
-  else
-    used_malloc = 1;
+  wfmt = buf.data;
 
   memset (&mbstate, 0, sizeof mbstate);
   res = __mbsrtowcs (wfmt, &fmt, len, &mbstate);
@@ -56,8 +54,7 @@ locked_vfxprintf (FILE *fp, const char *fmt, va_list ap,
   if (res != -1)
     res = __vfwprintf_internal (fp, wfmt, ap, mode_flags);
 
-  if (used_malloc)
-    free (wfmt);
+  scratch_buffer_free (&buf);
 
   return res;
 }

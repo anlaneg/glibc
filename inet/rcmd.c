@@ -79,6 +79,8 @@
 #include <wchar.h>
 #include <sys/uio.h>
 #include <sigsetops.h>
+#include <shlib-compat.h>
+#include <set-freeres.h>
 
 
 int __ivaliduser (FILE *, uint32_t, const char *, const char *);
@@ -97,7 +99,7 @@ int iruserok (uint32_t raddr, int superuser, const char *ruser,
 
 libc_hidden_proto (iruserok_af)
 
-libc_freeres_ptr(static char *ahostbuf);
+static char *ahostbuf;
 
 int
 rcmd_af (char **ahost, u_short rport, const char *locuser, const char *remuser,
@@ -177,7 +179,7 @@ rcmd: socket: All ports in use\n"));
 			else
 				__fxprintf(NULL, "rcmd: socket: %m\n");
 
-			__sigprocmask (SIG_SETMASK, &omask, 0);
+			__sigprocmask (SIG_SETMASK, &omask, NULL);
 			freeaddrinfo(res);
 			return -1;
 		}
@@ -207,7 +209,7 @@ rcmd: socket: All ports in use\n"));
 			    free (buf);
 			  }
 			__set_errno (oerrno);
-			perror(0);
+			perror(NULL);
 			ai = ai->ai_next;
 			getnameinfo(ai->ai_addr, ai->ai_addrlen,
 				    paddr, sizeof(paddr),
@@ -230,11 +232,11 @@ rcmd: socket: All ports in use\n"));
 		freeaddrinfo(res);
 		(void)__fxprintf(NULL, "%s: %s\n", *ahost,
 				 __strerror_r(errno, errbuf, sizeof (errbuf)));
-		__sigprocmask (SIG_SETMASK, &omask, 0);
+		__sigprocmask (SIG_SETMASK, &omask, NULL);
 		return -1;
 	}
 	lport--;
-	if (fd2p == 0) {
+	if (fd2p == NULL) {
 		__write(s, "", 1);
 		lport = 0;
 	} else {
@@ -342,7 +344,7 @@ socket: protocol failure in circuit setup\n")) >= 0)
 		}
 		goto bad2;
 	}
-	__sigprocmask (SIG_SETMASK, &omask, 0);
+	__sigprocmask (SIG_SETMASK, &omask, NULL);
 	freeaddrinfo(res);
 	return s;
 bad2:
@@ -350,7 +352,7 @@ bad2:
 		(void)__close(*fd2p);
 bad:
 	(void)__close(s);
-	__sigprocmask (SIG_SETMASK, &omask, 0);
+	__sigprocmask (SIG_SETMASK, &omask, NULL);
 	freeaddrinfo(res);
 	return -1;
 }
@@ -559,7 +561,9 @@ ruserok2_sa (struct sockaddr *ra, size_t ralen, int superuser,
 	  reading an NFS mounted file system, can't read files that
 	  are protected read/write owner only.  */
        uid = __geteuid ();
-       seteuid (pwd->pw_uid);
+       if (seteuid (pwd->pw_uid) < 0)
+	 return -1;
+
        hostf = iruserfopen (pbuf, pwd->pw_uid);
 
        if (hostf != NULL)
@@ -568,7 +572,8 @@ ruserok2_sa (struct sockaddr *ra, size_t ralen, int superuser,
 	   fclose (hostf);
 	 }
 
-       seteuid (uid);
+       if (seteuid (uid) < 0)
+	 return -1;
        return isbad;
     }
   return -1;
@@ -621,18 +626,9 @@ iruserok (uint32_t raddr, int superuser, const char *ruser, const char *luser)
   return iruserok_af (&raddr, superuser, ruser, luser, AF_INET);
 }
 
-/*
- * XXX
- * Don't make static, used by lpd(8).
- *
- * This function is not used anymore. It is only present because lpd(8)
- * calls it (!?!). We simply call __invaliduser2() with an illegal rhost
- * argument. This means that netgroups won't work in .rhost/hosts.equiv
- * files. If you want lpd to work with netgroups, fix lpd to use ruserok()
- * or PAM.
- * Returns 0 if ok, -1 if not ok.
- */
-int
+#if SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_37)
+/* Previously used by lpd.  Current lpd versions have their own copy.  */
+int attribute_compat_text_section
 __ivaliduser (FILE *hostf, uint32_t raddr, const char *luser,
 	      const char *ruser)
 {
@@ -643,7 +639,8 @@ __ivaliduser (FILE *hostf, uint32_t raddr, const char *luser,
 	return __validuser2_sa(hostf, (struct sockaddr *)&ra, sizeof(ra),
 			       luser, ruser, "-");
 }
-
+compat_symbol (libc, __ivaliduser, __ivaliduser, GLIBC_2_0);
+#endif
 
 /* Returns 1 on positive match, 0 on no match, -1 on negative match.  */
 static int
@@ -824,3 +821,5 @@ __validuser2_sa (FILE *hostf, struct sockaddr *ra, size_t ralen,
 
     return retval;
 }
+
+weak_alias (ahostbuf, __libc_rcmd_freemem_ptr)

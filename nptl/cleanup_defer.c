@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -31,9 +30,22 @@ ___pthread_register_cancel_defer (__pthread_unwind_buf_t *buf)
   ibuf->priv.data.prev = THREAD_GETMEM (self, cleanup_jmp_buf);
   ibuf->priv.data.cleanup = THREAD_GETMEM (self, cleanup);
 
-  /* Disable asynchronous cancellation for now.  */
-  ibuf->priv.data.canceltype = THREAD_GETMEM (self, canceltype);
-  THREAD_SETMEM (self, canceltype, PTHREAD_CANCEL_DEFERRED);
+  int cancelhandling = atomic_load_relaxed (&self->cancelhandling);
+  if (__glibc_unlikely (cancelhandling & CANCELTYPE_BITMASK))
+    {
+      int newval;
+      do
+	{
+	  newval = cancelhandling & ~CANCELTYPE_BITMASK;
+	}
+      while (!atomic_compare_exchange_weak_acquire (&self->cancelhandling,
+						    &cancelhandling,
+						    newval));
+    }
+
+  ibuf->priv.data.canceltype = (cancelhandling & CANCELTYPE_BITMASK
+				? PTHREAD_CANCEL_ASYNCHRONOUS
+				: PTHREAD_CANCEL_DEFERRED);
 
   /* Store the new cleanup handler info.  */
   THREAD_SETMEM (self, cleanup_jmp_buf, (struct pthread_unwind_buf *) buf);
@@ -55,9 +67,23 @@ ___pthread_unregister_cancel_restore (__pthread_unwind_buf_t *buf)
 
   THREAD_SETMEM (self, cleanup_jmp_buf, ibuf->priv.data.prev);
 
-  THREAD_SETMEM (self, canceltype, ibuf->priv.data.canceltype);
-  if (ibuf->priv.data.canceltype == PTHREAD_CANCEL_ASYNCHRONOUS)
-    __pthread_testcancel ();
+  if (ibuf->priv.data.canceltype == PTHREAD_CANCEL_DEFERRED)
+    return;
+
+  int cancelhandling = atomic_load_relaxed (&self->cancelhandling);
+  if ((cancelhandling & CANCELTYPE_BITMASK) == 0)
+    {
+      int newval;
+      do
+	{
+	  newval = cancelhandling | CANCELTYPE_BITMASK;
+	}
+      while (!atomic_compare_exchange_weak_acquire (&self->cancelhandling,
+						    &cancelhandling, newval));
+
+      if (cancel_enabled_and_canceled (cancelhandling))
+	__do_cancel (PTHREAD_CANCELED);
+    }
 }
 versioned_symbol (libc, ___pthread_unregister_cancel_restore,
 		  __pthread_unregister_cancel_restore, GLIBC_2_34);

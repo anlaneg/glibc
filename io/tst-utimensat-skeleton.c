@@ -1,5 +1,5 @@
 /* Common tests for utimensat routines.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <support/support.h>
 #include <support/temp_file.h>
+#include <support/test-driver.h>
 #include <stdio.h>
 
 static int temp_fd = -1;
@@ -30,6 +31,8 @@ const static struct {
   int64_t v1;
   int64_t v2;
 } tests[] = {
+  /* Some arbitrary date before Y2038.  */
+  { 0x60ECA720LL, 0x60eca721LL },
   /* Y2038 threshold minus 2 and 1 seconds.  */
   { 0x7FFFFFFELL, 0x7FFFFFFFLL },
   /* Y2038 threshold plus 1 and 2 seconds.  */
@@ -59,7 +62,7 @@ do_prepare (int argc, char *argv[])
 static int
 do_test (void)
 {
-  if (!support_path_support_time64 (testfile))
+  if (sizeof (time_t) == 8 && !support_path_support_time64 (testfile))
     FAIL_UNSUPPORTED ("File %s does not support 64-bit timestamps",
 		      testfile);
 
@@ -70,6 +73,7 @@ do_test (void)
   for (int i = 0; i < array_length (tests); i++)
     {
       /* Check if we run on port with 32 bit time_t size.  */
+#if __GNUC_PREREQ (5, 0)
       time_t t;
       if (__builtin_add_overflow (tests[i].v1, 0, &t)
 	  || __builtin_add_overflow (tests[i].v2, 0, &t))
@@ -78,6 +82,9 @@ do_test (void)
 		  "time_t overflows\n", i, tests[i].v1, tests[i].v2);
 	  continue;
         }
+#else
+      return EXIT_UNSUPPORTED;
+#endif
 
       if (tests[i].v1 >= 0x100000000LL && !y2106)
 	{

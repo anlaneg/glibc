@@ -1,5 +1,5 @@
 /* Optimized strrchr implementation for PowerPC64/POWER7 using cmpb insn.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -74,7 +74,7 @@ ENTRY_TOCLESS (STRRCHR)
 	clrrdi	r8,r3,3	      /* Align the address to doubleword boundary.  */
 	cmpdi	cr7,r4,0
 	ld	r12,0(r8)     /* Load doubleword from memory.  */
-	li	r9,0	      /* Used to store last occurence.  */
+	li	r9,0	      /* Used to store last occurrence.  */
 	li	r0,0	      /* Doubleword with null chars to use
 				 with cmpb.  */
 

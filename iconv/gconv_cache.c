@@ -1,7 +1,6 @@
 /* Cache handling for iconv modules.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 2001.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -29,6 +28,7 @@
 #include <gconv_int.h>
 #include <iconvconfig.h>
 #include <not-cancel.h>
+#include <pointer_guard.h>
 
 #include "../intl/hash-string.h"
 
@@ -58,7 +58,7 @@ __gconv_load_cache (void)
     return -1;
 
   /* See whether the cache file exists.  */
-  fd = __open_nocancel (GCONV_MODULES_CACHE, O_RDONLY, 0);
+  fd = __open_nocancel (GCONV_MODULES_CACHE, O_RDONLY | O_CLOEXEC, 0);
   if (__builtin_expect (fd, 0) == -1)
     /* Not available.  */
     return -1;
@@ -205,16 +205,11 @@ find_module (const char *directory, const char *filename,
 
       /* Call the init function.  */
       __gconv_init_fct init_fct = result->__init_fct;
-#ifdef PTR_DEMANGLE
       PTR_DEMANGLE (init_fct);
-#endif
       if (init_fct != NULL)
 	{
 	  status = DL_CALL_FCT (init_fct, (result));
-
-#ifdef PTR_MANGLE
 	  PTR_MANGLE (result->__btowc_fct);
-#endif
 	}
     }
 
@@ -454,7 +449,8 @@ __gconv_release_cache (struct __gconv_step *steps, size_t nsteps)
 
 
 /* Free all resources if necessary.  */
-libc_freeres_fn (free_mem)
+void
+__gconv_cache_freemem (void)
 {
   if (cache_malloced)
     free (gconv_cache);

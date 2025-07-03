@@ -1,5 +1,5 @@
 /* Test compilation of truncated regular expressions.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -37,6 +37,7 @@
 static const char locales[][17] =
   {
     "C",
+    "C.UTF-8",
     "en_US.UTF-8",
     "de_DE.ISO-8859-1",
   };
@@ -81,7 +82,7 @@ do_test (void)
 
   /* Arbitrary Unicode codepoint at which we stop generating
      characters.  We do not probe the whole range because that would
-     take too long due to combinatorical exploision as the result of
+     take too long due to combinatorial explosion as the result of
      combination with other flags.  */
   static const wchar_t last_character = 0xfff;
 

@@ -1,5 +1,5 @@
 /* pthread_key_delete.  Hurd version.
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,8 @@
 #include <pthread.h>
 
 #include <pt-internal.h>
+#include <shlib-compat.h>
+#include <ldsodefs.h>
 
 int
 __pthread_key_delete (pthread_key_t key)
@@ -39,26 +41,39 @@ __pthread_key_delete (pthread_key_t key)
       __pthread_key_destructors[key] = PTHREAD_KEY_INVALID;
       __pthread_key_invalid_count++;
 
-      __pthread_rwlock_rdlock (&__pthread_threads_lock);
-      for (i = 0; i < __pthread_num_threads; ++i)
+      __libc_rwlock_rdlock (GL (dl_pthread_threads_lock));
+      for (i = 0; i < GL (dl_pthread_num_threads); ++i)
 	{
 	  struct __pthread *t;
 
-	  t = __pthread_threads[i];
+	  t = GL (dl_pthread_threads)[i];
 
 	  if (t == NULL)
 	    continue;
 
 	  /* Just remove the key, no need to care whether it was
 	     already there. */
-	  if (key < t->thread_specifics_size)
-	    t->thread_specifics[key] = 0;
+	  if (t->thread_specifics == NULL)
+	    {
+	      if (key < PTHREAD_STATIC_KEYS)
+		t->static_thread_specifics[key] = 0;
+	    }
+	  else
+	    {
+	      if (key < t->thread_specifics_size)
+		t->thread_specifics[key] = 0;
+	    }
 	}
-      __pthread_rwlock_unlock (&__pthread_threads_lock);
+      __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
     }
 
   __pthread_mutex_unlock (&__pthread_key_lock);
 
   return err;
 }
-weak_alias (__pthread_key_delete, pthread_key_delete)
+libc_hidden_def (__pthread_key_delete)
+versioned_symbol (libc, __pthread_key_delete, pthread_key_delete, GLIBC_2_42);
+
+#if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_12, GLIBC_2_42)
+compat_symbol (libpthread, __pthread_key_delete, pthread_key_delete, GLIBC_2_12);
+#endif

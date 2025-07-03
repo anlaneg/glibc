@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -65,12 +65,16 @@ _hurd_exec_paths (task_t task, file_t file,
       _hurd_port_free (&_hurd_ports[i], &ulink_ports[i], ports[i]);
     }
   file_t *dtable;
-  unsigned int dtablesize, i;
+  unsigned int dtablesize, i, j;
   struct hurd_port **dtable_cells;
   struct hurd_userlink *ulink_dtable;
   struct hurd_sigstate *ss;
   mach_port_t *please_dealloc, *pdp;
   int reauth = 0;
+  mach_port_t *portnames = NULL;
+  mach_msg_type_number_t nportnames = 0;
+  mach_port_type_t *porttypes = NULL;
+  mach_msg_type_number_t nporttypes = 0;
 
   /* XXX needs to be hurdmalloc XXX */
   if (argv == NULL)
@@ -229,6 +233,14 @@ retry:
      reflects that our whole ID set differs from what we've set it to.  */
   __mutex_lock (&_hurd_id.lock);
   err = _hurd_check_ids ();
+
+  /* Avoid leaking the rid_auth port reference to the new program */
+  if (_hurd_id.rid_auth != MACH_PORT_NULL)
+    {
+      __mach_port_deallocate (__mach_task_self (), _hurd_id.rid_auth);
+      _hurd_id.rid_auth = MACH_PORT_NULL;
+    }
+
   if (err == 0 && ((_hurd_id.aux.nuids >= 2 && _hurd_id.gen.nuids >= 1
 		    && _hurd_id.aux.uids[1] != _hurd_id.gen.uids[0])
 		   || (_hurd_id.aux.ngids >= 2 && _hurd_id.gen.ngids >= 1
@@ -244,11 +256,6 @@ retry:
       _hurd_id.aux.uids[1] = _hurd_id.gen.uids[0];
       _hurd_id.aux.gids[1] = _hurd_id.gen.gids[0];
       _hurd_id.valid = 0;
-      if (_hurd_id.rid_auth != MACH_PORT_NULL)
-	{
-	  __mach_port_deallocate (__mach_task_self (), _hurd_id.rid_auth);
-	  _hurd_id.rid_auth = MACH_PORT_NULL;
-	}
 
       err = __auth_makeauth (ports[INIT_PORT_AUTH],
 			     NULL, MACH_MSG_TYPE_COPY_SEND, 0,
@@ -355,9 +362,19 @@ retry:
   if (!err)
     {
       int flags;
+      sigset_t old, new;
 
       if (pdp)
 	{
+	  /* Get all ports that we may not know about and we should thus destroy.  */
+	  /* XXX need to disable other threads to be safe.  */
+	  if (err = __mach_port_names (__mach_task_self (),
+				     &portnames, &nportnames,
+				     &porttypes, &nporttypes))
+	    return err;
+	  if (nportnames != nporttypes)
+	    return EGRATUITOUS;
+
 	  /* Request the exec server to deallocate some ports from us if
 	     the exec succeeds.  The init ports and descriptor ports will
 	     arrive in the new program's exec_startup message.  If we
@@ -367,9 +384,32 @@ retry:
 	     exec call.  */
 
 	  for (i = 0; i < _hurd_nports; ++i)
-	    *pdp++ = ports[i];
+	    if (ports[i] != MACH_PORT_NULL)
+	      {
+		*pdp++ = ports[i];
+		for (j = 0; j < nportnames; j++)
+		  if (portnames[j] == ports[i])
+		    portnames[j] = MACH_PORT_NULL;
+	      }
 	  for (i = 0; i < dtablesize; ++i)
-	    *pdp++ = dtable[i];
+	    if (dtable[i] != MACH_PORT_NULL)
+	      {
+		*pdp++ = dtable[i];
+		for (j = 0; j < nportnames; j++)
+		  if (portnames[j] == dtable[i])
+		    portnames[j] = MACH_PORT_NULL;
+	      }
+
+	  /* Pack ports to be destroyed together.  */
+	  for (i = 0, j = 0; i < nportnames; i++)
+	    {
+	      if (portnames[i] == MACH_PORT_NULL)
+		continue;
+	      if (j != i)
+		portnames[j] = portnames[i];
+	      j++;
+	    }
+	  nportnames = j;
 	}
 
       flags = 0;
@@ -381,6 +421,15 @@ retry:
       if (__sigismember (&_hurdsig_traced, SIGKILL))
 	flags |= EXEC_SIGTRAP;
 #endif
+
+     /* Avoid getting interrupted while exec(), notably not after the exec
+        server has committed to the exec and started thrashing us.
+
+        TODO Rather add proper interrupt support to the exec server, that
+        avoids interrupts in that period.  */
+      __sigfillset (&new);
+      __sigprocmask (SIG_SETMASK, &new, &old);
+
       err = __file_exec_paths (file, task, flags,
 			       path ? path : "",
 			       abspath ? abspath : "",
@@ -390,8 +439,7 @@ retry:
 			       _hurd_nports,
 			       ints, INIT_INT_MAX,
 			       please_dealloc, pdp - please_dealloc,
-			       &_hurd_msgport,
-			       task == __mach_task_self () ? 1 : 0);
+			       portnames, nportnames);
       /* Fall back for backwards compatibility.  This can just be removed
          when __file_exec goes away.  */
       if (err == MIG_BAD_ID)
@@ -401,8 +449,9 @@ retry:
 			   ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
 			   ints, INIT_INT_MAX,
 			   please_dealloc, pdp - please_dealloc,
-			   &_hurd_msgport,
-			   task == __mach_task_self () ? 1 : 0);
+			   portnames, nportnames);
+
+      __sigprocmask (SIG_SETMASK, &old, NULL);
     }
 
   /* Release references to the standard ports.  */
@@ -434,10 +483,10 @@ retry:
     /* Got a signal while inside an RPC of the critical section, retry again */
     goto retry;
 
- outargs:
-  free (args);
  outenv:
   free (env);
+ outargs:
+  free (args);
   return err;
 }
 libc_hidden_def (_hurd_exec_paths)

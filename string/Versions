@@ -89,4 +89,11 @@ libc {
     sigdescr_np; sigabbrev_np;
     strerrordesc_np; strerrorname_np;
   }
+  GLIBC_2.35 {
+    __memcmpeq;
+  }
+  GLIBC_2.38 {
+    strlcat;
+    strlcpy;
+  }
 }

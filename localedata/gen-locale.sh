@@ -1,6 +1,6 @@
 #!/bin/sh
 # Generate test locale files.
-# Copyright (C) 2000-2021 Free Software Foundation, Inc.
+# Copyright (C) 2000-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -48,19 +48,31 @@ generate_locale ()
 }
 
 locfile=`echo $locfile|sed 's|.*/\([^/]*/LC_CTYPE\)|\1|'`
-locale=`echo $locfile|sed 's|\([^.]*\)[.].*/LC_CTYPE|\1|'`
-charmap=`echo $locfile|sed 's|[^.]*[.]\([^@ ]*\)\(@[^ ]*\)\?/LC_CTYPE|\1|'`
-modifier=`echo $locfile|sed 's|[^.]*[.]\([^@ ]*\)\(@[^ ]*\)\?/LC_CTYPE|\2|'`
+locale=`echo $locfile|sed 's|\([^.]*\).*/LC_CTYPE|\1|'`
+charmap=`echo $locfile|sed -e 's|[^.]*\([^@ ]*\)\(@[^ ]*\)\?/LC_CTYPE|\1|' -e 's|^\.||g'`
+modifier=`echo $locfile|sed 's|[^.]*\([^@ ]*\)\(@[^ ]*\)\?/LC_CTYPE|\2|'`
 
 echo "Generating locale $locale.$charmap: this might take a while..."
 
-# Run quietly and force output.
-flags="--quiet -c"
+# Do not force output with '-c', all locales should compile without
+# warning or errors.  There is likewise no need to run quietly with
+# '--quiet' since all locales should compile without additional
+# diagnostics.  If there are messages printed then we want to see
+# them, fix them, and the associated error or warning.  During
+# development it may be beneficialy to put '--quiet -c' here to allow
+# you to develop in-progress locales.
+flags=""
+
+charmap_real="$charmap"
+
+# If no character map is specified then we fall back to UTF-8.
+if [ -z "$charmap" ]; then
+  charmap_real="UTF-8"
+fi
 
 # For SJIS the charmap is SHIFT_JIS. We just want the locale to have
 # a slightly nicer name instead of using "*.SHIFT_SJIS", but that
 # means we need a mapping here.
-charmap_real="$charmap"
 if [ "$charmap" = "SJIS" ]; then
   charmap_real="SHIFT_JIS"
 fi
@@ -74,4 +86,12 @@ if [ "$charmap_real" = 'SHIFT_JIS' ] \
   flags="$flags --no-warnings=ascii"
 fi
 
-generate_locale $charmap_real $locale$modifier $locale.$charmap$modifier "$flags"
+# If the character map is not specified then we output a locale
+# with the just the name of the locale e.g. eo, en_US. This is
+# used for test locales that act as fallbacks.
+output_file="$locale.$charmap$modifier"
+if [ -z "$charmap" ]; then
+  output_file="$locale"
+fi
+
+generate_locale $charmap_real $locale$modifier $output_file "$flags"

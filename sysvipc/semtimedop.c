@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -19,7 +18,7 @@
 #include <sys/sem.h>
 #include <errno.h>
 
-/* Perform user-defined atomical operation of array of semaphores.  */
+/* Perform user-defined atomic operation of array of semaphores.  */
 
 int
 __semtimedop (int semid, struct sembuf *sops, size_t nsops,

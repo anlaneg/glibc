@@ -1,5 +1,5 @@
 /* Common posix_fadvise tests definitions.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ do_prepare (int argc, char **argv)
     FAIL_EXIT1 ("cannot open fifo: %m");
 }
 
-/* Effectivelly testing posix_fadvise is hard because side effects are not
+/* Effectively testing posix_fadvise is hard because side effects are not
    observed without checking either performance or any kernel specific
    supplied information.  Also, the syscall is meant to be an advisory,
    so the kernel is free to use this information in any way it deems fit,

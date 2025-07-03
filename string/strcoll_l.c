@@ -1,6 +1,5 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Ulrich Drepper <drepper@gnu.org>, 1995.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -104,7 +103,7 @@ get_next_seq (coll_seq *seq, int nrules, const unsigned char *rulesets,
 	  else
 	    {
 	      /* XXX Traverse BACKW sequences from the beginning of
-		 BACKW_STOP to get the next sequence.  Is ther a quicker way
+		 BACKW_STOP to get the next sequence.  Is there a quicker way
 	         to do this?  */
 	      size_t i = backw_stop;
 	      us = seq->back_us;
@@ -258,7 +257,7 @@ int
 STRCOLL (const STRING_TYPE *s1, const STRING_TYPE *s2, locale_t l)
 {
   struct __locale_data *current = l->__locales[LC_COLLATE];
-  uint_fast32_t nrules = current->values[_NL_ITEM_INDEX (_NL_COLLATE_NRULES)].word;
+  uint32_t nrules = current->values[_NL_ITEM_INDEX (_NL_COLLATE_NRULES)].word;
   /* We don't assign the following values right away since it might be
      unnecessary in case there are no rules.  */
   const unsigned char *rulesets;

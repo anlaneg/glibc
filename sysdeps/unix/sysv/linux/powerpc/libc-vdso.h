@@ -1,5 +1,5 @@
 /* Resolve function pointers to VDSO functions.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #include <sysdep-vdso.h>
 
 #if (defined(__PPC64__) || defined(__powerpc64__)) && _CALL_ELF != 2
-# include <dl-machine.h>
+# include <dl-funcdesc.h>
 /* The correct solution is for _dl_vdso_vsym to return the address of the OPD
    for the kernel VDSO function.  That address would then be stored in the
    __vdso_* variables and returned as the result of the IFUNC resolver function.

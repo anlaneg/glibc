@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of strspn.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -238,7 +238,7 @@ ENTRY(STRSPN_Z13)
 	clije	%r8,0,.Lslow_add_lbc_end /* End if zero is first character
 					     in this part of accept-string.  */
 	/* r8>0 -> zero found in this acc-part.  */
-	vrepb	%v18,%v17,0	/* Replicate first char accross all chars.  */
+	vrepb	%v18,%v17,0	/* Replicate first char across all chars.  */
 	vceqb	%v22,%v20,%v17	/* Create a mask (v22) of null chars
 				   by comparing with 0 (v20).  */
 	vsel	%v17,%v18,%v17,%v22 /* Replace null chars with first char.  */

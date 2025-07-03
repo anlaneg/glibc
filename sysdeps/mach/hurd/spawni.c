@@ -1,5 +1,5 @@
 /* spawn a new process running an executable.  Hurd version.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -154,7 +154,7 @@ __spawni (pid_t *pid, const char *file,
      reauthenticated, or was newly opened on behalf of the child.  */
   error_t reauthenticate_fd (int fd)
     {
-      if (dtable_cells[fd] != NULL)
+      if (dtable_cells[fd] != NULL && dtable[fd] != MACH_PORT_NULL)
 	{
 	  file_t newfile;
 	  mach_port_t ref = __mach_reply_port ();
@@ -216,8 +216,7 @@ __spawni (pid_t *pid, const char *file,
 				MACH_PORT_RIGHT_SEND, +1);
 	  return dtable[fd];
 	}
-      errno = EBADF;
-      return MACH_PORT_NULL;
+      return __hurd_fail (EBADF), MACH_PORT_NULL;
     }
   inline error_t child_lookup (const char *file, int oflag, mode_t mode,
 			       file_t *result)
@@ -630,6 +629,19 @@ retry:
 	  case spawn_do_closefrom:
 	    err = do_closefrom (action->action.closefrom_action.from);
 	    break;
+
+	  case spawn_do_tcsetpgrp:
+	    {
+	      pid_t pgrp;
+	      /* Check if it is possible to avoid an extra syscall.  */
+	      if ((attrp->__flags & POSIX_SPAWN_SETPGROUP)
+		  != 0 && attrp->__pgrp != 0)
+		pgrp = attrp->__pgrp;
+	      else
+		err = __proc_getpgrp (proc, new_pid, &pgrp);
+	      if (!err)
+		err = __tcsetpgrp (action->action.setpgrp_action.fd, pgrp);
+	    }
 	  }
 
 	if (err)
@@ -667,11 +679,29 @@ retry:
 					ref, MACH_MSG_TYPE_MAKE_SEND,
 					&newproc);
       __mach_port_destroy (__mach_task_self (), ref);
-      if (!err)
-	{
-	  __mach_port_deallocate (__mach_task_self (), proc);
-	  proc = newproc;
-	}
+      if (err)
+        goto out;
+      if (newproc == MACH_PORT_NULL)
+        {
+          /* Old versions of the proc server did not recreate the process
+             port when reauthenticating, and passed MACH_PORT_NULL through
+             the auth server.  That must be what we're dealing with.  Just
+             keep the existing proc port in this case.  */
+        }
+      else
+        {
+          err = __proc_reauthenticate_complete (newproc);
+          if (err)
+            {
+              __mach_port_deallocate (__mach_task_self (), newproc);
+              goto out;
+            }
+          else
+	    {
+	      __mach_port_deallocate (__mach_task_self (), proc);
+	      proc = newproc;
+	    }
+        }
 
       if (!err)
 	err = reauthenticate (INIT_PORT_CRDIR, &rcrdir);
@@ -775,12 +805,18 @@ retry:
       /* Relative path */
       char *cwd = __getcwd (NULL, 0);
       if (cwd == NULL)
-	goto out;
+	{
+	  err = errno;
+	  goto out;
+	}
 
       res = __asprintf (&concat_name, "%s/%s", cwd, relpath);
       free (cwd);
       if (res == -1)
-	goto out;
+	{
+	  err = errno;
+	  goto out;
+	}
 
       abspath = concat_name;
     }
@@ -794,6 +830,18 @@ retry:
 
     inline error_t exec (file_t file)
       {
+	sigset_t old, new;
+
+	/* Avoid getting interrupted while exec(), notably not after the exec
+	   server has committed to the exec and started thrashing the task.
+
+	   Various issues otherwise show up when building e.g. ghc.
+
+	   TODO Rather add proper interrupt support to the exec server, that
+	   avoids interrupts in that period.  */
+	__sigfillset(&new);
+	__sigprocmask (SIG_SETMASK, &new, &old);
+
 	error_t err = __file_exec_paths
 	  (file, task,
 	   __sigismember (&_hurdsig_traced, SIGKILL) ? EXEC_SIGTRAP : 0,
@@ -806,7 +854,7 @@ retry:
 	/* Fallback for backwards compatibility.  This can just be removed
 	   when __file_exec goes away.  */
 	if (err == MIG_BAD_ID)
-	  return __file_exec (file, task,
+	  err = __file_exec (file, task,
 			      (__sigismember (&_hurdsig_traced, SIGKILL)
 			      ? EXEC_SIGTRAP : 0),
 			      args, argslen, env, envlen,
@@ -814,6 +862,8 @@ retry:
 			      ports, MACH_MSG_TYPE_COPY_SEND, _hurd_nports,
 			      ints, INIT_INT_MAX,
 			      NULL, 0, NULL, 0);
+
+	__sigprocmask (SIG_SETMASK, &old, NULL);
 
 	return err;
       }

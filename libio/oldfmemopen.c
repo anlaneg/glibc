@@ -1,7 +1,6 @@
 /* Fmemopen implementation.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Hanno Mueller, kontakt@hanno.de, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,7 +32,7 @@
  * - I never used the "original" fmemopen(). I am sure that "my"
  *   fmemopen() behaves differently than the original version.
  *
- * - The documentation doesn't say wether a string stream allows
+ * - The documentation doesn't say whether a string stream allows
  *   seeks. I checked the old fmemopen implementation in glibc's stdio
  *   directory, wasn't quite able to see what is going on in that
  *   source, but as far as I understand there was no seek there. For

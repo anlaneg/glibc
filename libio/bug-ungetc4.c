@@ -1,7 +1,6 @@
 /* Test program for ungetc/fseekpos interaction.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,6 +17,8 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <stdio.h>
+
+#include <support/xunistd.h>
 
 static void do_prepare (void);
 #define PREPARE(argc, argv) do_prepare ()
@@ -37,7 +38,7 @@ do_prepare (void)
       printf ("cannot create temporary file: %m\n");
       exit (1);
     }
-  write (fd, pattern, sizeof (pattern) - 1);
+  xwrite (fd, pattern, sizeof (pattern) - 1);
   close (fd);
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -32,10 +32,7 @@ __closedir (DIR *dirp)
   error_t err;
 
   if (dirp == NULL)
-    {
-      errno = EINVAL;
-      return -1;
-    }
+    return __hurd_fail (EINVAL);
 
   __libc_lock_lock (dirp->__lock);
   err = __vm_deallocate (__mach_task_self (),

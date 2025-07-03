@@ -1,5 +1,5 @@
 /* Helper macros for float variants of type generic functions of libm.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,10 +25,12 @@
 #define FLOAT float
 #define CFLOAT _Complex float
 #define M_STRTO_NAN __strtof_nan
+#define M_USE_BUILTIN(c) USE_ ##c ##F_BUILTIN
 
-/* Standard/GNU macro literals do not exist for the float type.  Use
-   the double macro constants.  */
-#define M_MLIT(c) c
+/* GNU extension float constant macros.  */
+#define M_MLIT(c) c ## f
+
+#define M_SET_RESTORE_ROUND(RM) SET_RESTORE_ROUNDF (RM)
 
 #include <libm-alias-float.h>
 #include <math-nan-payload-float.h>
@@ -39,6 +41,10 @@
 
 #ifndef declare_mgen_alias_r
 # define declare_mgen_alias_r(from, to) libm_alias_float_r (from, to, _r)
+#endif
+
+#ifndef declare_mgen_alias_narrow
+# define declare_mgen_alias_narrow(from, to)
 #endif
 
 /* Supply the generic macros.  */

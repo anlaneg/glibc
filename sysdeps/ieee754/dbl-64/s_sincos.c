@@ -1,7 +1,6 @@
 /* Compute sine and cosine of argument.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -25,10 +24,15 @@
 #include <math-underflow.h>
 #include <libm-alias-double.h>
 
+#ifndef SECTION
+# define SECTION
+#endif
+
 #define IN_SINCOS
 #include "s_sin.c"
 
 void
+SECTION
 __sincos (double x, double *sinx, double *cosx)
 {
   mynumber u;
@@ -101,4 +105,6 @@ __sincos (double x, double *sinx, double *cosx)
 
   *sinx = *cosx = x / x;
 }
+#ifndef __sincos
 libm_alias_double (__sincos, sincos)
+#endif

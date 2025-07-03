@@ -1,5 +1,5 @@
 /* Access to extended attributes on files.  Hurd version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 #include <hurd/xattr.h>
 #include <fcntl.h>
 
-ssize_t
+int
 lremovexattr (const char *path, const char *name)
 {
   error_t err;

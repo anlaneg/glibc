@@ -1,6 +1,5 @@
 /* Optimized memrchr implementation for PowerPC64/POWER7 using cmpb insn.
-   Copyright (C) 2010-2021 Free Software Foundation, Inc.
-   Contributed by Luis Machado <luisgpm@br.ibm.com>.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -197,5 +196,6 @@ L(loop_small):
 	blr
 
 END (MEMRCHR)
+libc_hidden_def (__memrchr)
 weak_alias (__memrchr, memrchr)
 libc_hidden_builtin_def (memrchr)

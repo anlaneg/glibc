@@ -1,5 +1,6 @@
 /* Malloc debug DSO.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -23,7 +24,6 @@
 #include <unistd.h>
 #include <sys/param.h>
 
-#if SHLIB_COMPAT (libc_malloc_debug, GLIBC_2_0, GLIBC_2_34)
 /* Support only the glibc allocators.  */
 extern void *__libc_malloc (size_t);
 extern void __libc_free (void *);
@@ -169,7 +169,7 @@ static void *
 __debug_malloc (size_t bytes)
 {
   void *(*hook) (size_t, const void *) = atomic_forced_read (__malloc_hook);
-  if (__builtin_expect (hook != NULL, 0))
+  if (__glibc_unlikely (hook != NULL))
     return (*hook)(bytes, RETURN_ADDRESS (0));
 
   void *victim = NULL;
@@ -193,7 +193,7 @@ static void
 __debug_free (void *mem)
 {
   void (*hook) (void *, const void *) = atomic_forced_read (__free_hook);
-  if (__builtin_expect (hook != NULL, 0))
+  if (__glibc_unlikely (hook != NULL))
     {
       (*hook)(mem, RETURN_ADDRESS (0));
       return;
@@ -218,7 +218,7 @@ __debug_realloc (void *oldmem, size_t bytes)
 {
   void *(*hook) (void *, size_t, const void *) =
     atomic_forced_read (__realloc_hook);
-  if (__builtin_expect (hook != NULL, 0))
+  if (__glibc_unlikely (hook != NULL))
     return (*hook)(oldmem, bytes, RETURN_ADDRESS (0));
 
   size_t orig_bytes = bytes, oldsize = 0;
@@ -272,7 +272,7 @@ _debug_mid_memalign (size_t alignment, size_t bytes, const void *address)
 {
   void *(*hook) (size_t, size_t, const void *) =
     atomic_forced_read (__memalign_hook);
-  if (__builtin_expect (hook != NULL, 0))
+  if (__glibc_unlikely (hook != NULL))
     return (*hook)(alignment, bytes, address);
 
   void *victim = NULL;
@@ -299,7 +299,14 @@ __debug_memalign (size_t alignment, size_t bytes)
   return _debug_mid_memalign (alignment, bytes, RETURN_ADDRESS (0));
 }
 strong_alias (__debug_memalign, memalign)
-strong_alias (__debug_memalign, aligned_alloc)
+static void *
+__debug_aligned_alloc (size_t alignment, size_t bytes)
+{
+  if (!powerof2 (alignment) || alignment == 0)
+    return NULL;
+  return _debug_mid_memalign (alignment, bytes, RETURN_ADDRESS (0));
+}
+strong_alias (__debug_aligned_alloc, aligned_alloc)
 
 static void *
 __debug_pvalloc (size_t bytes)
@@ -364,7 +371,7 @@ __debug_calloc (size_t nmemb, size_t size)
     }
 
   void *(*hook) (size_t, const void *) = atomic_forced_read (__malloc_hook);
-  if (__builtin_expect (hook != NULL, 0))
+  if (__glibc_unlikely (hook != NULL))
     {
       void *mem = (*hook)(bytes, RETURN_ADDRESS (0));
 
@@ -399,17 +406,17 @@ strong_alias (__debug_calloc, calloc)
 size_t
 malloc_usable_size (void *mem)
 {
+  if (mem == NULL)
+    return 0;
+
   if (__is_malloc_debug_enabled (MALLOC_MCHECK_HOOK))
     return mcheck_usable_size (mem);
   if (__is_malloc_debug_enabled (MALLOC_CHECK_HOOK))
     return malloc_check_get_size (mem);
 
-  if (mem != NULL)
-    {
-      mchunkptr p = mem2chunk (mem);
-     if (DUMPED_MAIN_ARENA_CHUNK (p))
-       return chunksize (p) - SIZE_SZ;
-    }
+  mchunkptr p = mem2chunk (mem);
+  if (DUMPED_MAIN_ARENA_CHUNK (p))
+    return chunksize (p) - SIZE_SZ;
 
   return musable (mem);
 }
@@ -581,7 +588,7 @@ malloc_set_state (void *msptr)
   __malloc_debug_disable (MALLOC_CHECK_HOOK);
 
   /* We do not need to perform locking here because malloc_set_state
-     must be called before the first call into the malloc subsytem (usually via
+     must be called before the first call into the malloc subsystem (usually via
      __malloc_initialize_hook).  pthread_create always calls calloc and thus
      must be called only afterwards, so there cannot be more than one thread
      when we reach this point.  Also handle initialization if either we ended
@@ -668,4 +675,3 @@ compat_symbol (libc_malloc_debug, __free_hook, __free_hook, GLIBC_2_0);
 compat_symbol (libc_malloc_debug, __malloc_hook, __malloc_hook, GLIBC_2_0);
 compat_symbol (libc_malloc_debug, __realloc_hook, __realloc_hook, GLIBC_2_0);
 compat_symbol (libc_malloc_debug, __memalign_hook, __memalign_hook, GLIBC_2_0);
-#endif

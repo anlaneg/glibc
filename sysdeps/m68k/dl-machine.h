@@ -1,5 +1,5 @@
 /* Machine-dependent ELF dynamic relocation inline functions.  m68k version.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,8 @@
 #include <sys/param.h>
 #include <sysdep.h>
 #include <dl-tls.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
 
 /* Return nonzero iff ELF header is compatible with the running host.  */
 static inline int
@@ -68,11 +70,11 @@ elf_machine_load_address (void)
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int __attribute__ ((always_inline))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   Elf32_Addr *got;
   extern void _dl_runtime_resolve (Elf32_Word);
-  extern void _dl_runtime_profile (Elf32_Word);
 
   if (l->l_info[DT_JMPREL] && lazy)
     {
@@ -90,6 +92,8 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	 to intercept the calls to collect information.  In this case we
 	 don't store the address in the GOT so that all future calls also
 	 end in this function.  */
+#ifdef SHARED
+      extern void _dl_runtime_profile (Elf32_Word);
       if (profile)
 	{
 	  got[2] = (Elf32_Addr) &_dl_runtime_profile;
@@ -103,6 +107,7 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	    }
 	}
       else
+#endif
 	/* This function will get called to fix up the GOT entry indicated by
 	   the offset on the stack, and then jump to the resolved address.  */
 	got[2] = (Elf32_Addr) &_dl_runtime_resolve;
@@ -139,17 +144,8 @@ _start:\n\
 _dl_start_user:\n\
 	| Save the user entry point address in %a4.\n\
 	move.l %d0, %a4\n\
-	| See if we were run as a command with the executable file\n\
-	| name as an extra leading argument.\n\
-	" PCREL_OP ("move.l", "_dl_skip_args", "%d0", "%d0", "%pc") "\n\
-	| Pop the original argument count\n\
-	move.l (%sp)+, %d1\n\
-	| Subtract _dl_skip_args from it.\n\
-	sub.l %d0, %d1\n\
-	| Adjust the stack pointer to skip _dl_skip_args words.\n\
-	lea (%sp, %d0*4), %sp\n\
-	| Push back the modified argument count.\n\
-	move.l %d1, -(%sp)\n\
+	| Load the adjusted argument count.\n\
+	move.l (%sp), %d1\n\
 	# Call _dl_init (struct link_map *main_map, int argc, char **argv, char **env)\n\
 	pea 8(%sp, %d1*4)\n\
 	pea 8(%sp)\n\
@@ -182,10 +178,6 @@ _dl_start_user:\n\
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
 #define ELF_MACHINE_JMP_SLOT	R_68K_JMP_SLOT
 
-/* The m68k never uses Elf32_Rel relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
-
 static inline Elf32_Addr
 elf_machine_fixup_plt (struct link_map *map, lookup_t t,
 		       const ElfW(Sym) *refsym, const ElfW(Sym) *sym,
@@ -215,9 +207,10 @@ elf_machine_plt_value (struct link_map *map, const Elf32_Rela *reloc,
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void __attribute__ ((unused, always_inline))
-elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
-		  const Elf32_Sym *sym, const struct r_found_version *version,
+static inline void __attribute__ ((unused, always_inline))
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const Elf32_Rela *reloc, const Elf32_Sym *sym,
+		  const struct r_found_version *version,
 		  void *const reloc_addr_arg, int skip_ifunc)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
@@ -228,11 +221,17 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
   else
     {
       const Elf32_Sym *const refsym = sym;
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       Elf32_Addr value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       switch (r_type)
 	{
+	case R_68K_GLOB_DAT:
+	case R_68K_JMP_SLOT:
+	  *reloc_addr = value;
+	  break;
+#ifndef RTLD_BOOTSTRAP
 	case R_68K_COPY:
 	  if (sym == NULL)
 	    /* This can happen in trace mode if an object could not be
@@ -250,10 +249,6 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 	    }
 	  memcpy (reloc_addr_arg, (void *) value,
 		  MIN (sym->st_size, refsym->st_size));
-	  break;
-	case R_68K_GLOB_DAT:
-	case R_68K_JMP_SLOT:
-	  *reloc_addr = value;
 	  break;
 	case R_68K_8:
 	  *(char *) reloc_addr = value + reloc->r_addend;
@@ -275,7 +270,6 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 	case R_68K_PC32:
 	  *reloc_addr = value + reloc->r_addend - (Elf32_Addr) reloc_addr;
 	  break;
-#ifndef RTLD_BOOTSTRAP
 	case R_68K_TLS_DTPMOD32:
 	  /* Get the information from the link map returned by the
 	     resolv function.  */
@@ -293,9 +287,9 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 	      *reloc_addr = TLS_TPREL_VALUE (sym_map, sym, reloc);
 	    }
 	  break;
-#endif /* !RTLD_BOOTSTRAP */
 	case R_68K_NONE:		/* Alright, Wilbur.  */
 	  break;
+#endif /* !RTLD_BOOTSTRAP */
 	default:
 	  _dl_reloc_bad_type (map, r_type, 0);
 	  break;
@@ -303,7 +297,7 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
     }
 }
 
-auto inline void __attribute__ ((unused, always_inline))
+static inline void __attribute__ ((unused, always_inline))
 elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 			   void *const reloc_addr_arg)
 {
@@ -311,8 +305,8 @@ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
   *reloc_addr = l_addr + reloc->r_addend;
 }
 
-auto inline void __attribute__ ((unused, always_inline))
-elf_machine_lazy_rel (struct link_map *map,
+static inline void __attribute__ ((unused, always_inline))
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
 		      int skip_ifunc)
 {

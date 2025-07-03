@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper, <drepper@gnu.org>.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -135,7 +134,7 @@ lr_getc (struct linereader *lr)
 	return EOF;
     }
 
-  return lr->buf[lr->idx] == '\32' ? EOF : lr->buf[lr->idx++];
+  return lr->buf[lr->idx++] & 0xff;
 }
 
 

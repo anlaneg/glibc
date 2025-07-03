@@ -1,7 +1,6 @@
 /* Compute complex base 10 logarithm.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -73,7 +72,7 @@ M_DECL_FUNC (__clog10) (CFLOAT x)
       if (absx == 1 && scale == 0)
 	{
 	  __real__ result = (M_LOG1P (absy * absy)
-			     * ((FLOAT) M_MLIT (M_LOG10E) / 2));
+			     * (M_MLIT (M_LOG10E) / 2));
 	  math_check_force_underflow_nonneg (__real__ result);
 	}
       else if (absx > 1 && absx < 2 && absy < 1 && scale == 0)
@@ -81,7 +80,7 @@ M_DECL_FUNC (__clog10) (CFLOAT x)
 	  FLOAT d2m1 = (absx - 1) * (absx + 1);
 	  if (absy >= M_EPSILON)
 	    d2m1 += absy * absy;
-	  __real__ result = M_LOG1P (d2m1) * ((FLOAT) M_MLIT (M_LOG10E) / 2);
+	  __real__ result = M_LOG1P (d2m1) * (M_MLIT (M_LOG10E) / 2);
 	}
       else if (absx < 1
 	       && absx >= M_LIT (0.5)
@@ -89,7 +88,7 @@ M_DECL_FUNC (__clog10) (CFLOAT x)
 	       && scale == 0)
 	{
 	  FLOAT d2m1 = (absx - 1) * (absx + 1);
-	  __real__ result = M_LOG1P (d2m1) * ((FLOAT) M_MLIT (M_LOG10E) / 2);
+	  __real__ result = M_LOG1P (d2m1) * (M_MLIT (M_LOG10E) / 2);
 	}
       else if (absx < 1
 	       && absx >= M_LIT (0.5)
@@ -97,7 +96,7 @@ M_DECL_FUNC (__clog10) (CFLOAT x)
 	       && absx * absx + absy * absy >= M_LIT (0.5))
 	{
 	  FLOAT d2m1 = M_SUF (__x2y2m1) (absx, absy);
-	  __real__ result = M_LOG1P (d2m1) * ((FLOAT) M_MLIT (M_LOG10E) / 2);
+	  __real__ result = M_LOG1P (d2m1) * (M_MLIT (M_LOG10E) / 2);
 	}
       else
 	{

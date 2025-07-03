@@ -1,5 +1,4 @@
 /* w_gammaf.c -- float version of w_gamma.c.
- * Conversion to float by Ian Lance Taylor, Cygnus Support, ian@cygnus.com.
  */
 
 /*
@@ -15,6 +14,7 @@
 
 #include <errno.h>
 #include <math.h>
+#include <stddef.h>
 #include <math_private.h>
 #include <math-svid-compat.h>
 #include <libm-alias-float.h>
@@ -23,8 +23,7 @@
 float
 __tgammaf(float x)
 {
-	int local_signgam;
-	float y = __ieee754_gammaf_r(x,&local_signgam);
+	float y = __ieee754_gammaf_r(x, NULL);
 
 	if(__glibc_unlikely (!isfinite (y) || y == 0)
 	   && (isfinite (x) || (isinf (x) && x < 0.0))
@@ -42,7 +41,7 @@ __tgammaf(float x)
 	    /* tgammaf overflow */
 	    return __kernel_standard_f(x, x, 140);
 	}
-	return local_signgam < 0 ? - y : y;
+	return y;
 }
 libm_alias_float (__tgamma, tgamma)
 #endif

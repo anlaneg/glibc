@@ -1,6 +1,5 @@
-# Copyright (C) 1993-2021 Free Software Foundation, Inc.
+# Copyright (C) 1993-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
-# Contributed by Brendan Kehoe (brendan@zen.org).
 
 # The GNU C Library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -15,10 +14,6 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with the GNU C Library.  If not, see
 # <https://www.gnu.org/licenses/>.
-
-ifeq ($(subdir),db2)
-CPPFLAGS += -DHAVE_SPINLOCKS=1 -DHAVE_ASSEM_ALPHA=1
-endif
 
 ifeq ($(subdir),debug)
 # Consider making this GCC's default...

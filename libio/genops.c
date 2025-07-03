@@ -1,4 +1,5 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -48,6 +49,19 @@ flush_cleanup (void *not_used)
 }
 #endif
 
+/* Fields in struct _IO_FILE after the _lock field are internal to
+   glibc and opaque to applications.  We can change them as long as
+   the size of struct _IO_FILE is unchanged, which is checked as the
+   part of glibc ABI with sizes of _IO_2_1_stdin_, _IO_2_1_stdout_
+   and _IO_2_1_stderr_.
+
+   NB: When _IO_vtable_offset (fp) == 0, copy relocation will cover the
+   whole struct _IO_FILE.  Otherwise, only fields up to the _lock field
+   will be copied.  */
+_Static_assert (offsetof (struct _IO_FILE, _prevchain)
+		> offsetof (struct _IO_FILE, _lock),
+		"offset of _prevchain > offset of _lock");
+
 void
 _IO_un_link (struct _IO_FILE_plus *fp)
 {
@@ -62,6 +76,14 @@ _IO_un_link (struct _IO_FILE_plus *fp)
 #endif
       if (_IO_list_all == NULL)
 	;
+      else if (_IO_vtable_offset ((FILE *) fp) == 0)
+	{
+	  FILE **pr = fp->file._prevchain;
+	  FILE *nx = fp->file._chain;
+	  *pr = nx;
+	  if (nx != NULL)
+	    nx->_prevchain = pr;
+	}
       else if (fp == _IO_list_all)
 	_IO_list_all = (struct _IO_FILE_plus *) _IO_list_all->file._chain;
       else
@@ -95,6 +117,12 @@ _IO_link_in (struct _IO_FILE_plus *fp)
       _IO_flockfile ((FILE *) fp);
 #endif
       fp->file._chain = (FILE *) _IO_list_all;
+      if (_IO_vtable_offset ((FILE *) fp) == 0)
+	{
+	  fp->file._prevchain = (FILE **) &_IO_list_all;
+	  if (_IO_list_all != NULL)
+	    _IO_list_all->file._prevchain = &fp->file._chain;
+	}
       _IO_list_all = fp;
 #ifdef _IO_MTSAFE_IO
       _IO_funlockfile ((FILE *) fp);
@@ -108,9 +136,7 @@ libc_hidden_def (_IO_link_in)
 
 /* Return minimum _pos markers
    Assumes the current get area is the main get area. */
-ssize_t _IO_least_marker (FILE *fp, char *end_p);
-
-ssize_t
+static ssize_t
 _IO_least_marker (FILE *fp, char *end_p)
 {
   ssize_t least_so_far = end_p - fp->_IO_read_base;
@@ -187,7 +213,7 @@ _IO_free_backup_area (FILE *fp)
 {
   if (_IO_in_backup (fp))
     _IO_switch_to_main_get_area (fp);  /* Just in case. */
-  free (fp->_IO_save_base);
+  _IO_free_backup_buf (fp, fp->_IO_save_base);
   fp->_IO_save_base = NULL;
   fp->_IO_save_end = NULL;
   fp->_IO_backup_base = NULL;
@@ -235,7 +261,7 @@ save_for_backup (FILE *fp, char *end_p)
 	memcpy (new_buffer + avail,
 		fp->_IO_read_base + least_mark,
 		needed_size);
-      free (fp->_IO_save_base);
+      _IO_free_backup_buf (fp, fp->_IO_save_base);
       fp->_IO_save_base = new_buffer;
       fp->_IO_save_end = new_buffer + avail + needed_size;
     }
@@ -463,8 +489,8 @@ _IO_default_setbuf (FILE *fp, char *p, ssize_t len)
 	fp->_flags &= ~_IO_UNBUFFERED;
 	_IO_setb (fp, p, p+len, 0);
       }
-    fp->_IO_write_base = fp->_IO_write_ptr = fp->_IO_write_end = 0;
-    fp->_IO_read_base = fp->_IO_read_ptr = fp->_IO_read_end = 0;
+    fp->_IO_write_base = fp->_IO_write_ptr = fp->_IO_write_end = NULL;
+    fp->_IO_read_base = fp->_IO_read_ptr = fp->_IO_read_end = NULL;
     return fp;
 }
 
@@ -587,6 +613,7 @@ _IO_no_init (FILE *fp, int flags, int orientation,
        stream.  */
     fp->_wide_data = (struct _IO_wide_data *) -1L;
   fp->_freeres_list = NULL;
+  fp->_total_written = 0;
 }
 
 int
@@ -613,7 +640,7 @@ _IO_default_finish (FILE *fp, int dummy)
 
   if (fp->_IO_save_base)
     {
-      free (fp->_IO_save_base);
+      _IO_free_backup_buf (fp, fp->_IO_save_base);
       fp->_IO_save_base = NULL;
     }
 
@@ -637,7 +664,7 @@ _IO_sputbackc (FILE *fp, int c)
 {
   int result;
 
-  if (fp->_IO_read_ptr > fp->_IO_read_base
+  if (fp->_IO_read_ptr > fp->_IO_read_base && !_IO_in_backup (fp)
       && (unsigned char)fp->_IO_read_ptr[-1] == (unsigned char)c)
     {
       fp->_IO_read_ptr--;
@@ -684,7 +711,7 @@ _IO_adjust_column (unsigned start, const char *line, int count)
 libc_hidden_def (_IO_adjust_column)
 
 int
-_IO_flush_all_lockp (int do_lock)
+_IO_flush_all (void)
 {
   int result = 0;
   FILE *fp;
@@ -697,8 +724,7 @@ _IO_flush_all_lockp (int do_lock)
   for (fp = (FILE *) _IO_list_all; fp != NULL; fp = fp->_chain)
     {
       run_fp = fp;
-      if (do_lock)
-	_IO_flockfile (fp);
+      _IO_flockfile (fp);
 
       if (((fp->_mode <= 0 && fp->_IO_write_ptr > fp->_IO_write_base)
 	   || (_IO_vtable_offset (fp) == 0
@@ -707,9 +733,15 @@ _IO_flush_all_lockp (int do_lock)
 	   )
 	  && _IO_OVERFLOW (fp, EOF) == EOF)
 	result = EOF;
+      if (_IO_fileno (fp) >= 0
+	  && ((fp->_mode <= 0 && fp->_IO_read_ptr < fp->_IO_read_end)
+	      || (_IO_vtable_offset (fp) == 0
+		  && fp->_mode > 0 && (fp->_wide_data->_IO_read_ptr
+				       < fp->_wide_data->_IO_read_end)))
+	  && _IO_SYNC (fp) != 0)
+	result = EOF;
 
-      if (do_lock)
-	_IO_funlockfile (fp);
+      _IO_funlockfile (fp);
       run_fp = NULL;
     }
 
@@ -719,14 +751,6 @@ _IO_flush_all_lockp (int do_lock)
 #endif
 
   return result;
-}
-
-
-int
-_IO_flush_all (void)
-{
-  /* We want locking.  */
-  return _IO_flush_all_lockp (1);
 }
 libc_hidden_def (_IO_flush_all)
 
@@ -767,8 +791,8 @@ weak_alias (_IO_flush_all_linebuffered, _flushlbf)
    actual buffer because this will happen anyway once the program
    terminated.  If we do want to look for memory leaks we have to free
    the buffers.  Whether something is freed is determined by the
-   function sin the libc_freeres section.  Those are called as part of
-   the atexit routine, just like _IO_cleanup.  The problem is we do
+   function called by __libc_freeres (those are not called as part of
+   the atexit routine, different from  _IO_cleanup).  The problem is we do
    not know whether the freeres code is called first or _IO_cleanup.
    if the former is the case, we set the DEALLOC_BUFFER variable to
    true and _IO_unbuffer_all will take care of the rest.  If
@@ -793,27 +817,24 @@ _IO_unbuffer_all (void)
     {
       int legacy = 0;
 
+      run_fp = fp;
+      _IO_flockfile (fp);
+
 #if SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_1)
       if (__glibc_unlikely (_IO_vtable_offset (fp) != 0))
 	legacy = 1;
 #endif
 
+      /* Free up the backup area if it was ever allocated.  */
+      if (_IO_have_backup (fp))
+	_IO_free_backup_area (fp);
+      if (!legacy && fp->_mode > 0 && _IO_have_wbackup (fp))
+	_IO_free_wbackup_area (fp);
+
       if (! (fp->_flags & _IO_UNBUFFERED)
 	  /* Iff stream is un-orientated, it wasn't used. */
 	  && (legacy || fp->_mode != 0))
 	{
-#ifdef _IO_MTSAFE_IO
-	  int cnt;
-#define MAXTRIES 2
-	  for (cnt = 0; cnt < MAXTRIES; ++cnt)
-	    if (fp->_lock == NULL || _IO_lock_trylock (*fp->_lock) == 0)
-	      break;
-	    else
-	      /* Give the other thread time to finish up its use of the
-		 stream.  */
-	      __sched_yield ();
-#endif
-
 	  if (! legacy && ! dealloc_buffers && !(fp->_flags & _IO_USER_BUF))
 	    {
 	      fp->_flags |= _IO_USER_BUF;
@@ -827,17 +848,15 @@ _IO_unbuffer_all (void)
 
 	  if (! legacy && fp->_mode > 0)
 	    _IO_wsetb (fp, NULL, NULL, 0);
-
-#ifdef _IO_MTSAFE_IO
-	  if (cnt < MAXTRIES && fp->_lock != NULL)
-	    _IO_lock_unlock (*fp->_lock);
-#endif
 	}
 
       /* Make sure that never again the wide char functions can be
 	 used.  */
       if (! legacy)
 	fp->_mode = -1;
+
+      _IO_funlockfile (fp);
+      run_fp = NULL;
     }
 
 #ifdef _IO_MTSAFE_IO
@@ -846,8 +865,8 @@ _IO_unbuffer_all (void)
 #endif
 }
 
-
-libc_freeres_fn (buffer_free)
+void
+__libio_freemem (void)
 {
   dealloc_buffers = true;
 
@@ -863,9 +882,7 @@ libc_freeres_fn (buffer_free)
 int
 _IO_cleanup (void)
 {
-  /* We do *not* want locking.  Some threads might use streams but
-     that is their problem, we flush them underneath them.  */
-  int result = _IO_flush_all_lockp (0);
+  int result = _IO_flush_all ();
 
   /* We currently don't have a reliable mechanism for making sure that
      C++ static destructors are executed in the correct order.
@@ -963,7 +980,7 @@ _IO_unsave_markers (FILE *fp)
   struct _IO_marker *mark = fp->_markers;
   if (mark)
     {
-      fp->_markers = 0;
+      fp->_markers = NULL;
     }
 
   if (_IO_have_backup (fp))
@@ -992,11 +1009,14 @@ _IO_default_pbackfail (FILE *fp, int c)
 	  else if (!_IO_have_backup (fp))
 	    {
 	      /* No backup buffer: allocate one. */
-	      /* Use nshort buffer, if unused? (probably not)  FIXME */
 	      int backup_size = 128;
 	      char *bbuf = (char *) malloc (backup_size);
 	      if (bbuf == NULL)
-		return EOF;
+		{
+		  /* Guarantee a 1-char pushback.  */
+		  bbuf = fp->_short_backupbuf;
+		  backup_size = 1;
+		}
 	      fp->_IO_save_base = bbuf;
 	      fp->_IO_save_end = fp->_IO_save_base + backup_size;
 	      fp->_IO_backup_base = fp->_IO_save_end;
@@ -1016,7 +1036,7 @@ _IO_default_pbackfail (FILE *fp, int c)
 	    return EOF;
 	  memcpy (new_buf + (new_size - old_size), fp->_IO_read_base,
 		  old_size);
-	  free (fp->_IO_read_base);
+	  _IO_free_backup_buf (fp, fp->_IO_read_base);
 	  _IO_setg (fp, new_buf, new_buf + (new_size - old_size),
 		    new_buf + new_size);
 	  fp->_IO_backup_base = fp->_IO_read_ptr;
@@ -1117,5 +1137,3 @@ _IO_list_resetlock (void)
 #endif
 }
 libc_hidden_def (_IO_list_resetlock)
-
-text_set_element(__libc_atexit, _IO_cleanup);

@@ -1,5 +1,5 @@
 /* Convert between `struct statfs' format, and `struct statfs64' format.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,6 +18,7 @@
 
 #include <sys/statfs.h>
 #include <errno.h>
+#include <hurd.h>
 
 static inline int
 statfs64_conv (struct statfs *buf, const struct statfs64 *buf64)
@@ -25,10 +26,7 @@ statfs64_conv (struct statfs *buf, const struct statfs64 *buf64)
 # define DO(memb)							      \
   buf->memb = buf64->memb;						      \
   if (sizeof buf->memb != sizeof buf64->memb && buf->memb != buf64->memb)     \
-    {									      \
-      __set_errno (EOVERFLOW);						      \
-      return -1;							      \
-    }
+    return __hurd_fail (EOVERFLOW);
 
   DO (f_type);
   DO (f_bsize);
@@ -36,6 +34,7 @@ statfs64_conv (struct statfs *buf, const struct statfs64 *buf64)
   DO (f_bfree);
   DO (f_bavail);
   DO (f_files);
+  DO (f_ffree);
   DO (f_fsid);
   DO (f_namelen);
   DO (f_favail);

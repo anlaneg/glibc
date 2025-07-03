@@ -1,8 +1,7 @@
 /* memset/bzero -- set memory area to CH/0
    Highly optimized version for ix86, x>=6.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,23 +21,19 @@
 #include "asm-syntax.h"
 
 #define PARMS	4+4	/* space for 1 saved reg */
-#ifdef USE_AS_BZERO
-# define DEST	PARMS
-# define LEN	DEST+4
-#else
-# define RTN	PARMS
-# define DEST	RTN
-# define CHR	DEST+4
-# define LEN	CHR+4
-#endif
+#define RTN	PARMS
+#define DEST	RTN
+#define CHR	DEST+4
+#define LEN	CHR+4
 
         .text
-#if defined SHARED && IS_IN (libc) && !defined USE_AS_BZERO
+#if defined SHARED && IS_IN (libc)
 ENTRY_CHK (__memset_chk)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
 	jb	HIDDEN_JUMPTARGET (__chk_fail)
 END_CHK (__memset_chk)
+libc_hidden_builtin_def (__memset_chk)
 #endif
 ENTRY (memset)
 
@@ -47,11 +42,7 @@ ENTRY (memset)
 	cfi_adjust_cfa_offset (4)
 	movl	DEST(%esp), %edx
 	movl	LEN(%esp), %ecx
-#ifdef USE_AS_BZERO
-	xorl	%eax, %eax	/* fill with 0 */
-#else
 	movzbl	CHR(%esp), %eax
-#endif
 	jecxz	1f
 	movl	%edx, %edi
 	cfi_rel_offset (edi, 0)
@@ -71,9 +62,7 @@ ENTRY (memset)
 2:	movl	%ecx, %edx
 	shrl	$2, %ecx
 	andl	$3, %edx
-#ifndef USE_AS_BZERO
 	imul	$0x01010101, %eax
-#endif
 	rep
 	stosl
 	movl	%edx, %ecx
@@ -81,9 +70,7 @@ ENTRY (memset)
 	stosb
 
 1:
-#ifndef USE_AS_BZERO
 	movl DEST(%esp), %eax	/* start address of destination is result */
-#endif
 	popl	%edi
 	cfi_adjust_cfa_offset (-4)
 	cfi_restore (edi)

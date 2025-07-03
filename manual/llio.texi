@@ -65,6 +65,7 @@ directly.)
 * Interrupt Input::                     Getting an asynchronous signal when
                                          input arrives.
 * IOCTLs::                              Generic I/O Control operations.
+* Other Low-Level I/O APIs::            Other low-level-I/O-related functions.
 @end menu
 
 
@@ -176,6 +177,43 @@ large file mode.  I.e., file length and file offsets can exceed 31 bits.
 
 When the sources are translated with @code{_FILE_OFFSET_BITS == 64} this
 function is actually available under the name @code{open}.  I.e., the
+new, extended API using 64 bit file sizes and offsets transparently
+replaces the old API.
+@end deftypefun
+
+@deftypefun int openat (int @var{filedes}, const char *@var{filename}, int @var{flags}[, mode_t @var{mode}])
+@standards{POSIX.1, fcntl.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{@acsfd{}}}
+This function is the descriptor-relative variant of the @code{open}
+function.  @xref{Descriptor-Relative Access}.
+
+Note that the @var{flags} argument of @code{openat} does not accept
+@code{AT_@dots{}} flags, only the flags described for the @code{open}
+function above.
+
+The @code{openat} function can fail for additional reasons:
+
+@table @code
+@item EBADF
+The @var{filedes} argument is not a valid file descriptor.
+
+@item ENOTDIR
+The descriptor @var{filedes} is not associated with a directory, and
+@var{filename} is a relative file name.
+@end table
+
+When the sources are compiled with @code{_FILE_OFFSET_BITS == 64} this
+function is in fact @code{openat64} since the LFS interface transparently
+replaces the normal implementation.
+@end deftypefun
+
+@deftypefun int openat64 (int @var{filedes}, const char *@var{filename}, int @var{flags}[, mode_t @var{mode}])
+@standards{GNU, fcntl.h}
+The large-file variant of the @code{openat}, similar to how
+@code{open64} is the large-file variant of @code{open}.
+
+When the sources are translated with @code{_FILE_OFFSET_BITS == 64} this
+function is actually available under the name @code{openat}.  I.e., the
 new, extended API using 64 bit file sizes and offsets transparently
 replaces the old API.
 @end deftypefun
@@ -320,7 +358,7 @@ is used.
 
 @item ENOMEM
 Either there is not enough memory for the operation, or the process is
-out of address space.  It can only happnes when @code{CLOSE_RANGE_UNSHARED}
+out of address space.  It can only happen when @code{CLOSE_RANGE_UNSHARED}
 flag is used.
 
 @item EMFILE
@@ -1059,6 +1097,27 @@ streams persist in other processes, their file positions become
 undefined as a result.  To prevent this, you must clean up the streams
 before destroying them.
 
+In addition to cleaning up a stream before doing I/O using another
+linked channel, additional precautions are needed to ensure a
+well-defined file position indicator in some cases.  If both the
+following conditions hold, you must set the file position indicator on
+the new channel (a stream) using a function such as @code{fseek}.
+
+@itemize @bullet
+@item
+The new linked channel is a stream that was previously active.
+
+@item
+The file position indicator was previously set on that channel (while
+it was previously active) with a function such as @code{fseek}.
+@end itemize
+
+POSIX requires such precautions in more cases: if either the old or
+the new linked channel is a stream (whether or not previously active)
+and the file position indicator was previously set on any channel
+linked to those channels with a function such as @code{fseek} or
+@code{lseek}.
+
 @node Independent Channels
 @subsection Independent Channels
 @cindex independent channels
@@ -1339,6 +1398,23 @@ will fail and set @code{errno} to @code{EAGAIN} if the operation would block.
 
 @item RWF_APPEND
 Per-IO synchronization as if the file was opened with @code{O_APPEND} flag.
+
+@item RWF_NOAPPEND
+This flag allows an offset to be honored, even if the file was opened with
+@code{O_APPEND} flag.
+
+@item RWF_ATOMIC
+Indicate that the write is to be issued with torn-write prevention.  The
+input buffer should follow some contraints: the total length should be
+power-of-2 in size and also sizes between @code{atomic_write_unit_min}
+and @code{atomic_write_unit_max}, the @code{struct iovec} count should be
+up to @code{atomic_write_segments_max}, and the offset should be
+naturally-aligned with regard to total write length.
+
+The @code{atomic_*} values can be obtained with @code{statx} along with
+@code{STATX_WRITE_ATOMIC} flag.
+
+This is a Linux-specific extension.
 @end vtable
 
 When the source file is compiled with @code{_FILE_OFFSET_BITS == 64} the
@@ -1569,10 +1645,15 @@ permitted.  They include @code{PROT_READ}, @code{PROT_WRITE}, and
 of address space for future use.  The @code{mprotect} function can be
 used to change the protection flags.  @xref{Memory Protection}.
 
-@var{flags} contains flags that control the nature of the map.
-One of @code{MAP_SHARED} or @code{MAP_PRIVATE} must be specified.
+The @var{flags} parameter contains flags that control the nature of
+the map.  One of @code{MAP_SHARED}, @code{MAP_SHARED_VALIDATE}, or
+@code{MAP_PRIVATE} must be specified.  Additional flags may be bitwise
+OR'd to further define the mapping.
 
-They include:
+Note that, aside from @code{MAP_PRIVATE} and @code{MAP_SHARED}, not
+all flags are supported on all versions of all operating systems.
+Consult the kernel-specific documentation for details.  The flags
+include:
 
 @vtable @code
 @item MAP_PRIVATE
@@ -1594,14 +1675,26 @@ Note that actual writing may take place at any time.  You need to use
 @code{msync}, described below, if it is important that other processes
 using conventional I/O get a consistent view of the file.
 
+@item MAP_SHARED_VALIDATE
+Similar to @code{MAP_SHARED} except that additional flags will be
+validated by the kernel, and the call will fail if an unrecognized
+flag is provided.  With @code{MAP_SHARED} using a flag on a kernel
+that doesn't support it causes the flag to be ignored.
+@code{MAP_SHARED_VALIDATE} should be used when the behavior of all
+flags is required.
+
 @item MAP_FIXED
 This forces the system to use the exact mapping address specified in
-@var{address} and fail if it can't.
+@var{address} and fail if it can't.  Note that if the new mapping
+would overlap an existing mapping, the overlapping portion of the
+existing map is unmapped.
 
 @c One of these is official - the other is obviously an obsolete synonym
 @c Which is which?
 @item MAP_ANONYMOUS
 @itemx MAP_ANON
+@standards{POSIX.1-2024, sys/mman.h}
+@standardsx{MAP_ANON, POSIX.1-2024, sys/mman.h}
 This flag tells the system to create an anonymous mapping, not connected
 to a file.  @var{filedes} and @var{offset} are ignored, and the region is
 initialized with zeros.
@@ -1637,10 +1730,82 @@ The @code{MAP_HUGETLB} flag is specific to Linux.
 @c There is a mechanism to select different hugepage sizes; see
 @c include/uapi/asm-generic/hugetlb_encode.h in the kernel sources.
 
-@c Linux has some other MAP_ options, which I have not discussed here.
-@c MAP_DENYWRITE, MAP_EXECUTABLE and MAP_GROWSDOWN don't seem applicable to
-@c user programs (and I don't understand the last two).  MAP_LOCKED does
-@c not appear to be implemented.
+@item MAP_32BIT
+Require addresses that can be accessed with a signed 32 bit pointer,
+i.e., within the first 2 GiB.  Ignored if MAP_FIXED is specified.
+
+@item MAP_DENYWRITE
+@itemx MAP_EXECUTABLE
+@itemx MAP_FILE
+
+Provided for compatibility.  Ignored by the Linux kernel.
+
+@item MAP_FIXED_NOREPLACE
+Similar to @code{MAP_FIXED} except the call will fail with
+@code{EEXIST} if the new mapping would overwrite an existing mapping.
+To test for support for this flag, specify MAP_FIXED_NOREPLACE without
+MAP_FIXED, and (if the call was successful) check the actual address
+returned.  If it does not match the address passed, then this flag is
+not supported.
+
+@item MAP_GROWSDOWN
+This flag is used to make stacks, and is typically only needed inside
+the program loader to set up the main stack for the running process.
+The mapping is created according to the other flags, except an
+additional page just prior to the mapping is marked as a ``guard
+page''.  If a write is attempted inside this guard page, that page is
+mapped, the mapping is extended, and a new guard page is created.
+Thus, the mapping continues to grow towards lower addresses until it
+encounters some other mapping.
+
+Note that accessing memory beyond the guard page will not trigger this
+feature.  In gcc, use @code{-fstack-clash-protection} to ensure the
+guard page is always touched.
+
+@item MAP_LOCKED
+A hint that requests that mapped pages are locked in memory (i.e. not
+paged out).  Note that this is a request and not a requirement; use
+@code{mlock} if locking is required.
+
+@item MAP_POPULATE
+@itemx MAP_NONBLOCK
+@code{MAP_POPULATE} is a hint that requests that the kernel read-ahead
+a file-backed mapping, causing pages to be mapped before they're
+needed.  @code{MAP_NONBLOCK} is a hint that requests that the kernel
+@emph{not} attempt such except for pages are already in memory.  Note
+that neither of these hints affects future paging activity, use
+@code{mlock} if such needs to be controlled.
+
+@item MAP_NORESERVE
+Asks the kernel to not reserve physical backing (i.e. space in a swap
+device) for a mapping.  This would be useful for, for example, a very
+large but sparsely used mapping which need not be limited in total
+length by available RAM, but with very few mapped pages.  Note that
+writes to such a mapping may cause a @code{SIGSEGV} if the system is
+unable to map a page due to lack of resources.
+
+On Linux, this flag's behavior may be overwridden by
+@file{/proc/sys/vm/overcommit_memory} as documented in the proc(5) man
+page.
+
+@item MAP_STACK
+Ensures that the resulting mapping is suitable for use as a program
+stack.  For example, the use of huge pages might be precluded.
+
+@item MAP_SYNC
+This is a special flag for DAX devices, which tells the kernel to
+write dirty metadata out whenever dirty data is written out.  Unlike
+most other flags, this one will fail unless @code{MAP_SHARED_VALIDATE}
+is also given.
+
+@item MAP_DROPPABLE
+Request the page to be never written out to swap, it will be zeroed
+under memory pressure (so kernel can just drop the page), it is inherited
+by fork, it is not counted against @code{mlock} budget, and if there is
+not enough memory to service a page fault there is no fatal error (so no
+signal is sent).
+
+The @code{MAP_DROPPABLE} flag is specific to Linux.
 
 @end vtable
 
@@ -1651,6 +1816,24 @@ Possible errors include:
 
 @table @code
 
+@item EACCES
+
+@var{filedes} was not open for the type of access specified in @var{protect}.
+
+@item EAGAIN
+
+The system has temporarily run out of resources.
+
+@item EBADF
+
+The @var{fd} passed is invalid, and a valid file descriptor is
+required (i.e. MAP_ANONYMOUS was not specified).
+
+@item EEXIST
+
+@code{MAP_FIXED_NOREPLACE} was specified and an existing mapping was
+found overlapping the requested address range.
+
 @item EINVAL
 
 Either @var{address} was unusable (because it is not a multiple of the
@@ -1659,22 +1842,36 @@ applicable page size), or inconsistent @var{flags} were given.
 If @code{MAP_HUGETLB} was specified, the file or system does not support
 large page sizes.
 
-@item EACCES
+@item ENODEV
 
-@var{filedes} was not open for the type of access specified in @var{protect}.
+This file is of a type that doesn't support mapping, the process has
+exceeded its data space limit, or the map request would exceed the
+process's virtual address space.
 
 @item ENOMEM
 
-Either there is not enough memory for the operation, or the process is
-out of address space.
-
-@item ENODEV
-
-This file is of a type that doesn't support mapping.
+There is not enough memory for the operation, the process is out of
+address space, or there are too many mappings.  On Linux, the maximum
+number of mappings can be controlled via
+@file{/proc/sys/vm/max_map_count} or, if your OS supports it, via
+the @code{vm.max_map_count} @code{sysctl} setting.
 
 @item ENOEXEC
 
 The file is on a filesystem that doesn't support mapping.
+
+@item EPERM
+
+@code{PROT_EXEC} was requested but the file is on a filesystem that
+was mounted with execution denied, a file seal prevented the mapping,
+or the caller set MAP_HUDETLB but does not have the required
+priviledges.
+
+@item EOVERFLOW
+
+Either the offset into the file plus the length of the mapping causes
+internal page counts to overflow, or the offset requested exceeds the
+length of the file.
 
 @c On Linux, EAGAIN will appear if the file has a conflicting mandatory lock.
 @c However mandatory locks are not discussed in this manual.
@@ -1777,7 +1974,7 @@ There is no existing mapping in at least part of the given region.
 
 @end deftypefun
 
-@deftypefun {void *} mremap (void *@var{address}, size_t @var{length}, size_t @var{new_length}, int @var{flag})
+@deftypefun {void *} mremap (void *@var{address}, size_t @var{length}, size_t @var{new_length}, int @var{flag}, ... /* void *@var{new_address} */)
 @standards{GNU, sys/mman.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 
@@ -1786,12 +1983,40 @@ area. @var{address} and @var{length} must cover a region entirely mapped
 in the same @code{mmap} statement.  A new mapping with the same
 characteristics will be returned with the length @var{new_length}.
 
-One option is possible, @code{MREMAP_MAYMOVE}.  If it is given in
-@var{flags}, the system may remove the existing mapping and create a new
-one of the desired length in another location.
+Possible flags are
 
-The address of the resulting mapping is returned, or @math{-1}.  Possible
-error codes include:
+@table @code
+
+@item MREMAP_MAYMOVE
+If it is given in @var{flags}, the system may remove the existing mapping
+and create a new one of the desired length in another location.
+
+@item MREMAP_FIXED
+If it is given in @var{flags}, @code{mremap} accepts a fifth argument,
+@code{void *new_address}, which specifies a page-aligned address to
+which the mapping must be moved.  Any previous mapping at the address
+range specified by @var{new_address} and @var{new_size} is unmapped.
+
+@code{MREMAP_FIXED} must be used together with @code{MREMAP_MAYMOVE}.
+
+@item MREMAP_DONTUNMAP
+If it is given in @var{flags}, @code{mremap} accepts a fifth argument,
+@code{void *new_address}, which specifies a page-aligned address.  Any
+previous mapping at the address range specified by @var{new_address} and
+@var{new_size} is unmapped.  If @var{new_address} is @code{NULL}, the
+kernel chooses the page-aligned address at which to create the mapping.
+Otherwise, the kernel takes it as a hint about where to place the mapping.
+The mapping at the address range specified by @var{old_address} and
+@var{old_size} isn't unmapped.
+
+@code{MREMAP_DONTUNMAP} must be used together with @code{MREMAP_MAYMOVE}.
+@var{old_size} must be the same as @var{new_size}.  This flag bit is
+Linux-specific.
+
+@end table
+
+The address of the resulting mapping is returned, or @code{MAP_FAILED}.
+Possible error codes include:
 
 @table @code
 
@@ -1800,7 +2025,7 @@ There is no existing mapping in at least part of the original region, or
 the region covers two or more distinct mappings.
 
 @item EINVAL
-The address given is misaligned or inappropriate.
+Any arguments are inappropriate, including unknown @var{flags} values.
 
 @item EAGAIN
 The region has pages locked, and if extended it would exceed the
@@ -2210,6 +2435,8 @@ file descriptor, or until the timeout period expires.
 There is another example showing the use of @code{select} to multiplex
 input from multiple sockets in @ref{Server Example}.
 
+For an alternate interface to this functionality, see @code{poll}
+(@pxref{Other Low-Level I/O APIs}).
 
 @node Synchronizing I/O
 @section Synchronizing I/O operations
@@ -2528,7 +2755,7 @@ aiocb64}, since the LFS transparently replaces the old interface.
 @c      _dl_allocate_tls_init ok
 @c       GET_DTV ok
 @c     mmap ok
-@c     atomic_increment_val ok
+@c     atomic_fetch_add_relaxed ok
 @c     munmap ok
 @c     change_stack_perm ok
 @c      mprotect ok
@@ -2538,7 +2765,7 @@ aiocb64}, since the LFS transparently replaces the old interface.
 @c     munmap ok
 @c    THREAD_COPY_STACK_GUARD ok
 @c    THREAD_COPY_POINTER_GUARD ok
-@c    atomic_exchange_acq ok
+@c    atomic_exchange_acquire ok
 @c    lll_futex_wake ok
 @c    deallocate_stack @asulock @ascuheap @aculock @acsmem
 @c     lll_lock (state_cache_lock) @asulock @aculock
@@ -2567,10 +2794,10 @@ aiocb64}, since the LFS transparently replaces the old interface.
 @c     do_clone @asulock @ascuheap @aculock @acsmem
 @c      PREPARE_CREATE ok
 @c      lll_lock (pd->lock) @asulock @aculock
-@c      atomic_increment ok
+@c      atomic_fetch_add_relaxed ok
 @c      clone ok
-@c      atomic_decrement ok
-@c      atomic_exchange_acq ok
+@c      atomic_fetch_add_relaxed ok
+@c      atomic_exchange_acquire ok
 @c      lll_futex_wake ok
 @c      deallocate_stack dup
 @c      sched_setaffinity ok
@@ -2590,7 +2817,7 @@ aiocb64}, since the LFS transparently replaces the old interface.
 @c    start_thread ok
 @c     HP_TIMING_NOW ok
 @c     ctype_init @mtslocale
-@c     atomic_exchange_acq ok
+@c     atomic_exchange_acquire ok
 @c     lll_futex_wake ok
 @c     sigemptyset ok
 @c     sigaddset ok
@@ -2614,7 +2841,7 @@ aiocb64}, since the LFS transparently replaces the old interface.
 @c      free @ascuheap @acsmem
 @c     libc_thread_freeres
 @c      libc_thread_subfreeres ok
-@c     atomic_decrement_and_test ok
+@c     atomic_fetch_add_relaxed ok
 @c     td_eventword ok
 @c     td_eventmask ok
 @c     atomic_compare_exchange_bool_acq ok
@@ -3293,7 +3520,9 @@ require additional arguments to be supplied.  These additional arguments
 and the return value and error conditions are given in the detailed
 descriptions of the individual commands.
 
-Briefly, here is a list of what the various commands are.
+Briefly, here is a list of what the various commands are.  For an
+exhaustive list of kernel-specific options, please see @xref{System
+Calls}.
 
 @vtable @code
 @item F_DUPFD
@@ -3409,6 +3638,17 @@ fcntl (@var{old}, F_DUPFD, @var{new})
 However, @code{dup2} does this atomically; there is no instant in the
 middle of calling @code{dup2} at which @var{new} is closed and not yet a
 duplicate of @var{old}.
+@end deftypefun
+
+@deftypefun int dup3 (int @var{old}, int @var{new}, int @var{flags})
+@standards{POSIX.1-2024, unistd.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+This function is the same as @code{dup2} but creates the new
+descriptor as if it had been opened with flags @var{flags}.  The only
+allowed flag is @code{O_CLOEXEC}.
+
+This function was originally a Linux extension, but was added in
+POSIX.1-2024.
 @end deftypefun
 
 @deftypevr Macro int F_DUPFD
@@ -3652,7 +3892,9 @@ contains it is still needed), and permissions are checked when the
 descriptor is used later on.
 
 For example, such descriptors can be used with the @code{fexecve}
-function (@pxref{Executing a File}).
+function (@pxref{Executing a File}).  Other applications involve the
+@samp{*at} function variants, along with the @code{AT_EMPTY_PATH} flag.
+@xref{Descriptor-Relative Access}.
 
 This access mode is specific to Linux.  On @gnuhurdsystems{}, it is
 possible to use @code{O_EXEC} explicitly, or specify no access modes
@@ -4621,5 +4863,28 @@ Most IOCTLs are OS-specific and/or only used in special system utilities,
 and are thus beyond the scope of this document.  For an example of the use
 of an IOCTL, see @ref{Out-of-Band Data}.
 
-@c FIXME this is undocumented:
-@c dup3
+@node Other Low-Level I/O APIs
+@section Other low-level-I/O-related functions
+
+@deftp {Data Type} {struct pollfd}
+@standards{POSIX.1,poll.h}
+@end deftp
+
+@deftp {Data Type} {struct epoll_event}
+@standards{Linux,sys/epoll.h}
+@end deftp
+
+@deftypefun int poll (struct pollfd *@var{fds}, nfds_t @var{nfds}, int @var{timeout})
+
+@manpagefunctionstub{poll,2}
+@end deftypefun
+
+@deftypefun int epoll_create (int @var{size})
+
+@manpagefunctionstub{epoll_create,2}
+@end deftypefun
+
+@deftypefun int epoll_wait (int @var{epfd}, struct epoll_event *@var{events}, int @var{maxevents}, int @var{timeout})
+
+@manpagefunctionstub{epoll_wait,2}
+@end deftypefun

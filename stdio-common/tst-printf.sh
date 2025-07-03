@@ -1,6 +1,6 @@
 #!/bin/sh
 # Testing of printf.
-# Copyright (C) 2000-2021 Free Software Foundation, Inc.
+# Copyright (C) 2000-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ cat <<'EOF' |
 %0*x:	`0012'
 %*.*x:	`0012'
 %0*.*x:	`0012'
-bad format:	"%b"
+bad format:	"%v"
 nil pointer (padded):	"     (nil)"
 decimal negative:	"-2345"
 octal negative:	"37777773327"
@@ -153,7 +153,7 @@ cat <<'EOF' |
 %0*x:	`0012'
 %*.*x:	`0012'
 %0*.*x:	`0012'
-bad format:	"%b"
+bad format:	"%v"
 nil pointer (padded):	"     (nil)"
 decimal negative:	"-2345"
 octal negative:	"37777773327"

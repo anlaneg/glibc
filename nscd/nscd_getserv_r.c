@@ -1,6 +1,5 @@
-/* Copyright (C) 2007-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2007.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -63,7 +62,8 @@ libc_locked_map_ptr (, __serv_map_handle) attribute_hidden;
 /* Note that we only free the structure if necessary.  The memory
    mapping is not removed since it is not visible to the malloc
    handling.  */
-libc_freeres_fn (serv_map_free)
+void
+__nscd_serv_map_freemem (void)
 {
   if (__serv_map_handle.mapped != NO_MAPPING)
     {
@@ -141,7 +141,6 @@ nscd_getserv_r (const char *crit, size_t critlen, const char *proto,
 				> recend, 0))
 	    goto out;
 
-#if !_STRING_ARCH_unaligned
 	  /* The aliases_len array in the mapped database might very
 	     well be unaligned.  We will access it word-wise so on
 	     platforms which do not tolerate unaligned accesses we
@@ -171,7 +170,6 @@ nscd_getserv_r (const char *crit, size_t critlen, const char *proto,
 				    serv_resp.s_aliases_cnt
 				    * sizeof (uint32_t));
 	    }
-#endif
 	}
     }
 
@@ -208,11 +206,10 @@ nscd_getserv_r (const char *crit, size_t critlen, const char *proto,
       /* A first check whether the buffer is sufficiently large is possible.  */
       /* Now allocate the buffer the array for the group members.  We must
 	 align the pointer and the base of the h_addr_list pointers.  */
-      align1 = ((__alignof__ (char *) - (cp - ((char *) 0)))
+      align1 = ((__alignof__ (char *) - ((uintptr_t) cp))
 		& (__alignof__ (char *) - 1));
-      align2 = ((__alignof__ (char *) - ((cp + align1 + serv_resp.s_name_len
-					  + serv_resp.s_proto_len)
-					 - ((char *) 0)))
+      align2 = ((__alignof__ (char *) - ((uintptr_t) (cp + align1 + serv_resp.s_name_len
+					  + serv_resp.s_proto_len)))
 		& (__alignof__ (char *) - 1));
       if (buflen < (align1 + serv_resp.s_name_len + serv_resp.s_proto_len
 		    + align2
@@ -366,7 +363,7 @@ nscd_getserv_r (const char *crit, size_t critlen, const char *proto,
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}

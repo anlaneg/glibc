@@ -1,6 +1,6 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
-   Written by Per Bothner <bothner@cygnus.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -104,9 +104,11 @@ _IO_old_file_init_internal (struct _IO_FILE_plus *fp)
   fp->file._old_offset = _IO_pos_BAD;
   fp->file._flags |= CLOSED_FILEBUF_FLAGS;
 
-  _IO_link_in (fp);
+  /* NB: _vtable_offset must be set before calling _IO_link_in since
+     _IO_vtable_offset is used to detect the old binaries.  */
   fp->file._vtable_offset = ((int) sizeof (struct _IO_FILE)
 			     - (int) sizeof (struct _IO_FILE_complete));
+  _IO_link_in (fp);
   fp->file._fileno = -1;
 
   if (&_IO_stdin_used != NULL || !_IO_legacy_file ((FILE *) fp))
@@ -310,7 +312,7 @@ _IO_old_file_underflow (FILE *fp)
       /* Maybe we already have a push back pointer.  */
       if (fp->_IO_save_base != NULL)
 	{
-	  free (fp->_IO_save_base);
+	  _IO_free_backup_buf (fp, fp->_IO_save_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -463,7 +465,7 @@ _IO_old_file_seekoff (FILE *fp, off64_t offset, int dir, int mode)
       /* It could be that we already have a pushback buffer.  */
       if (fp->_IO_read_base != NULL)
 	{
-	  free (fp->_IO_read_base);
+	  _IO_free_backup_buf (fp, fp->_IO_read_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -716,29 +718,6 @@ _IO_old_file_xsputn (FILE *f, const void *data, size_t n)
     }
   return n - to_do;
 }
-
-
-const struct _IO_jump_t _IO_old_file_jumps libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_old_file_finish),
-  JUMP_INIT(overflow, _IO_old_file_overflow),
-  JUMP_INIT(underflow, _IO_old_file_underflow),
-  JUMP_INIT(uflow, _IO_default_uflow),
-  JUMP_INIT(pbackfail, _IO_default_pbackfail),
-  JUMP_INIT(xsputn, _IO_old_file_xsputn),
-  JUMP_INIT(xsgetn, _IO_default_xsgetn),
-  JUMP_INIT(seekoff, _IO_old_file_seekoff),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, _IO_old_file_setbuf),
-  JUMP_INIT(sync, _IO_old_file_sync),
-  JUMP_INIT(doallocate, _IO_file_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_old_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close),
-  JUMP_INIT(stat, _IO_file_stat)
-};
 
 compat_symbol (libc, _IO_old_do_write, _IO_do_write, GLIBC_2_0);
 compat_symbol (libc, _IO_old_file_attach, _IO_file_attach, GLIBC_2_0);

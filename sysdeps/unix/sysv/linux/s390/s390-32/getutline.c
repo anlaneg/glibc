@@ -1,5 +1,4 @@
-/* Copyright (C) 2008-2021 Free Software Foundation, Inc.
-   Contributed by Andreas Krebbel <Andreas.Krebbel@de.ibm.com>.
+/* Copyright (C) 2008-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,6 +25,7 @@
 # define weak_alias(n,a)
 #endif
 #include "login/getutline.c"
+_weak_alias (buffer, __libc_getutline_freemem_ptr)
 
 #if defined SHARED
 default_symbol_version (__getutline, getutline, UTMP_COMPAT_BASE);

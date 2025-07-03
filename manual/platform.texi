@@ -198,22 +198,56 @@ The supported processor features are:
 @code{AMX_BF16} -- Tile computational operations on bfloat16 numbers.
 
 @item
+@code{AMX_COMPLEX} -- Tile computational operations on complex FP16 numbers.
+
+@item
 @code{AMX_INT8} -- Tile computational operations on 8-bit numbers.
+
+@item
+@code{AMX_FP16} -- Tile computational operations on FP16 numbers.
 
 @item
 @code{AMX_TILE} -- Tile architecture.
 
 @item
+@code{APX_F} -- The APX instruction extensions.
+
+@item
 @code{ARCH_CAPABILITIES} -- IA32_ARCH_CAPABILITIES MSR.
+
+@item
+@code{ArchPerfmonExt} -- Architectural Performance Monitoring Extended
+Leaf (EAX = 23H).
 
 @item
 @code{AVX} -- The AVX instruction extensions.
 
 @item
+@code{AVX10} -- The AVX10 instruction extensions.
+
+@item
+@code{AVX10_XMM} -- Whether AVX10 includes xmm registers.
+
+@item
+@code{AVX10_YMM} -- Whether AVX10 includes ymm registers.
+
+@item
+@code{AVX10_ZMM} -- Whether AVX10 includes zmm registers.
+
+@item
 @code{AVX2} -- The AVX2 instruction extensions.
 
 @item
+@code{AVX_IFMA} -- The AVX-IFMA instruction extensions.
+
+@item
+@code{AVX_NE_CONVERT} -- The AVX-NE-CONVERT instruction extensions.
+
+@item
 @code{AVX_VNNI} -- The AVX-VNNI instruction extensions.
+
+@item
+@code{AVX_VNNI_INT8} -- The AVX-VNNI-INT8 instruction extensions.
 
 @item
 @code{AVX512_4FMAPS} -- The AVX512_4FMAPS instruction extensions.
@@ -277,6 +311,9 @@ extensions.
 @code{BMI2} -- BMI2 instructions.
 
 @item
+@code{BUS_LOCK_DETECT} -- Bus lock debug exceptions.
+
+@item
 @code{CLDEMOTE} -- CLDEMOTE instruction.
 
 @item
@@ -290,6 +327,9 @@ extensions.
 
 @item
 @code{CMOV} -- Conditional Move instructions.
+
+@item
+@code{CMPCCXADD} -- CMPccXADD instruction.
 
 @item
 @code{CMPXCHG16B} -- CMPXCHG16B instruction.
@@ -392,13 +432,22 @@ the indirect branch predictor barrier (IBPB).
 @code{KL} -- AES Key Locker instructions.
 
 @item
-@code{LAM} -- Linear Address Masking.
-
-@item
 @code{L1D_FLUSH} -- IA32_FLUSH_CMD MSR.
 
 @item
+@code{LA57} -- 57-bit linear addresses and five-level paging.
+
+@item
 @code{LAHF64_SAHF64} -- LAHF/SAHF available in 64-bit mode.
+
+@item
+@code{LAM} -- Linear Address Masking.
+
+@item
+@code{LASS} -- Linear Address Space Separation.
+
+@item
+@code{LBR} -- Architectural LBR.
 
 @item
 @code{LM} -- Long mode.
@@ -438,6 +487,10 @@ the indirect branch predictor barrier (IBPB).
 
 @item
 @code{MSR} -- Model Specific Registers RDMSR and WRMSR instructions.
+
+@item
+@code{MSRLIST} -- RDMSRLIST/WRMSRLIST instructions and IA32_BARRIER
+MSR.
 
 @item
 @code{MTRR} -- Memory Type Range Registers.
@@ -496,6 +549,9 @@ extended state management using XSAVE/XRSTOR.
 @code{PREFETCHWT1} -- PREFETCHWT1 instruction.
 
 @item
+@code{PREFETCHI} -- PREFETCHIT0/1 instructions.
+
+@item
 @code{PSE} -- Page Size Extension.
 
 @item
@@ -506,6 +562,9 @@ extended state management using XSAVE/XRSTOR.
 
 @item
 @code{PTWRITE} -- PTWRITE instruction.
+
+@item
+@code{RAO_INT} -- RAO-INT instructions.
 
 @item
 @code{RDPID} -- RDPID instruction.
@@ -534,6 +593,9 @@ capability.
 @code{RTM_ALWAYS_ABORT} -- Transactions always abort, making RTM unusable.
 
 @item
+@code{RTM_FORCE_ABORT} -- TSX_FORCE_ABORT MSR.
+
+@item
 @code{SDBG} -- IA32_DEBUG_INTERFACE MSR for silicon debug.
 
 @item
@@ -544,6 +606,9 @@ capability.
 
 @item
 @code{SGX} -- Intel Software Guard Extensions.
+
+@item
+@code{SGX_KEYS} -- Attestation Services for SGX.
 
 @item
 @code{SGX_LC} -- SGX Launch Configuration.
@@ -650,6 +715,9 @@ using a TSC deadline value.
 
 @item
 @code{WIDE_KL} -- AES wide Key Locker instructions.
+
+@item
+@code{WRMSRNS} -- WRMSRNS instruction.
 
 @item
 @code{X2APIC} -- x2APIC.

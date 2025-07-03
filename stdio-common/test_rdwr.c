@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,7 +19,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libc-diag.h>
 
+#include <support/xstdio.h>
 
 int
 main (int argc, char **argv)
@@ -49,10 +51,15 @@ main (int argc, char **argv)
 
   (void) fputs (hello, f);
   rewind (f);
-  (void) fgets (buf, sizeof (buf), f);
+  xfgets (buf, sizeof (buf), f);
   rewind (f);
   (void) fputs (buf, f);
   rewind (f);
+
+  /* clang do not handle %Z format.  */
+  DIAG_PUSH_NEEDS_COMMENT_CLANG;
+  DIAG_IGNORE_NEEDS_COMMENT_CLANG (13, "-Wformat-invalid-specifier");
+  DIAG_IGNORE_NEEDS_COMMENT_CLANG (13, "-Wformat-extra-args");
   {
     size_t i;
     for (i = 0; i < replace_from; ++i)
@@ -100,16 +107,13 @@ main (int argc, char **argv)
 	lose = 1;
       }
   }
+  DIAG_POP_NEEDS_COMMENT_CLANG;
 
   if (!lose)
     {
       rewind (f);
-      if (fgets (buf, sizeof (buf), f) == NULL)
-	{
-	  printf ("fgets got %s.\n", strerror(errno));
-	  lose = 1;
-	}
-      else if (strcmp (buf, replace))
+      xfgets (buf, sizeof (buf), f);
+      if (strcmp (buf, replace))
 	{
 	  printf ("Read \"%s\" instead of \"%s\".\n", buf, replace);
 	  lose = 1;

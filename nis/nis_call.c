@@ -1,6 +1,5 @@
-/* Copyright (C) 1997-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@vt.uni-paderborn.de>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -484,7 +483,7 @@ rec_dirsearch (const_nis_name name, directory_obj *dir, nis_error *status)
 	  }
 	while (nis_dir_cmp (domain, dir->do_name) != SAME_NAME);
 
-	cp = rawmemchr (leaf, '\0');
+	cp = strchr (leaf, '\0');
 	*cp++ = '.';
 	strcpy (cp, domain);
 
@@ -575,7 +574,7 @@ static struct nis_server_cache
   unsigned int size;
   unsigned int server_used;
   unsigned int current_ep;
-  __time64_t expires;
+  time_t expires;
   char name[];
 } *nis_server_cache[16];
 static time_t nis_cold_start_mtime;
@@ -584,7 +583,7 @@ __libc_lock_define_initialized (static, nis_server_cache_lock)
 static directory_obj *
 nis_server_cache_search (const_nis_name name, int search_parent,
 			 unsigned int *server_used, unsigned int *current_ep,
-			 struct __timespec64 *now)
+			 struct timespec *now)
 {
   directory_obj *ret = NULL;
   int i;
@@ -615,7 +614,7 @@ nis_server_cache_search (const_nis_name name, int search_parent,
 	if (ret == NULL)
 	  break;
 
-	addr = rawmemchr (nis_server_cache[i]->name, '\0') + 8;
+	addr = strchr (nis_server_cache[i]->name, '\0') + 8;
 	addr = (char *) ((uintptr_t) addr & ~(uintptr_t) 7);
 	xdrmem_create (&xdrs, addr, nis_server_cache[i]->size, XDR_DECODE);
 	if (!_xdr_directory_obj (&xdrs, ret))
@@ -642,7 +641,7 @@ nis_server_cache_search (const_nis_name name, int search_parent,
 static void
 nis_server_cache_add (const_nis_name name, int search_parent,
 		      directory_obj *dir, unsigned int server_used,
-		      unsigned int current_ep, struct __timespec64 *now)
+		      unsigned int current_ep, struct timespec *now)
 {
   struct nis_server_cache **loc;
   struct nis_server_cache *new;
@@ -708,7 +707,7 @@ __nisfind_server (const_nis_name name, int search_parent,
   nis_error result = NIS_SUCCESS;
   nis_error status;
   directory_obj *obj;
-  struct __timespec64 ts;
+  struct timespec ts;
   unsigned int server_used = ~0;
   unsigned int current_ep = ~0;
 
@@ -718,7 +717,7 @@ __nisfind_server (const_nis_name name, int search_parent,
   if (*dir != NULL)
     return NIS_SUCCESS;
 
-  __clock_gettime64 (CLOCK_REALTIME, &ts);
+  clock_gettime (CLOCK_REALTIME, &ts);
 
   if ((flags & NO_CACHE) == 0)
     *dir = nis_server_cache_search (name, search_parent, &server_used,

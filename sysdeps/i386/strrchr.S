@@ -1,9 +1,7 @@
 /* strrchr (str, ch) -- Return pointer to last occurrence of CH in STR.
    For Intel 80x86, x>=3.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.ai.mit.edu>
-   Some optimisations by Alan Modra <Alan@SPRI.Levels.UniSA.Edu.Au>
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public

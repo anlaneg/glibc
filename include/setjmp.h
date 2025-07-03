@@ -11,6 +11,14 @@ extern void __longjmp (__jmp_buf __env, int __val)
 extern void ____longjmp_chk (__jmp_buf __env, int __val)
      __attribute__ ((__noreturn__)) attribute_hidden;
 
+extern void __longjmp_chk (sigjmp_buf env, int val)
+	  __attribute__ ((noreturn)) attribute_hidden;
+/* The redirection in the installed header does not work with
+   libc_hidden_proto.  */
+#define longjmp __longjmp_chk
+#define siglongjmp __longjmp_chk
+libc_hidden_proto (__longjmp_chk)
+
 /* Internal function to possibly save the current mask of blocked signals
    in ENV, and always set the flag saying whether or not it was saved.
    This is used by the machine-dependent definition of `__sigsetjmp'.
@@ -31,39 +39,6 @@ libc_hidden_proto (__sigsetjmp)
 extern __typeof (__sigsetjmp) __sigsetjmp attribute_hidden;
 # endif
 
-/* Check jmp_buf sizes, alignments and offsets.  */
-# include <stddef.h>
-# include <jmp_buf-macros.h>
-
-# define SJSTR_HELPER(x) #x
-# define SJSTR(x) SJSTR_HELPER(x)
-
-# define TEST_SIZE(type, size) \
-  _Static_assert (sizeof (type) == size, \
-		  "size of " #type " != " \
-		  SJSTR (size))
-# define TEST_ALIGN(type, align) \
-  _Static_assert (__alignof__ (type) == align , \
-		  "align of " #type " != " \
-		  SJSTR (align))
-# define TEST_OFFSET(type, member, offset) \
-  _Static_assert (offsetof (type, member) == offset, \
-		  "offset of " #member " field of " #type " != " \
-		  SJSTR (offset))
-
-/* Check if jmp_buf have the expected sizes.  */
-TEST_SIZE (jmp_buf, JMP_BUF_SIZE);
-TEST_SIZE (sigjmp_buf, SIGJMP_BUF_SIZE);
-
-/* Check if jmp_buf have the expected alignments.  */
-TEST_ALIGN (jmp_buf, JMP_BUF_ALIGN);
-TEST_ALIGN (sigjmp_buf, SIGJMP_BUF_ALIGN);
-
-/* Check if internal fields in jmp_buf have the expected offsets.  */
-TEST_OFFSET (struct __jmp_buf_tag, __mask_was_saved,
-	     MASK_WAS_SAVED_OFFSET);
-TEST_OFFSET (struct __jmp_buf_tag, __saved_mask,
-	     SAVED_MASK_OFFSET);
 #endif
 
 #endif

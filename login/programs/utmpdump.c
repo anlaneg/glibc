@@ -1,7 +1,6 @@
 /* utmpdump - dump utmp-like files.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Mark Kettenis <kettenis@phys.uva.nl>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -29,7 +28,7 @@ print_entry (struct utmp *up)
   /* Mixed 32-/64-bit systems may have timeval structs of different sixe
      but need struct utmp to be the same size.  So in 64-bit up->ut_tv may
      not be a timeval but a struct of __int32_t's.  This would cause a compile
-     time warning and a formating error when 32-bit int is passed where
+     time warning and a formatting error when 32-bit int is passed where
      a 64-bit long is expected. So copy up->up_tv to a temporary timeval.
      This is 32-/64-bit agnostic and expands the timeval fields to the
      expected size as needed. */

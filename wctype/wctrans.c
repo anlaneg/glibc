@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.org>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -40,7 +39,7 @@ __wctrans (const char *property)
     }
 
   if (names[0] == '\0')
-    return 0;
+    return NULL;
 
   i = _NL_CURRENT_WORD (LC_CTYPE, _NL_CTYPE_MAP_OFFSET) + cnt;
   return (wctrans_t) _NL_CURRENT_DATA (LC_CTYPE)->values[i].string;

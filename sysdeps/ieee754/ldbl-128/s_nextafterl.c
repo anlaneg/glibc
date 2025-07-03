@@ -1,5 +1,4 @@
 /* s_nextafterl.c -- long double version of s_nextafter.c.
- * Conversion to IEEE quad long double by Jakub Jelinek, jj@ultra.linux.cz.
  */
 
 /*
@@ -84,5 +83,9 @@ _Float128 __nextafterl(_Float128 x, _Float128 y)
 	return x;
 }
 libm_alias_ldouble (__nextafter, nextafter)
+#ifndef __nexttowardl
 strong_alias (__nextafterl, __nexttowardl)
+#endif
+#ifndef nexttowardl
 weak_alias (__nextafterl, nexttowardl)
+#endif

@@ -9,7 +9,7 @@ If you compile your programs using @samp{gcc -ansi}, you get only the
 @w{ISO C} library features, unless you explicitly request additional
 features by defining one or more of the feature macros.
 @xref{Invoking GCC,, GNU CC Command Options, gcc, The GNU CC Manual},
-for more information about GCC options.@refill
+for more information about GCC options.
 
 You should define these macros by using @samp{#define} preprocessor
 directives at the top of your source code files.  These directives
@@ -171,8 +171,8 @@ This macro was introduced as part of the Large File Support extension
 @end defvr
 
 @defvr Macro _TIME_BITS
-This macro determines the bit size of @code{time_t}, and therefore the
-bit size of all @code{time_t}-derived types and the prototypes of all
+Define this macro to control the bit size of @code{time_t}, and therefore
+the bit size of all @code{time_t}-derived types and the prototypes of all
 related functions.
 
 @enumerate
@@ -191,6 +191,12 @@ traditionally 32 bits, calls to proper syscalls depend on the
 Linux kernel version on which the system is running. For Linux kernel
 version above @b{5.1} syscalls supporting 64-bit time are used. Otherwise,
 a fallback code is used with legacy (i.e. 32-bit) syscalls.
+
+On such platforms, @theglibc{} will also define @code{__USE_TIME64_REDIRECTS}
+to indicate whether the declarations are expanded to different ones
+(either by redefining the symbol name or using a symbol alias).
+For instance, if the symbol @code{clock_gettime} expands to
+@code{__clock_gettime64}.
 
 @item
 If @code{_TIME_BITS} is defined to be 32, @code{time_t} is defined to
@@ -220,9 +226,16 @@ when the compiler uses an earlier language version.
 If this macro is defined, ISO C11 extensions to ISO C99 are included.
 @end defvr
 
-@defvr Macro _ISOC2X_SOURCE
-@standards{C2X, (none)}
-If this macro is defined, ISO C2X extensions to ISO C11 are included.
+@defvr Macro _ISOC23_SOURCE
+@standards{C23, (none)}
+If this macro is defined, ISO C23 extensions to ISO C11 are included.
+Only some features from this draft standard are supported by
+@theglibc{}.  The older name @code{_ISOC2X_SOURCE} is also supported.
+@end defvr
+
+@defvr Macro _ISOC2Y_SOURCE
+@standards{C2Y, (none)}
+If this macro is defined, ISO C2Y extensions to ISO C23 are included.
 Only some features from this draft standard are supported by
 @theglibc{}.
 @end defvr
@@ -260,7 +273,7 @@ enabled.  Only some of the features from this TS are supported by
 
 @defvr Macro __STDC_WANT_IEC_60559_EXT__
 @standards{ISO, (none)}
-If you define this macro, ISO C2X features defined in Annex F of that
+If you define this macro, ISO C23 features defined in Annex F of that
 standard are enabled.  This affects declarations of the
 @code{totalorder} functions and functions related to NaN payloads.
 @end defvr
@@ -306,6 +319,7 @@ If this macro is defined to @math{1}, security hardening is added to
 various library functions.  If defined to @math{2}, even stricter
 checks are applied. If defined to @math{3}, @theglibc{} may also use
 checks that may have an additional performance overhead.
+@xref{Source Fortification,,Fortification of function calls}.
 @end defvr
 
 @defvr Macro _DYNAMIC_STACK_SIZE_SOURCE

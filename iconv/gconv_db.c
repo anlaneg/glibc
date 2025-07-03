@@ -1,7 +1,6 @@
 /* Provide access to the collection of available transformation modules.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -28,7 +27,7 @@
 
 #include <dlfcn.h>
 #include <gconv_int.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 
 /* Simple data structure for alias mapping.  We have two names, `from'
@@ -170,7 +169,7 @@ add_derivation (const char *fromset, const char *toset,
      not all memory will be freed.  */
 }
 
-static void __libc_freeres_fn_section
+static void
 free_derivation (void *p)
 {
   struct known_derivation *deriv = (struct known_derivation *) p;
@@ -181,9 +180,7 @@ free_derivation (void *p)
 	&& deriv->steps[cnt].__shlib_handle != NULL)
       {
 	__gconv_end_fct end_fct = deriv->steps[cnt].__end_fct;
-#ifdef PTR_DEMANGLE
 	PTR_DEMANGLE (end_fct);
-#endif
 	if (end_fct != NULL)
 	  DL_CALL_FCT (end_fct, (&deriv->steps[cnt]));
       }
@@ -209,9 +206,7 @@ __gconv_release_step (struct __gconv_step *step)
     {
       /* Call the destructor.  */
 	__gconv_end_fct end_fct = step->__end_fct;
-#ifdef PTR_DEMANGLE
 	PTR_DEMANGLE (end_fct);
-#endif
       if (end_fct != NULL)
 	DL_CALL_FCT (end_fct, (step));
 
@@ -304,9 +299,7 @@ gen_steps (struct derivation_step *best, const char *toset,
 
 	      /* Call the init function.  */
 	      __gconv_init_fct init_fct = result[step_cnt].__init_fct;
-# ifdef PTR_DEMANGLE
 	      PTR_DEMANGLE (init_fct);
-# endif
 	      if (init_fct != NULL)
 		{
 		  status = DL_CALL_FCT (init_fct, (&result[step_cnt]));
@@ -317,17 +310,13 @@ gen_steps (struct derivation_step *best, const char *toset,
 		      /* Do not call the end function because the init
 			 function has failed.  */
 		      result[step_cnt].__end_fct = NULL;
-# ifdef PTR_MANGLE
 		      PTR_MANGLE (result[step_cnt].__end_fct);
-# endif
 		      /* Make sure we unload this module.  */
 		      --step_cnt;
 		      break;
 		    }
 		}
-# ifdef PTR_MANGLE
 	      PTR_MANGLE (result[step_cnt].__btowc_fct);
-# endif
 	    }
 	  else
 #endif
@@ -405,15 +394,10 @@ increment_counter (struct __gconv_step *steps, size_t nsteps)
 
 	      /* Call the init function.  */
 	      __gconv_init_fct init_fct = step->__init_fct;
-#ifdef PTR_DEMANGLE
 	      PTR_DEMANGLE (init_fct);
-#endif
 	      if (init_fct != NULL)
 		DL_CALL_FCT (init_fct, (step));
-
-#ifdef PTR_MANGLE
 	      PTR_MANGLE (step->__btowc_fct);
-#endif
 	    }
 	}
     }
@@ -809,7 +793,6 @@ __gconv_close_transform (struct __gconv_step *steps, size_t nsteps)
 
 /* Free the modules mentioned.  */
 static void
-__libc_freeres_fn_section
 free_modules_db (struct gconv_module *node)
 {
   if (node->left != NULL)
@@ -828,7 +811,8 @@ free_modules_db (struct gconv_module *node)
 
 
 /* Free all resources if necessary.  */
-libc_freeres_fn (free_mem)
+void
+__gconv_db_freemem (void)
 {
   /* First free locale memory.  This needs to be done before freeing
      derivations, as ctype cleanup functions dereference steps arrays which we

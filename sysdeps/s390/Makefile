@@ -43,6 +43,7 @@ $(modpfx)gconv-modules-s390.conf: ../sysdeps/s390/gconv-modules-s390.conf \
 endif
 
 ifeq ($(subdir),elf)
+
 ifeq ($(build-shared),yes)
 tests += tst-dl-runtime-resolve-noaudit tst-dl-runtime-resolve-audit \
 	tst-dl-runtime-profile-noaudit
@@ -66,7 +67,7 @@ endif
 endif
 
 ifeq ($(subdir),string)
-sysdep_routines += bzero memset memset-z900 \
+sysdep_routines += memset memset-z900 \
 		   memcmp memcmp-z900 \
 		   mempcpy memcpy memcpy-z900 \
 		   memmove memmove-c \
@@ -92,6 +93,15 @@ sysdep_routines += bzero memset memset-z900 \
 		   rawmemchr rawmemchr-vx rawmemchr-c \
 		   memccpy memccpy-vx memccpy-c \
 		   memrchr memrchr-vx memrchr-c
+
+# Exclude fortified routines from being built with _FORTIFY_SOURCE
+routines_no_fortify += \
+  memmove-c \
+  stpcpy-c \
+  stpncpy-c \
+  strcat-c \
+  strncat-c \
+  # routines_no_fortify
 endif
 
 ifeq ($(subdir),wcsmbs)
@@ -114,4 +124,15 @@ sysdep_routines += wcslen wcslen-vx wcslen-c \
 		   wmemchr wmemchr-vx wmemchr-c \
 		   wmemset wmemset-vx wmemset-c \
 		   wmemcmp wmemcmp-vx wmemcmp-c
+
+# Exclude fortified routines from being built with _FORTIFY_SOURCE
+routines_no_fortify += \
+  wcpcpy-c \
+  wcpncpy-c \
+  wcscat-c \
+  wcscpy-c \
+  wcsncat-c \
+  wcsncpy-c \
+  wmemset-c \
+  # routines_no_fortify
 endif

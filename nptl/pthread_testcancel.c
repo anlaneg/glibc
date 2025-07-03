@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -24,15 +23,9 @@ void
 ___pthread_testcancel (void)
 {
   struct pthread *self = THREAD_SELF;
-  int cancelhandling = THREAD_GETMEM (self, cancelhandling);
-  if (self->cancelstate == PTHREAD_CANCEL_ENABLE
-      && (cancelhandling & CANCELED_BITMASK)
-      && !(cancelhandling & EXITING_BITMASK)
-      && !(cancelhandling & TERMINATED_BITMASK))
-    {
-      THREAD_SETMEM (self, result, PTHREAD_CANCELED);
-      __do_cancel ();
-    }
+  int cancelhandling = atomic_load_relaxed (&self->cancelhandling);
+  if (cancel_enabled_and_canceled (cancelhandling))
+    __do_cancel (PTHREAD_CANCELED);
 }
 versioned_symbol (libc, ___pthread_testcancel, pthread_testcancel, GLIBC_2_34);
 libc_hidden_ver (___pthread_testcancel, __pthread_testcancel)

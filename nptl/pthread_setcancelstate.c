@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -31,9 +30,29 @@ __pthread_setcancelstate (int state, int *oldstate)
 
   self = THREAD_SELF;
 
-  if (oldstate != NULL)
-    *oldstate = self->cancelstate;
-  self->cancelstate = state;
+  int oldval = atomic_load_relaxed (&self->cancelhandling);
+  while (1)
+    {
+      int newval = (state == PTHREAD_CANCEL_DISABLE
+		    ? oldval | CANCELSTATE_BITMASK
+		    : oldval & ~CANCELSTATE_BITMASK);
+
+      if (oldstate != NULL)
+	*oldstate = ((oldval & CANCELSTATE_BITMASK)
+		     ? PTHREAD_CANCEL_DISABLE : PTHREAD_CANCEL_ENABLE);
+
+      if (oldval == newval)
+	break;
+
+      if (atomic_compare_exchange_weak_acquire (&self->cancelhandling,
+						&oldval, newval))
+	{
+	  if (cancel_enabled_and_canceled_and_async (newval))
+	    __do_cancel (PTHREAD_CANCELED);
+
+	  break;
+	}
+    }
 
   return 0;
 }

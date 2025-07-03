@@ -1,5 +1,5 @@
 /* Support functionality for using threads.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,13 +21,20 @@
 
 #include <pthread.h>
 #include <sys/cdefs.h>
+#include <stdbool.h>
 
 __BEGIN_DECLS
 
-/* Terminate the process (with exit status 0) after SECONDS have
-   elapsed, from a helper thread.  The process is terminated with the
-   exit function, so atexit handlers are executed.  */
+/* Terminate the process (with exit (0)) after SECONDS have elapsed,
+   from a helper thread.  The process is terminated with the exit
+   function, so atexit handlers are executed.  */
 void delayed_exit (int seconds);
+
+/* Like delayed_exit, but use _exit (0).  */
+void delayed__exit (int seconds);
+
+/* Returns true if Priority Inheritance support CLOCK_MONOTONIC.  */
+bool support_mutex_pi_monotonic (void);
 
 /* Terminate the process (with exit status 1) if VALUE is not zero.
    In that case, print a failure message to standard output mentioning
@@ -58,6 +65,7 @@ void xpthread_mutex_consistent (pthread_mutex_t *);
 void xpthread_spin_lock (pthread_spinlock_t *lock);
 void xpthread_spin_unlock (pthread_spinlock_t *lock);
 void xpthread_cond_wait (pthread_cond_t * cond, pthread_mutex_t * mutex);
+void xpthread_cond_signal (pthread_cond_t *cond);
 pthread_t xpthread_create (pthread_attr_t *attr,
                            void *(*thread_func) (void *), void *closure);
 void xpthread_detach (pthread_t thr);

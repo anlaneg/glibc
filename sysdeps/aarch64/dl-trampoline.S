@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -22,12 +22,11 @@
 #include "dl-link.h"
 
 #define ip0 x16
-#define ip0l PTR_REG (16)
 #define ip1 x17
 #define lr  x30
 
 /* RELA relocatons are 3 pointers */
-#define RELA_SIZE (PTR_SIZE * 3)
+#define RELA_SIZE 24
 
 	.text
 	.globl _dl_runtime_resolve
@@ -35,7 +34,7 @@
 	cfi_startproc
 	.align 2
 _dl_runtime_resolve:
-	BTI_C
+	bti	c
 	/* AArch64 we get called with:
 	   ip0		&PLTGOT[2]
 	   ip1		temp(dl resolver entry point)
@@ -45,7 +44,8 @@ _dl_runtime_resolve:
 
 	cfi_rel_offset (lr, 8)
 
-	/* Save arguments.  */
+	/* Note: Saving x9 is not required by the ABI but the assembler requires
+	   the immediate values of operand 3 to be a multiple of 16 */
 	stp	x8, x9, [sp, #-(80+8*16)]!
 	cfi_adjust_cfa_offset (80+8*16)
 	cfi_rel_offset (x8, 0)
@@ -84,7 +84,7 @@ _dl_runtime_resolve:
 	cfi_rel_offset (q1, 80+7*16)
 
 	/* Get pointer to linker struct.  */
-	ldr	PTR_REG (0), [ip0, #-PTR_SIZE]
+	ldr	x0, [ip0, -8]
 
 	/* Prepare to call _dl_fixup().  */
 	ldr	x1, [sp, 80+8*16]	/* Recover &PLTGOT[n] */
@@ -121,18 +121,14 @@ _dl_runtime_resolve:
 
 	cfi_endproc
 	.size _dl_runtime_resolve, .-_dl_runtime_resolve
-#ifndef PROF
+#if !defined PROF && defined SHARED
 	.globl _dl_runtime_profile
 	.type _dl_runtime_profile, #function
 	cfi_startproc
 	.align 2
 _dl_runtime_profile:
-# if HAVE_AARCH64_PAC_RET
-	PACIASP
-	cfi_window_save
-# else
-	BTI_C
-# endif
+	paciasp
+	cfi_negate_ra_state
 	/* AArch64 we get called with:
 	   ip0		&PLTGOT[2]
 	   ip1		temp(dl resolver entry point)
@@ -142,7 +138,7 @@ _dl_runtime_profile:
 	   Stack frame layout:
 	   [sp,   #...] lr
 	   [sp,   #...] &PLTGOT[n]
-	   [sp,    #96] La_aarch64_regs
+	   [sp,   #256] La_aarch64_regs
 	   [sp,    #48] La_aarch64_retval
 	   [sp,    #40] frame size return from pltenter
 	   [sp,    #32] dl_profile_call saved x1
@@ -183,26 +179,32 @@ _dl_runtime_profile:
 	stp	x6, x7, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*3]
 	cfi_rel_offset (x6, OFFSET_RG + DL_OFFSET_RG_X0 + 16*3 + 0)
 	cfi_rel_offset (x7, OFFSET_RG + DL_OFFSET_RG_X0 + 16*3 + 8)
+	str	x8, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*4 + 0]
+	cfi_rel_offset (x8, OFFSET_RG + DL_OFFSET_RG_X0 + 16*4 + 0)
+	/* Note 8 bytes of padding is in the stack frame for alignment */
 
-	stp	d0, d1, [X29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*0]
-	cfi_rel_offset (d0, OFFSET_RG + DL_OFFSET_RG_D0 + 16*0)
-	cfi_rel_offset (d1, OFFSET_RG + DL_OFFSET_RG_D0 + 16*0 + 8)
-	stp	d2, d3, [X29, #OFFSET_RG+ DL_OFFSET_RG_D0 + 16*1]
-	cfi_rel_offset (d2, OFFSET_RG + DL_OFFSET_RG_D0 + 16*1 + 0)
-	cfi_rel_offset (d3, OFFSET_RG + DL_OFFSET_RG_D0 + 16*1 + 8)
-	stp	d4, d5, [X29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*2]
-	cfi_rel_offset (d4, OFFSET_RG + DL_OFFSET_RG_D0 + 16*2 + 0)
-	cfi_rel_offset (d5, OFFSET_RG + DL_OFFSET_RG_D0 + 16*2 + 8)
-	stp	d6, d7, [X29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*3]
-	cfi_rel_offset (d6, OFFSET_RG + DL_OFFSET_RG_D0 + 16*3 + 0)
-	cfi_rel_offset (d7, OFFSET_RG + DL_OFFSET_RG_D0 + 16*3 + 8)
+	stp	q0, q1, [X29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*0]
+	cfi_rel_offset (q0, OFFSET_RG + DL_OFFSET_RG_V0 + 32*0)
+	cfi_rel_offset (q1, OFFSET_RG + DL_OFFSET_RG_V0 + 32*0 + 16)
+	stp	q2, q3, [X29, #OFFSET_RG+ DL_OFFSET_RG_V0 + 32*1]
+	cfi_rel_offset (q2, OFFSET_RG + DL_OFFSET_RG_V0 + 32*1 + 0)
+	cfi_rel_offset (q3, OFFSET_RG + DL_OFFSET_RG_V0 + 32*1 + 16)
+	stp	q4, q5, [X29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*2]
+	cfi_rel_offset (q4, OFFSET_RG + DL_OFFSET_RG_V0 + 32*2 + 0)
+	cfi_rel_offset (q5, OFFSET_RG + DL_OFFSET_RG_V0 + 32*2 + 16)
+	stp	q6, q7, [X29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*3]
+	cfi_rel_offset (q6, OFFSET_RG + DL_OFFSET_RG_V0 + 32*3 + 0)
+	cfi_rel_offset (q7, OFFSET_RG + DL_OFFSET_RG_V0 + 32*3 + 16)
+
+	/* No APCS extension supported.  */
+	str	xzr,    [X29, #OFFSET_RG + DL_OFFSET_RG_VPCS]
 
 	add     x0, x29, #SF_SIZE + 16
 	ldr	x1, [x29, #OFFSET_LR]
 	stp	x0, x1, [x29, #OFFSET_RG + DL_OFFSET_RG_SP]
 
 	/* Get pointer to linker struct.  */
-	ldr	PTR_REG (0), [ip0, #-PTR_SIZE]
+	ldr	x0, [ip0, -8]
 
 	/* Prepare to call _dl_profile_fixup().  */
 	ldr	x1, [x29, OFFSET_PLTGOTN]	/* Recover &PLTGOT[n] */
@@ -221,8 +223,8 @@ _dl_runtime_profile:
 	add	x4, x29, #OFFSET_FS		/* address of framesize */
 	bl	_dl_profile_fixup
 
-	ldr	ip0l, [x29, #OFFSET_FS]		/* framesize == 0 */
-	cmp	ip0l, #0
+	ldr	ip0, [x29, #OFFSET_FS]		/* framesize == 0 */
+	cmp	ip0, #0
 	bge	1f
 	cfi_remember_state
 
@@ -234,27 +236,23 @@ _dl_runtime_profile:
 	ldp	x2, x3, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*1]
 	ldp	x4, x5, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*2]
 	ldp	x6, x7, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*3]
-	ldp	d0, d1, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*0]
-	ldp	d2, d3, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*1]
-	ldp	d4, d5, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*2]
-	ldp	d6, d7, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*3]
+	ldr	x8,     [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*4]
+	ldp	q0, q1, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*0]
+	ldp	q2, q3, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*1]
+	ldp	q4, q5, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*2]
+	ldp	q6, q7, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*3]
 
 	cfi_def_cfa_register (sp)
 	ldp	x29, x30, [x29, #0]
 	cfi_restore(x29)
 	cfi_restore(x30)
 
-# if HAVE_AARCH64_PAC_RET
 	add	sp, sp, SF_SIZE
 	cfi_adjust_cfa_offset (-SF_SIZE)
-	AUTIASP
-	cfi_window_save
+	autiasp
+	cfi_negate_ra_state
 	add	sp, sp, 16
 	cfi_adjust_cfa_offset (-16)
-# else
-	add	sp, sp, SF_SIZE + 16
-	cfi_adjust_cfa_offset (- SF_SIZE - 16)
-# endif
 
 	/* Jump to the newly found address.  */
 	br	ip0
@@ -263,7 +261,7 @@ _dl_runtime_profile:
 1:
 	/* The new frame size is in ip0.  */
 
-	sub	PTR_REG (1), PTR_REG (29), ip0l
+	sub	x1, x29, ip0
 	and	sp, x1, #0xfffffffffffffff0
 
 	str	x0, [x29, #OFFSET_T1]
@@ -280,31 +278,42 @@ _dl_runtime_profile:
 	ldp	x2, x3, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*1]
 	ldp	x4, x5, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*2]
 	ldp	x6, x7, [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*3]
-	ldp	d0, d1, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*0]
-	ldp	d2, d3, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*1]
-	ldp	d4, d5, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*2]
-	ldp	d6, d7, [x29, #OFFSET_RG + DL_OFFSET_RG_D0 + 16*3]
+	ldr	x8,     [x29, #OFFSET_RG + DL_OFFSET_RG_X0 + 16*4]
+	ldp	q0, q1, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*0]
+	ldp	q2, q3, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*1]
+	ldp	q4, q5, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*2]
+	ldp	q6, q7, [x29, #OFFSET_RG + DL_OFFSET_RG_V0 + 32*3]
 	blr	ip0
-	stp	x0, x1, [x29, #OFFSET_RV + DL_OFFSET_RV_X0]
-	stp	d0, d1, [x29, #OFFSET_RV + DL_OFFSET_RV_D0 + 16*0]
-	stp	d2, d3, [x29, #OFFSET_RV + DL_OFFSET_RV_D0 + 16*1]
+	stp	x0, x1, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*0]
+	stp	x2, x3, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*1]
+	stp	x4, x5, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*2]
+	stp	x6, x7, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*3]
+	stp	q0, q1, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*0]
+	stp	q2, q3, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*1]
+	stp	q4, q5, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*2]
+	stp	q6, q7, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*3]
+	str	xzr,    [X29, #OFFSET_RV + DL_OFFSET_RV_VPCS]
 
 	/* Setup call to pltexit  */
 	ldp	x0, x1, [x29, #OFFSET_SAVED_CALL_X0]
 	add	x2, x29, #OFFSET_RG
 	add	x3, x29, #OFFSET_RV
-	bl	_dl_call_pltexit
+	bl	_dl_audit_pltexit
 
-	ldp	x0, x1, [x29, #OFFSET_RV + DL_OFFSET_RV_X0]
-	ldp	d0, d1, [x29, #OFFSET_RV + DL_OFFSET_RV_D0 + 16*0]
-	ldp	d2, d3, [x29, #OFFSET_RV + DL_OFFSET_RV_D0 + 16*1]
+	ldp	x0, x1, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*0]
+	ldp	x2, x3, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*1]
+	ldp	x4, x5, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*2]
+	ldp	x6, x7, [x29, #OFFSET_RV + DL_OFFSET_RV_X0 + 16*3]
+	ldp	q0, q1, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*0]
+	ldp	q2, q3, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*1]
+	ldp	q4, q5, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*2]
+	ldp	q6, q7, [x29, #OFFSET_RV + DL_OFFSET_RV_V0 + 32*3]
+
 	/* LR from within La_aarch64_reg */
 	ldr	lr, [x29, #OFFSET_RG + DL_OFFSET_RG_LR]
 	cfi_restore(lr)
-# if HAVE_AARCH64_PAC_RET
 	/* Note: LR restored from La_aarch64_reg has no PAC.  */
-	cfi_window_save
-# endif
+	cfi_negate_ra_state
 	mov	sp, x29
 	cfi_def_cfa_register (sp)
 	ldr	x29, [x29, #0]

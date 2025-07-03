@@ -1,5 +1,5 @@
 /* Optimized memcmp implementation for POWER7/PowerPC32.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,7 +35,13 @@
 #undef libc_hidden_builtin_def
 #define libc_hidden_builtin_def(name)
 
+#undef libc_hidden_def
+#define libc_hidden_def(name)
+
 #undef weak_alias
 #define weak_alias(a, b)
+
+#undef strong_alias
+#define strong_alias(a, b)
 
 #include <sysdeps/powerpc/powerpc32/power7/memcmp.S>

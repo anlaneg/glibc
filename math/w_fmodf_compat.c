@@ -1,6 +1,5 @@
-/* Copyright (C) 2011-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gmail.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -21,10 +20,10 @@
 #include <math-svid-compat.h>
 #include <libm-alias-float.h>
 
-#if LIBM_SVID_COMPAT
+#if LIBM_SVID_COMPAT && SHLIB_COMPAT (libm, GLIBC_2_0, GLIBC_2_38)
 /* wrapper fmodf */
 float
-__fmodf (float x, float y)
+__fmod_compatf (float x, float y)
 {
   if (__builtin_expect (isinf (x) || y == 0.0f, 0)
       && _LIB_VERSION != _IEEE_ && !isnan (y) && !isnan (x))
@@ -33,5 +32,5 @@ __fmodf (float x, float y)
 
   return __ieee754_fmodf (x, y);
 }
-libm_alias_float (__fmod, fmod)
+compat_symbol (libm, __fmod_compatf, fmodf, GLIBC_2_0);
 #endif

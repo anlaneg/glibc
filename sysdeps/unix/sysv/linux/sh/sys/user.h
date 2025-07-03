@@ -1,4 +1,4 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 #include <asm/ptrace.h>
 #include <stddef.h>
 
-/* asm/ptrace.h polutes the namespace.  */
+/* asm/ptrace.h pollutes the namespace.  */
 #undef PTRACE_GETREGS
 #undef PTRACE_SETREGS
 #undef PTRACE_GETFPREGS

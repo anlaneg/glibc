@@ -1,5 +1,5 @@
 /* strlen/strnlen/wcslen/wcsnlen optimized with AVX2.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,7 +16,9 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#if IS_IN (libc)
+#include <isa-level.h>
+
+#if ISA_SHOULD_BUILD (3)
 
 # include <sysdep.h>
 
@@ -222,7 +224,7 @@ L(cross_page_continue):
 	   since data is only aligned to VEC_SIZE.  */
 # ifdef USE_AS_STRNLEN
 	/* + 1 because rdi is aligned to VEC_SIZE - 1. + CHAR_SIZE
-	   because it simplies the logic in last_4x_vec_or_less.  */
+	   because it simplifies the logic in last_4x_vec_or_less.  */
 	leaq	(VEC_SIZE * 4 + CHAR_SIZE + 1)(%rdi), %rcx
 	subq	%rdx, %rcx
 #  ifdef USE_AS_WCSLEN
@@ -542,14 +544,11 @@ L(return_vzeroupper):
 L(cross_page_less_vec):
 	tzcntl	%eax, %eax
 #  ifdef USE_AS_WCSLEN
-	/* NB: Multiply length by 4 to get byte count.  */
-	sall	$2, %esi
+	/* NB: Divide by 4 to convert from byte-count to length.  */
+	shrl	$2, %eax
 #  endif
 	cmpq	%rax, %rsi
 	cmovb	%esi, %eax
-#  ifdef USE_AS_WCSLEN
-	shrl	$2, %eax
-#  endif
 	VZEROUPPER_RETURN
 # endif
 

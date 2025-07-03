@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test for some known iconv(1) hangs from bug 19519, and miscellaneous
 # iconv(1) program error conditions.
-# Copyright (C) 2020-2021 Free Software Foundation, Inc.
+# Copyright (C) 2020-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -31,6 +31,8 @@ $codir/elf/ld.so --library-path $LIBPATH --inhibit-rpath ${from}.so
 $codir/iconv/iconv_prog
 '
 ICONV="$test_wrapper_env $run_program_env $ICONV"
+
+TIMEOUTFACTOR=${TIMEOUTFACTOR:-1}
 
 # List of known hangs;
 # Gathered by running an exhaustive 2 byte input search against glibc-2.28
@@ -209,12 +211,13 @@ hangarray=(
 "\x00\x81;-c;WIN-SAMI-2;UTF-8//TRANSLIT//IGNORE"
 )
 
-# List of option combinations that *should* lead to an error
-errorarray=(
+# List of option combinations with their expected return code
+testarray=(
 # Converting from/to invalid character sets should cause error
-"\x00\x00;;INVALID;INVALID"
-"\x00\x00;;INVALID;UTF-8"
-"\x00\x00;;UTF-8;INVALID"
+"\x00\x00;;INVALID;INVALID;1"
+"\x00\x00;;INVALID;UTF-8;1"
+"\x00\x00;;UTF-8;INVALID;1"
+"\xc3\xa9;;UTF-8;ASCII//TRANSLIT;0"
 )
 
 # Requires $twobyte input, $c flag, $from, and $to to be set; sets $ret
@@ -222,7 +225,8 @@ execute_test ()
 {
   eval PROG=\"$ICONV\"
   echo -en "$twobyte" \
-    | timeout -k 4 3 $PROG $c -f $from -t "$to" &>/dev/null
+    | timeout -k 4 $((3*$TIMEOUTFACTOR)) \
+      $PROG $c -f $from -t "$to" &>/dev/null
   ret=$?
 }
 
@@ -261,7 +265,7 @@ done
 
 check_errtest_result ()
 {
-  if [ "$ret" -eq "1" ]; then # we errored out as expected
+  if [ "$ret" -eq "$eret" ]; then # we got the expected return code
     result="PASS"
   else
     result="FAIL"
@@ -274,11 +278,12 @@ check_errtest_result ()
   fi
 }
 
-for errorcommand in "${errorarray[@]}"; do
-  twobyte="$(echo "$errorcommand" | cut -d";" -f 1)"
-  c="$(echo "$errorcommand" | cut -d";" -f 2)"
-  from="$(echo "$errorcommand" | cut -d";" -f 3)"
-  to="$(echo "$errorcommand" | cut -d";" -f 4)"
+for testcommand in "${testarray[@]}"; do
+  twobyte="$(echo "$testcommand" | cut -d";" -f 1)"
+  c="$(echo "$testcommand" | cut -d";" -f 2)"
+  from="$(echo "$testcommand" | cut -d";" -f 3)"
+  to="$(echo "$testcommand" | cut -d";" -f 4)"
+  eret="$(echo "$testcommand" | cut -d";" -f 5)"
   execute_test
   check_errtest_result
 done

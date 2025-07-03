@@ -1,6 +1,5 @@
-/* Copyright (C) 1997-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@vt.uni-paderborn.de>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -21,6 +20,7 @@
 #include <string.h>
 #include <rpc/rpc.h>
 #include <shlib-compat.h>
+#include <libc-diag.h>
 
 #include "nsswitch.h"
 
@@ -49,7 +49,17 @@ user2netname (char netname[MAXNETNAMELEN + 1], const uid_t uid,
   if ((strlen (dfltdom) + OPSYS_LEN + 3 + MAXIPRINT) > (size_t) MAXNETNAMELEN)
     return 0;
 
+  /* GCC with -Os or -O1 warns that sprint might overflow while handling
+     dfltdom, however the above test does check if an overflow would
+     happen.  */
+#if __GNUC_PREREQ (8, 0)
+  DIAG_PUSH_NEEDS_COMMENT;
+  DIAG_IGNORE_NEEDS_COMMENT (8, "-Wformat-overflow");
+#endif
   sprintf (netname, "%s.%d@%s", OPSYS, uid, dfltdom);
+#if __GNUC_PREREQ (8, 0)
+  DIAG_POP_NEEDS_COMMENT;
+#endif
   i = strlen (netname);
   if (netname[i - 1] == '.')
     netname[i - 1] = '\0';
@@ -90,7 +100,8 @@ host2netname (char netname[MAXNETNAMELEN + 1], const char *host,
       else
 	{
 	  domainname[0] = 0;
-	  getdomainname (domainname, MAXHOSTNAMELEN);
+	  if (getdomainname (domainname, MAXHOSTNAMELEN))
+	    return 0;
 	}
     }
   else

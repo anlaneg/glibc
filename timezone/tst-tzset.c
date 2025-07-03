@@ -1,5 +1,5 @@
 /* tzset tests with crafted time zone data.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <support/check.h>
+#include <inttypes.h>
 
 static int do_test (void);
 #define TEST_FUNCTION do_test ()
@@ -103,6 +104,13 @@ static void
 test_tz_file (off64_t size)
 {
   char *path = create_tz_file (size);
+  if (path == NULL)
+   {
+     printf ("creating timezone file of size: %" PRId64 "MiB failed.\n",
+	     size / (1024 * 1024));
+     exit (1);
+   }
+
   if (setenv ("TZ", path, 1) < 0)
     {
       printf ("setenv failed: %m\n");

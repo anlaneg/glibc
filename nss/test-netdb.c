@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Andreas Jaeger <aj@suse.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -158,7 +157,7 @@ test_hosts (void)
 	}
       else if (strcmp (hptr1->h_name, hptr2->h_name) != 0)
 	{
-	  printf ("localhost and LocalHost have different canoncial name\n");
+	  printf ("localhost and LocalHost have different canonical name\n");
 	  printf ("gethostbyname (\"localhost\")->%s\n", hptr1->h_name);
 	  printf ("gethostbyname (\"LocalHost\")->%s\n", hptr2->h_name);
 	  ++error_count;

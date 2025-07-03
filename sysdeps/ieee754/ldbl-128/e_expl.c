@@ -1,9 +1,6 @@
 /* Quad-precision floating point e^x.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jj@ultra.linux.cz>
-   Partly based on double-precision code
-   by Geoffrey Keating <geoffk@ozemail.com.au>
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -82,7 +79,7 @@ L(-11433.4627433362978788372438434526231),
 
 /* 3x2^96 */
 #define THREEp96 C[2]
- L(59421121885698253195157962752.0),
+ L(237684487542793012780631851008.0),
 
 /* 3x2^103 */
 #define THREEp103 C[3]

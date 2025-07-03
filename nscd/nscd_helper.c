@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -252,7 +251,7 @@ __nscd_unmap (struct mapped_database *mapped)
 }
 
 
-/* Try to get a file descriptor for the shared meory segment
+/* Try to get a file descriptor for the shared memory segment
    containing the database.  */
 struct mapped_database *
 __nscd_get_mapping (request_type type, const char *key,
@@ -391,7 +390,7 @@ __nscd_get_mapping (request_type type, const char *key,
   struct mapped_database *oldval = *mappedp;
   *mappedp = result;
 
-  if (oldval != NULL && atomic_decrement_val (&oldval->counter) == 0)
+  if (oldval != NULL && atomic_fetch_add_relaxed (&oldval->counter, -1) == 1)
     __nscd_unmap (oldval);
 
   return result;
@@ -426,7 +425,7 @@ __nscd_get_map_ref (request_type type, const char *name,
 				0))
 	    cur = NO_MAPPING;
 	  else
-	    atomic_increment (&cur->counter);
+	    atomic_fetch_add_relaxed (&cur->counter, 1);
 	}
     }
 
@@ -444,7 +443,7 @@ __nscd_get_map_ref (request_type type, const char *name,
 #define MINIMUM_HASHENTRY_SIZE \
   (offsetof (struct hashentry, dellist) + sizeof (int32_t))
 
-/* Don't return const struct datahead *, as eventhough the record
+/* Don't return const struct datahead *, as even though the record
    is normally constant, it can change arbitrarily during nscd
    garbage collection.  */
 struct datahead *
@@ -466,7 +465,6 @@ __nscd_cache_search (request_type type, const char *key, size_t keylen,
       struct hashentry *here = (struct hashentry *) (mapped->data + work);
       ref_t here_key, here_packet;
 
-#if !_STRING_ARCH_unaligned
       /* Although during garbage collection when moving struct hashentry
 	 records around we first copy from old to new location and then
 	 adjust pointer from previous hashentry to it, there is no barrier
@@ -475,7 +473,6 @@ __nscd_cache_search (request_type type, const char *key, size_t keylen,
 	 application.  */
       if ((uintptr_t) here & (__alignof__ (*here) - 1))
 	return NULL;
-#endif
 
       if (type == here->type
 	  && keylen == here->len
@@ -488,10 +485,8 @@ __nscd_cache_search (request_type type, const char *key, size_t keylen,
 	  struct datahead *dh
 	    = (struct datahead *) (mapped->data + here_packet);
 
-#if !_STRING_ARCH_unaligned
 	  if ((uintptr_t) dh & (__alignof__ (*dh) - 1))
 	    return NULL;
-#endif
 
 	  /* See whether we must ignore the entry or whether something
 	     is wrong because garbage collection is in progress.  */
@@ -512,11 +507,9 @@ __nscd_cache_search (request_type type, const char *key, size_t keylen,
 	  struct hashentry *trailelem;
 	  trailelem = (struct hashentry *) (mapped->data + trail);
 
-#if !_STRING_ARCH_unaligned
 	  /* We have to redo the checks.  Maybe the data changed.  */
 	  if ((uintptr_t) trailelem & (__alignof__ (*trailelem) - 1))
 	    return NULL;
-#endif
 
 	  if (trail + MINIMUM_HASHENTRY_SIZE > datasize)
 	    return NULL;

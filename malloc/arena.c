@@ -1,7 +1,6 @@
 /* Malloc implementation for multiple threads without lock contention.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Wolfram Gloger <wg@malloc.de>, 2001.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -18,10 +17,9 @@
    not, see <https://www.gnu.org/licenses/>.  */
 
 #include <stdbool.h>
+#include <setvmaname.h>
 
-#if HAVE_TUNABLES
-# define TUNABLE_NAMESPACE malloc
-#endif
+#define TUNABLE_NAMESPACE malloc
 #include <elf/dl-tunables.h>
 
 /* Compile-time constants.  */
@@ -42,6 +40,22 @@
    mmap threshold, so that requests with a size just below that
    threshold can be fulfilled without creating too many heaps.  */
 
+/* HEAP_MAX_SIZE should be larger than the huge page size, otherwise heaps will
+   use not huge pages.  It is a constant so arena_for_chunk() is efficient.  */
+
+static __always_inline size_t
+heap_min_size (void)
+{
+  return mp_.hp_pagesize == 0 || mp_.hp_pagesize > HEAP_MAX_SIZE
+	  ? HEAP_MIN_SIZE : mp_.hp_pagesize;
+}
+
+static __always_inline size_t
+heap_max_size (void)
+{
+  return HEAP_MAX_SIZE;
+}
+
 /***************************************************************************/
 
 #define top(ar_ptr) ((ar_ptr)->top)
@@ -57,10 +71,11 @@ typedef struct _heap_info
   size_t size;   /* Current size in bytes. */
   size_t mprotect_size; /* Size in bytes that has been mprotected
                            PROT_READ|PROT_WRITE.  */
+  size_t pagesize; /* Page size used when allocating the arena.  */
   /* Make sure the following data is properly aligned, particularly
      that sizeof (heap_info) + 2 * SIZE_SZ is a multiple of
      MALLOC_ALIGNMENT. */
-  char pad[-6 * SIZE_SZ & MALLOC_ALIGN_MASK];
+  char pad[-3 * SIZE_SZ & MALLOC_ALIGN_MASK];
 } heap_info;
 
 /* Get a compile-time error if the heap_info padding is not correct
@@ -98,9 +113,6 @@ static mstate free_list;
    acquired.  */
 __libc_lock_define_initialized (static, list_lock);
 
-/* Already initialized? */
-static bool __malloc_initialized = false;
-
 /**************************************************************************/
 
 
@@ -126,10 +138,18 @@ static bool __malloc_initialized = false;
 
 /* find the heap and corresponding arena for a given ptr */
 
-#define heap_for_ptr(ptr) \
-  ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
-#define arena_for_chunk(ptr) \
-  (chunk_main_arena (ptr) ? &main_arena : heap_for_ptr (ptr)->ar_ptr)
+static __always_inline heap_info *
+heap_for_ptr (void *ptr)
+{
+  size_t max_size = heap_max_size ();
+  return PTR_ALIGN_DOWN (ptr, max_size);
+}
+
+static __always_inline struct malloc_state *
+arena_for_chunk (mchunkptr ptr)
+{
+  return chunk_main_arena (ptr) ? &main_arena : heap_for_ptr (ptr)->ar_ptr;
+}
 
 
 /**************************************************************************/
@@ -145,9 +165,6 @@ static bool __malloc_initialized = false;
 void
 __malloc_fork_lock_parent (void)
 {
-  if (!__malloc_initialized)
-    return;
-
   /* We do not acquire free_list_lock here because we completely
      reconstruct free_list in __malloc_fork_unlock_child.  */
 
@@ -165,9 +182,6 @@ __malloc_fork_lock_parent (void)
 void
 __malloc_fork_unlock_parent (void)
 {
-  if (!__malloc_initialized)
-    return;
-
   for (mstate ar_ptr = &main_arena;; )
     {
       __libc_lock_unlock (ar_ptr->mutex);
@@ -181,9 +195,6 @@ __malloc_fork_unlock_parent (void)
 void
 __malloc_fork_unlock_child (void)
 {
-  if (!__malloc_initialized)
-    return;
-
   /* Push all arenas to the free list, except thread_arena, which is
      attached to the current thread.  */
   __libc_lock_init (free_list_lock);
@@ -208,10 +219,9 @@ __malloc_fork_unlock_child (void)
   __libc_lock_init (list_lock);
 }
 
-#if HAVE_TUNABLES
-# define TUNABLE_CALLBACK_FNDECL(__name, __type) \
-static inline int do_ ## __name (__type value);				      \
-static void									      \
+#define TUNABLE_CALLBACK_FNDECL(__name, __type) \
+static __always_inline int do_ ## __name (__type value);		      \
+static void								      \
 TUNABLE_CALLBACK (__name) (tunable_val_t *valp)				      \
 {									      \
   __type value = (__type) (valp)->numval;				      \
@@ -231,60 +241,15 @@ TUNABLE_CALLBACK_FNDECL (set_tcache_count, size_t)
 TUNABLE_CALLBACK_FNDECL (set_tcache_unsorted_limit, size_t)
 #endif
 TUNABLE_CALLBACK_FNDECL (set_mxfast, size_t)
-#else
-/* Initialization routine. */
-#include <string.h>
-extern char **_environ;
-
-static char *
-next_env_entry (char ***position)
-{
-  char **current = *position;
-  char *result = NULL;
-
-  while (*current != NULL)
-    {
-      if (__builtin_expect ((*current)[0] == 'M', 0)
-          && (*current)[1] == 'A'
-          && (*current)[2] == 'L'
-          && (*current)[3] == 'L'
-          && (*current)[4] == 'O'
-          && (*current)[5] == 'C'
-          && (*current)[6] == '_')
-        {
-          result = &(*current)[7];
-
-          /* Save current position for next visit.  */
-          *position = ++current;
-
-          break;
-        }
-
-      ++current;
-    }
-
-  return result;
-}
-#endif
-
-
-#ifdef SHARED
-extern struct dl_open_hook *_dl_open_hook;
-libc_hidden_proto (_dl_open_hook);
-#endif
+TUNABLE_CALLBACK_FNDECL (set_hugetlb, size_t)
 
 #if USE_TCACHE
 static void tcache_key_initialize (void);
 #endif
 
-static void
-ptmalloc_init (void)
+void
+__ptmalloc_init (void)
 {
-  if (__malloc_initialized)
-    return;
-
-  __malloc_initialized = true;
-
 #if USE_TCACHE
   tcache_key_initialize ();
 #endif
@@ -316,7 +281,6 @@ ptmalloc_init (void)
 
   malloc_init_state (&main_arena);
 
-#if HAVE_TUNABLES
   TUNABLE_GET (top_pad, size_t, TUNABLE_CALLBACK (set_top_pad));
   TUNABLE_GET (perturb, int32_t, TUNABLE_CALLBACK (set_perturb_byte));
   TUNABLE_GET (mmap_threshold, size_t, TUNABLE_CALLBACK (set_mmap_threshold));
@@ -331,65 +295,18 @@ ptmalloc_init (void)
 	       TUNABLE_CALLBACK (set_tcache_unsorted_limit));
 # endif
   TUNABLE_GET (mxfast, size_t, TUNABLE_CALLBACK (set_mxfast));
-#else
-  if (__glibc_likely (_environ != NULL))
+  TUNABLE_GET (hugetlb, size_t, TUNABLE_CALLBACK (set_hugetlb));
+
+  if (mp_.hp_pagesize > 0 && mp_.hp_pagesize <= heap_max_size ())
     {
-      char **runp = _environ;
-      char *envline;
-
-      while (__builtin_expect ((envline = next_env_entry (&runp)) != NULL,
-                               0))
-        {
-          size_t len = strcspn (envline, "=");
-
-          if (envline[len] != '=')
-            /* This is a "MALLOC_" variable at the end of the string
-               without a '=' character.  Ignore it since otherwise we
-               will access invalid memory below.  */
-            continue;
-
-          switch (len)
-            {
-            case 8:
-              if (!__builtin_expect (__libc_enable_secure, 0))
-                {
-                  if (memcmp (envline, "TOP_PAD_", 8) == 0)
-                    __libc_mallopt (M_TOP_PAD, atoi (&envline[9]));
-                  else if (memcmp (envline, "PERTURB_", 8) == 0)
-                    __libc_mallopt (M_PERTURB, atoi (&envline[9]));
-                }
-              break;
-            case 9:
-              if (!__builtin_expect (__libc_enable_secure, 0))
-                {
-                  if (memcmp (envline, "MMAP_MAX_", 9) == 0)
-                    __libc_mallopt (M_MMAP_MAX, atoi (&envline[10]));
-                  else if (memcmp (envline, "ARENA_MAX", 9) == 0)
-                    __libc_mallopt (M_ARENA_MAX, atoi (&envline[10]));
-                }
-              break;
-            case 10:
-              if (!__builtin_expect (__libc_enable_secure, 0))
-                {
-                  if (memcmp (envline, "ARENA_TEST", 10) == 0)
-                    __libc_mallopt (M_ARENA_TEST, atoi (&envline[11]));
-                }
-              break;
-            case 15:
-              if (!__builtin_expect (__libc_enable_secure, 0))
-                {
-                  if (memcmp (envline, "TRIM_THRESHOLD_", 15) == 0)
-                    __libc_mallopt (M_TRIM_THRESHOLD, atoi (&envline[16]));
-                  else if (memcmp (envline, "MMAP_THRESHOLD_", 15) == 0)
-                    __libc_mallopt (M_MMAP_THRESHOLD, atoi (&envline[16]));
-                }
-              break;
-            default:
-              break;
-            }
-        }
+      /* Force mmap for main arena instead of sbrk, so MAP_HUGETLB is always
+         tried.  Also tune the mmap threshold, so allocation smaller than the
+	 large page will also try to use large pages by falling back
+	 to sysmalloc_mmap_fallback on sysmalloc.  */
+      if (!TUNABLE_IS_INITIALIZED (mmap_threshold))
+	do_set_mmap_threshold (mp_.hp_pagesize);
+      __always_fail_morecore = true;
     }
-#endif
 }
 
 /* Managing heaps and arenas (for concurrent threads) */
@@ -407,7 +324,7 @@ dump_heap (heap_info *heap)
   fprintf (stderr, "Heap %p, size %10lx:\n", heap, (long) heap->size);
   ptr = (heap->ar_ptr != (mstate) (heap + 1)) ?
         (char *) (heap + 1) : (char *) (heap + 1) + sizeof (struct malloc_state);
-  p = (mchunkptr) (((unsigned long) ptr + MALLOC_ALIGN_MASK) &
+  p = (mchunkptr) (((uintptr_t) ptr + MALLOC_ALIGN_MASK) &
                    ~MALLOC_ALIGN_MASK);
   for (;; )
     {
@@ -442,78 +359,99 @@ static char *aligned_heap_area;
    of the page size. */
 
 static heap_info *
-new_heap (size_t size, size_t top_pad)
+alloc_new_heap  (size_t size, size_t top_pad, size_t pagesize,
+		 int mmap_flags)
 {
-  size_t pagesize = GLRO (dl_pagesize);
   char *p1, *p2;
   unsigned long ul;
   heap_info *h;
+  size_t min_size = heap_min_size ();
+  size_t max_size = heap_max_size ();
 
-  if (size + top_pad < HEAP_MIN_SIZE)
-    size = HEAP_MIN_SIZE;
-  else if (size + top_pad <= HEAP_MAX_SIZE)
+  if (size + top_pad < min_size)
+    size = min_size;
+  else if (size + top_pad <= max_size)
     size += top_pad;
-  else if (size > HEAP_MAX_SIZE)
-    return 0;
+  else if (size > max_size)
+    return NULL;
   else
-    size = HEAP_MAX_SIZE;
+    size = max_size;
   size = ALIGN_UP (size, pagesize);
 
-  /* A memory region aligned to a multiple of HEAP_MAX_SIZE is needed.
+  /* A memory region aligned to a multiple of max_size is needed.
      No swap space needs to be reserved for the following large
      mapping (on Linux, this is the case for all non-writable mappings
      anyway). */
   p2 = MAP_FAILED;
   if (aligned_heap_area)
     {
-      p2 = (char *) MMAP (aligned_heap_area, HEAP_MAX_SIZE, PROT_NONE,
-                          MAP_NORESERVE);
+      p2 = (char *) MMAP (aligned_heap_area, max_size, PROT_NONE, mmap_flags);
       aligned_heap_area = NULL;
-      if (p2 != MAP_FAILED && ((unsigned long) p2 & (HEAP_MAX_SIZE - 1)))
+      if (p2 != MAP_FAILED && ((unsigned long) p2 & (max_size - 1)))
         {
-          __munmap (p2, HEAP_MAX_SIZE);
+          __munmap (p2, max_size);
           p2 = MAP_FAILED;
         }
     }
   if (p2 == MAP_FAILED)
     {
-      p1 = (char *) MMAP (0, HEAP_MAX_SIZE << 1, PROT_NONE, MAP_NORESERVE);
+      p1 = (char *) MMAP (NULL, max_size << 1, PROT_NONE, mmap_flags);
       if (p1 != MAP_FAILED)
         {
-          p2 = (char *) (((unsigned long) p1 + (HEAP_MAX_SIZE - 1))
-                         & ~(HEAP_MAX_SIZE - 1));
+          p2 = (char *) (((uintptr_t) p1 + (max_size - 1))
+                         & ~(max_size - 1));
           ul = p2 - p1;
           if (ul)
             __munmap (p1, ul);
           else
-            aligned_heap_area = p2 + HEAP_MAX_SIZE;
-          __munmap (p2 + HEAP_MAX_SIZE, HEAP_MAX_SIZE - ul);
+            aligned_heap_area = p2 + max_size;
+          __munmap (p2 + max_size, max_size - ul);
         }
       else
         {
-          /* Try to take the chance that an allocation of only HEAP_MAX_SIZE
+          /* Try to take the chance that an allocation of only max_size
              is already aligned. */
-          p2 = (char *) MMAP (0, HEAP_MAX_SIZE, PROT_NONE, MAP_NORESERVE);
+          p2 = (char *) MMAP (NULL, max_size, PROT_NONE, mmap_flags);
           if (p2 == MAP_FAILED)
-            return 0;
+            return NULL;
 
-          if ((unsigned long) p2 & (HEAP_MAX_SIZE - 1))
+          if ((unsigned long) p2 & (max_size - 1))
             {
-              __munmap (p2, HEAP_MAX_SIZE);
-              return 0;
+              __munmap (p2, max_size);
+              return NULL;
             }
         }
     }
   if (__mprotect (p2, size, mtag_mmap_flags | PROT_READ | PROT_WRITE) != 0)
     {
-      __munmap (p2, HEAP_MAX_SIZE);
-      return 0;
+      __munmap (p2, max_size);
+      return NULL;
     }
+
+  /* Only considere the actual usable range.  */
+  __set_vma_name (p2, size, " glibc: malloc arena");
+
+  madvise_thp (p2, size);
+
   h = (heap_info *) p2;
   h->size = size;
   h->mprotect_size = size;
+  h->pagesize = pagesize;
   LIBC_PROBE (memory_heap_new, 2, h, h->size);
   return h;
+}
+
+static heap_info *
+new_heap (size_t size, size_t top_pad)
+{
+  if (mp_.hp_pagesize != 0 && mp_.hp_pagesize <= heap_max_size ())
+    {
+      heap_info *h = alloc_new_heap (size, top_pad, mp_.hp_pagesize,
+				     mp_.hp_flags);
+      if (h != NULL)
+	return h;
+    }
+  return alloc_new_heap (size, top_pad, GLRO (dl_pagesize), 0);
 }
 
 /* Grow a heap.  size is automatically rounded up to a
@@ -522,12 +460,13 @@ new_heap (size_t size, size_t top_pad)
 static int
 grow_heap (heap_info *h, long diff)
 {
-  size_t pagesize = GLRO (dl_pagesize);
+  size_t pagesize = h->pagesize;
+  size_t max_size = heap_max_size ();
   long new_size;
 
   diff = ALIGN_UP (diff, pagesize);
   new_size = (long) h->size + diff;
-  if ((unsigned long) new_size > (unsigned long) HEAP_MAX_SIZE)
+  if ((unsigned long) new_size > (unsigned long) max_size)
     return -1;
 
   if ((unsigned long) new_size > h->mprotect_size)
@@ -577,21 +516,14 @@ shrink_heap (heap_info *h, long diff)
 
 /* Delete a heap. */
 
-#define delete_heap(heap) \
-  do {									      \
-      if ((char *) (heap) + HEAP_MAX_SIZE == aligned_heap_area)		      \
-        aligned_heap_area = NULL;					      \
-      __munmap ((char *) (heap), HEAP_MAX_SIZE);			      \
-    } while (0)
-
 static int
 heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
-  unsigned long pagesz = GLRO (dl_pagesize);
   mchunkptr top_chunk = top (ar_ptr), p;
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
+  size_t max_size = heap_max_size ();
 
   /* Can this heap go away completely? */
   while (top_chunk == chunk_at_offset (heap, sizeof (*heap)))
@@ -608,19 +540,23 @@ heap_trim (heap_info *heap, size_t pad)
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
       if (!prev_inuse (p))
         new_size += prev_size (p);
-      assert (new_size > 0 && new_size < HEAP_MAX_SIZE);
-      if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)
+      assert (new_size > 0 && new_size < max_size);
+      if (new_size + (max_size - prev_heap->size) < pad + MINSIZE
+						    + heap->pagesize)
         break;
       ar_ptr->system_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
-      delete_heap (heap);
+      if ((char *) heap + max_size == aligned_heap_area)
+	aligned_heap_area = NULL;
+      __munmap (heap, max_size);
       heap = prev_heap;
       if (!prev_inuse (p)) /* consolidate backward */
         {
           p = prev_chunk (p);
           unlink_chunk (ar_ptr, p);
         }
-      assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
+      assert (((unsigned long) ((char *) p + new_size) & (heap->pagesize - 1))
+	      == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));
       top (ar_ptr) = top_chunk = p;
       set_head (top_chunk, new_size | PREV_INUSE);
@@ -640,7 +576,7 @@ heap_trim (heap_info *heap, size_t pad)
     return 0;
 
   /* Release in pagesize units and round down to the nearest page.  */
-  extra = ALIGN_DOWN(top_area - pad, pagesz);
+  extra = ALIGN_DOWN(top_area - pad, heap->pagesize);
   if (extra == 0)
     return 0;
 
@@ -692,7 +628,7 @@ _int_new_arena (size_t size)
          to deal with the large request via mmap_chunk().  */
       h = new_heap (sizeof (*h) + sizeof (*a) + MALLOC_ALIGNMENT, mp_.top_pad);
       if (!h)
-        return 0;
+        return NULL;
     }
   a = h->ar_ptr = (mstate) (h + 1);
   malloc_init_state (a);
@@ -702,7 +638,7 @@ _int_new_arena (size_t size)
 
   /* Set up the top chunk, with proper alignment. */
   ptr = (char *) (a + 1);
-  misalign = (unsigned long) chunk2mem (ptr) & MALLOC_ALIGN_MASK;
+  misalign = (uintptr_t) chunk2mem (ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
   top (a) = (mchunkptr) ptr;

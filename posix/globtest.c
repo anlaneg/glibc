@@ -1,4 +1,4 @@
-/* Copyright (C) 1997-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -106,7 +106,7 @@ main (int argc, char *argv[])
   if ((glob_flags & GLOB_DOOFFS) && g.gl_pathv[0] == NULL)
     g.gl_pathv[0] = (char *) "abc";
 
-  /* Print out the names.  Unless otherwise specified, qoute them.  */
+  /* Print out the names.  Unless otherwise specified, quote them.  */
   if (g.gl_pathv)
     {
       for (i = 0; i < g.gl_offs + g.gl_pathc; ++i)

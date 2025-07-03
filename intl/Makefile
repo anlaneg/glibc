@@ -1,4 +1,4 @@
-# Copyright (C) 1995-2021 Free Software Foundation, Inc.
+# Copyright (C) 1995-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -32,7 +32,10 @@ test-srcs := tst-gettext tst-translit tst-gettext2 tst-codeset tst-gettext3
 ifeq ($(have-thread-library),yes)
 test-srcs += $(multithread-test-srcs)
 endif
-tests = tst-ngettext
+tests = \
+  tst-gettext-c-utf8 \
+  tst-ngettext \
+  # tests
 
 before-compile += $(objpfx)msgs.h
 
@@ -117,6 +120,7 @@ $(objpfx)tst-gettext3.out: $(gen-locales)
 $(objpfx)tst-gettext4.out: $(gen-locales)
 $(objpfx)tst-gettext5.out: $(gen-locales)
 $(objpfx)tst-gettext6.out: $(gen-locales)
+$(objpfx)tst-gettext-c-utf8.out: $(gen-locales)
 $(objpfx)tst-translit.out: $(gen-locales)
 endif
 
@@ -154,8 +158,9 @@ $(objpfx)tst-gettext5.out: $(objpfx)tst-gettext.out
 $(objpfx)tst-gettext6.out: $(objpfx)tst-gettext.out
 
 CPPFLAGS += -D'LOCALEDIR="$(localedir)"' \
-	    -D'LOCALE_ALIAS_PATH="$(localedir)"'
-BISONFLAGS = --yacc --name-prefix=__gettext --output
+	    -D'LOCALE_ALIAS_PATH="$(localedir)"' \
+	    -Wno-unused-but-set-variable
+BISONFLAGS = --yacc --no-lines --name-prefix=__gettext --output
 
 $(inst_localedir)/locale.alias: locale.alias $(+force)
 	$(do-install)

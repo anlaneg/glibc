@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -91,7 +91,7 @@ I am ready for my first lesson today.";
   fmtst2chk("%0*.*x");
 
 #ifndef	BSD
-  printf("bad format:\t\"%b\"\n");
+  printf("bad format:\t\"%v\"\n");
   printf("nil pointer (padded):\t\"%10p\"\n", (void *) NULL);
 #endif
 

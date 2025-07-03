@@ -1,6 +1,5 @@
-/* Copyright (c) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (c) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -193,7 +192,7 @@ cache_add (int type, const void *key, size_t len, struct datahead *packet,
 
   /* We depend on this value being correct and at least as high as the
      real number of entries.  */
-  atomic_increment (&table->head->nentries);
+  atomic_fetch_add_relaxed (&table->head->nentries, 1);
 
   /* It does not matter that we are not loading the just increment
      value, this is just for statistics.  */
@@ -371,8 +370,11 @@ prune_cache (struct database_dyn *table, time_t now, int fd)
 		       serv2str[runp->type], str, dh->timeout);
 	    }
 
-	  /* Check whether the entry timed out.  */
-	  if (dh->timeout < now)
+	  /* Check whether the entry timed out.  Timed out entries
+	     will be revalidated.  For unusable records, it is still
+	     necessary to record that the bucket needs to be scanned
+	     again below.  */
+	  if (dh->timeout < now || !dh->usable)
 	    {
 	      /* This hash bucket could contain entries which need to
 		 be looked at.  */
@@ -384,7 +386,7 @@ prune_cache (struct database_dyn *table, time_t now, int fd)
 	      /* We only have to look at the data of the first entries
 		 since the count information is kept in the data part
 		 which is shared.  */
-	      if (runp->first)
+	      if (runp->first && dh->usable)
 		{
 
 		  /* At this point there are two choices: we reload the
@@ -400,9 +402,6 @@ prune_cache (struct database_dyn *table, time_t now, int fd)
 		    {
 		      /* Remove the value.  */
 		      dh->usable = false;
-
-		      /* We definitely have some garbage entries now.  */
-		      any = true;
 		    }
 		  else
 		    {
@@ -414,18 +413,15 @@ prune_cache (struct database_dyn *table, time_t now, int fd)
 
 		      time_t timeout = readdfcts[runp->type] (table, runp, dh);
 		      next_timeout = MIN (next_timeout, timeout);
-
-		      /* If the entry has been replaced, we might need
-			 cleanup.  */
-		      any |= !dh->usable;
 		    }
 		}
+
+	      /* If the entry has been replaced, we might need cleanup.  */
+	      any |= !dh->usable;
 	    }
 	  else
-	    {
-	      assert (dh->usable);
-	      next_timeout = MIN (next_timeout, dh->timeout);
-	    }
+	    /* Entry has not timed out and is usable.  */
+	    next_timeout = MIN (next_timeout, dh->timeout);
 
 	  run = runp->next;
 	}

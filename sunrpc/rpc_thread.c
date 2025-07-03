@@ -3,7 +3,6 @@
 #include <assert.h>
 
 #include <libc-lock.h>
-#include <libc-tsd.h>
 #include <shlib-compat.h>
 #include <libc-symbols.h>
 
@@ -37,7 +36,6 @@ __rpc_thread_destroy (void)
 		thread_rpc_vars = NULL;
 	}
 }
-text_set_element (__libc_subfreeres, __rpc_thread_destroy);
 
 /*
  * Initialize RPC multi-threaded operation

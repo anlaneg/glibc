@@ -1,5 +1,5 @@
 /* Call the termination functions of loaded shared objects.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,11 +20,6 @@
 #include <string.h>
 #include <ldsodefs.h>
 #include <elf-initfini.h>
-
-
-/* Type of the constructor functions.  */
-typedef void (*fini_t) (void);
-
 
 void
 _dl_fini (void)
@@ -64,12 +59,17 @@ _dl_fini (void)
 	__rtld_lock_unlock_recursive (GL(dl_load_lock));
       else
 	{
+#ifdef SHARED
+	  _dl_audit_activity_nsid (ns, LA_ACT_DELETE);
+#endif
+
 	  /* Now we can allocate an array to hold all the pointers and
 	     copy the pointers in.  */
 	  struct link_map *maps[nloaded];
 
 	  unsigned int i;
 	  struct link_map *l;
+	  struct link_map *proxy_link_map = NULL;
 	  assert (nloaded != 0 || GL(dl_ns)[ns]._ns_loaded == NULL);
 	  for (l = GL(dl_ns)[ns]._ns_loaded, i = 0; l != NULL; l = l->l_next)
 	    /* Do not handle ld.so in secondary namespaces.  */
@@ -85,6 +85,11 @@ _dl_fini (void)
 		   are not dlclose()ed from underneath us.  */
 		++l->l_direct_opencount;
 	      }
+	    else
+	      /* Used below to call la_objclose for the ld.so proxy
+		 link map.  */
+	      proxy_link_map = l;
+
 	  assert (ns != LM_ID_BASE || i == nloaded);
 	  assert (ns == LM_ID_BASE || i == nloaded || i == nloaded - 1);
 	  unsigned int nmaps = i;
@@ -92,8 +97,7 @@ _dl_fini (void)
 	  /* Now we have to do the sorting.  We can skip looking for the
 	     binary itself which is at the front of the search list for
 	     the main namespace.  */
-	  _dl_sort_maps (maps + (ns == LM_ID_BASE), nmaps - (ns == LM_ID_BASE),
-			 NULL, true);
+	  _dl_sort_maps (maps, nmaps, (ns == LM_ID_BASE), true);
 
 	  /* We do not rely on the linked list of loaded object anymore
 	     from this point on.  We have our own list here (maps).  The
@@ -113,61 +117,23 @@ _dl_fini (void)
 
 	      if (l->l_init_called)
 		{
-		  /* Make sure nothing happens if we are called twice.  */
-		  l->l_init_called = 0;
-
-		  /* Is there a destructor function?  */
-		  if (l->l_info[DT_FINI_ARRAY] != NULL
-		      || (ELF_INITFINI && l->l_info[DT_FINI] != NULL))
-		    {
-		      /* When debugging print a message first.  */
-		      if (__builtin_expect (GLRO(dl_debug_mask)
-					    & DL_DEBUG_IMPCALLS, 0))
-			_dl_debug_printf ("\ncalling fini: %s [%lu]\n\n",
-					  DSO_FILENAME (l->l_name),
-					  ns);
-
-		      /* First see whether an array is given.  */
-		      if (l->l_info[DT_FINI_ARRAY] != NULL)
-			{
-			  ElfW(Addr) *array =
-			    (ElfW(Addr) *) (l->l_addr
-					    + l->l_info[DT_FINI_ARRAY]->d_un.d_ptr);
-			  unsigned int i = (l->l_info[DT_FINI_ARRAYSZ]->d_un.d_val
-					    / sizeof (ElfW(Addr)));
-			  while (i-- > 0)
-			    ((fini_t) array[i]) ();
-			}
-
-		      /* Next try the old-style destructor.  */
-		      if (ELF_INITFINI && l->l_info[DT_FINI] != NULL)
-			DL_CALL_DT_FINI
-			  (l, l->l_addr + l->l_info[DT_FINI]->d_un.d_ptr);
-		    }
-
+		  _dl_call_fini (l);
 #ifdef SHARED
 		  /* Auditing checkpoint: another object closed.  */
-		  if (!do_audit && __builtin_expect (GLRO(dl_naudit) > 0, 0))
-		    {
-		      struct audit_ifaces *afct = GLRO(dl_audit);
-		      for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-			{
-			  if (afct->objclose != NULL)
-			    {
-			      struct auditstate *state
-				= link_map_audit_state (l, cnt);
-			      /* Return value is ignored.  */
-			      (void) afct->objclose (&state->cookie);
-			    }
-			  afct = afct->next;
-			}
-		    }
+		  _dl_audit_objclose (l);
 #endif
 		}
 
 	      /* Correct the previous increment.  */
 	      --l->l_direct_opencount;
 	    }
+
+	  if (proxy_link_map != NULL)
+	    _dl_audit_objclose (proxy_link_map);
+
+#ifdef SHARED
+	  _dl_audit_activity_nsid (ns, LA_ACT_CONSISTENT);
+#endif
 	}
     }
 

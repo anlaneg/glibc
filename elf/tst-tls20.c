@@ -1,5 +1,5 @@
 /* Test dtv setup if entries don't have monotone increasing generation.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,8 @@
 #include <array_length.h>
 #include <dlfcn.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <support/check.h>
@@ -151,11 +153,11 @@ do_test_no_depedency (void)
       mod0 -> mod1
    2. Double dependency:
       mod2 -> [mod3,mod4]
-   3. Double dependency with each dependency depent of another module:
+   3. Double dependency with each dependency dependent of another module:
       mod5 -> [mod6,mod7] -> mod8
    4. Long chain with one double dependency in the middle:
       mod9 -> [mod10, mod11] -> mod12 -> mod13
-   5. Long chain with two double depedencies in the middle:
+   5. Long chain with two double dependencies in the middle:
       mod14 -> mod15 -> [mod16, mod17]
       mod15 -> [mod18, mod19]
 
@@ -215,7 +217,7 @@ do_test_dependency (void)
   };
 
   /* The gap configuration is defined as a bitmap: the bit set represents a
-     loaded module prior the tests execution, while a bit unsed is a module
+     loaded module prior the tests execution, while a bit unset is a module
      unloaded.  Not all permtation will show gaps, but it is simpler than
      define each one independently.  */
   for (uint32_t g = 0; g < 64; g++)
@@ -262,7 +264,7 @@ do_test_dependency (void)
 	  xdlclose (moddep);
 	}
 
-      for (int n = 1; n <= nmods; n++)
+      for (int n = 1; n < nmods; n++)
 	if (mods[n] != 0)
 	  unload_mod (n);
     }
@@ -275,11 +277,11 @@ do_test_dependency (void)
       mod0 -> invalid
    2. Double dependency:
       mod1 -> [mod2,invalid]
-   3. Double dependency with each dependency depent of another module:
+   3. Double dependency with each dependency dependent of another module:
       mod3 -> [mod4,mod5] -> invalid
    4. Long chain with one double dependency in the middle:
       mod6 -> [mod7, mod8] -> mod12 -> invalid
-   5. Long chain with two double depedencies in the middle:
+   5. Long chain with two double dependencies in the middle:
       mod10 -> mod11 -> [mod12, mod13]
       mod12 -> [mod14, invalid]
 
@@ -293,7 +295,7 @@ do_test_invalid_dependency (bool bind_now)
   static const int tlsmanydeps[] = { 0, 1, 3, 6, 10 };
 
   /* The gap configuration is defined as a bitmap: the bit set represents a
-     loaded module prior the tests execution, while a bit unsed is a module
+     loaded module prior the tests execution, while a bit unset is a module
      unloaded.  Not all permtation will show gaps, but it is simpler than
      define each one independently.  */
   for (uint32_t g = 0; g < 64; g++)
@@ -340,7 +342,7 @@ do_test_invalid_dependency (bool bind_now)
 	    xdlclose (moddep);
 	}
 
-      for (int n = 1; n <= nmods; n++)
+      for (int n = 1; n < nmods; n++)
 	if (mods[n] != 0)
 	  unload_mod (n);
     }

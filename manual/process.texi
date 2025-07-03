@@ -33,6 +33,7 @@ primitive functions to do each step individually instead.
 * Process Creation Concepts::   An overview of the hard way to do it.
 * Process Identification::      How to get the process ID of a process.
 * Creating a Process::          How to fork a child process.
+* Querying a Process::          How to query a child process.
 * Executing a File::            How to make a process execute another program.
 * Process Completion::          How to tell when a child process has completed.
 * Process Completion Status::   How to interpret the status value
@@ -68,8 +69,7 @@ until the subprogram terminates before you can do anything else.
 @c   CLEANUP_HANDLER @ascuplugin @ascuheap @acsmem
 @c    libc_cleanup_region_start @ascuplugin @ascuheap @acsmem
 @c     pthread_cleanup_push_defer @ascuplugin @ascuheap @acsmem
-@c      __pthread_testcancel @ascuplugin @ascuheap @acsmem
-@c       CANCEL_ENABLED_AND_CANCELED ok
+@c      cancel_enabled_and_canceled @ascuplugin @ascuheap @acsmem
 @c       do_cancel @ascuplugin @ascuheap @acsmem
 @c    cancel_handler ok
 @c     kill syscall ok
@@ -137,13 +137,13 @@ creating a process and making it run another program.
 @cindex parent process
 @cindex subprocess
 A new processes is created when one of the functions
-@code{posix_spawn}, @code{fork}, @code{_Fork} or @code{vfork} is called.
-(The @code{system} and @code{popen} also create new processes internally.)
-Due to the name of the @code{fork} function, the act of creating a new
-process is sometimes called @dfn{forking} a process.  Each new process
-(the @dfn{child process} or @dfn{subprocess}) is allocated a process
-ID, distinct from the process ID of the parent process.  @xref{Process
-Identification}.
+@code{posix_spawn}, @code{fork}, @code{_Fork}, @code{vfork}, or
+@code{pidfd_spawn} is called.  (The @code{system} and @code{popen} also
+create new processes internally.)  Due to the name of the @code{fork}
+function, the act of creating a new process is sometimes called
+@dfn{forking} a process.  Each new process (the @dfn{child process} or
+@dfn{subprocess}) is allocated a process ID, distinct from the process
+ID of the parent process.  @xref{Process Identification}.
 
 After forking a child process, both the parent and child processes
 continue to execute normally.  If you want your program to wait for a
@@ -239,6 +239,24 @@ especially regarding reuse of the IDs of threads which have exited.
 This function is specific to Linux.
 @end deftypefun
 
+@deftypefun pid_t pthread_gettid_np (pthread_t @var{thread})
+@standards{Linux, pthread.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+This function returns the same value that @code{gettid} would return if
+executed on the running thread @var{thread}.
+
+If @var{thread} is no longer running but it is joinable, it is
+unspecified whether this function returns @minus{}1, or if it returns
+the thread ID of the thread while it was running.  If @var{thread} is
+not running and is not joinable, the behavior is undefined.
+
+@strong{Portability Note:} Linux thread IDs can be reused rather quickly,
+so this function differs from the @code{pthread_getunique_np} function
+found on other systems.
+
+This function is specific to Linux.
+@end deftypefun
+
 @node Creating a Process
 @section Creating a Process
 
@@ -255,7 +273,7 @@ It is declared in the header file @file{unistd.h}.
 @c handlers, and unlocks the internal lock.  The child bumps the fork
 @c generation, sets the thread-local pid, resets cpu clocks, initializes
 @c the robust mutex list, the stream locks, the IO_list lock, the dynamic
-@c loader lock, runs the child handlers, reseting ref counters to 1, and
+@c loader lock, runs the child handlers, resetting ref counters to 1, and
 @c initializes the fork lock.  These are all safe, unless atfork
 @c handlers themselves are unsafe.
 The @code{fork} function creates a new process.
@@ -320,7 +338,7 @@ signals and signal actions from the parent process.)
 @end itemize
 
 @deftypefun pid_t _Fork (void)
-@standards{GNU, unistd.h}
+@standards{POSIX.1-2024, unistd.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 The @code{_Fork} function is similar to @code{fork}, but it does not invoke
 any callbacks registered with @code{pthread_atfork}, nor does it reset
@@ -329,8 +347,9 @@ new subprocess, only async-signal-safe functions may be called, such as
 @code{dup2} or @code{execve}.
 
 The @code{_Fork} function is an async-signal-safe replacement of @code{fork}.
-It is a GNU extension.
 
+This function was originally a GNU extension, but was added in
+POSIX.1-2024.
 @end deftypefun
 
 @deftypefun pid_t vfork (void)
@@ -361,6 +380,43 @@ permits you to use @code{vfork} on all systems, but actually
 executes @code{fork} if @code{vfork} isn't available.  If you follow
 the proper precautions for using @code{vfork}, your program will still
 work even if the system uses @code{fork} instead.
+@end deftypefun
+
+@node Querying a Process
+@section Querying a Process
+
+The file descriptor returned by the @code{pidfd_fork} function can be used to
+query process extra information.
+
+@deftypefun pid_t pidfd_getpid (int @var{fd})
+@standards{GNU, sys/pidfd.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+
+The @code{pidfd_getpid} function retrieves the process ID associated with process
+file descriptor created with @code{pid_spawn}, @code{pidfd_fork}, or
+@code{pidfd_open}.
+
+If the operation fails, @code{pidfd_getpid} return @code{-1} and the following
+@code{errno} error conditionas are defined:
+
+@table @code
+@item EBADF
+The input file descriptor is invalid, does not have a pidfd associated, or an
+error has occurred parsing the kernel data.
+@item EREMOTE
+There is no process ID to denote the process in the current namespace.
+@item ESRCH
+The process for which the file descriptor refers to is terminated.
+@item ENOENT
+The procfs is not mounted.
+@item ENFILE.
+Too many open files in system (@code{pidfd_open} tries to open a procfs file and
+read its contents).
+@item ENOMEM
+Insufficient kernel memory was available.
+@end table
+
+This function is specific to Linux.
 @end deftypefun
 
 @node Executing a File
@@ -780,10 +836,13 @@ signal number of the signal that terminated the child process.
 @end deftypefn
 
 @deftypefn Macro int WCOREDUMP (int @var{status})
-@standards{BSD, sys/wait.h}
+@standards{POSIX.1-2024, sys/wait.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 This macro returns a nonzero value if the child process terminated
 and produced a core dump.
+
+This macro was originally a BSD extension, but was added in
+POSIX.1-2024.
 @end deftypefn
 
 @deftypefn Macro int WIFSTOPPED (int @var{status})

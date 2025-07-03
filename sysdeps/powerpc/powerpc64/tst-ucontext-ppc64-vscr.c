@@ -1,5 +1,5 @@
 /* Test if POWER vscr read by ucontext.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -50,6 +50,7 @@ do_test (void)
   /* Set SAT bit in VSCR register.  */
   asm volatile (".machine push;\n"
 		".machine \"power5\";\n"
+		".machine altivec;\n"
 		"vspltisb %0,0;\n"
 		"vspltisb %1,-1;\n"
 		"vpkuwus %0,%0,%1;\n"

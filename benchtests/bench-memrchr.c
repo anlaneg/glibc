@@ -1,5 +1,5 @@
 /* Measure memrchr functions.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,20 +21,12 @@
 #include "bench-string.h"
 
 typedef char *(*proto_t) (const char *, int, size_t);
-char *simple_memrchr (const char *, int, size_t);
 
-IMPL (simple_memrchr, 0)
+void *
+generic_memrchr (const void *, int, size_t);
+
 IMPL (memrchr, 1)
-
-char *
-simple_memrchr (const char *s, int c, size_t n)
-{
-  s = s + n;
-  while (n--)
-    if (*--s == (char) c)
-      return (char *) s;
-  return NULL;
-}
+IMPL (generic_memrchr, 0)
 
 #define USE_AS_MEMRCHR
 #include "bench-memchr.c"

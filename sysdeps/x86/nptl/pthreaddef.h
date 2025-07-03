@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -43,7 +42,9 @@
 #ifdef __x86_64__
 /* The frame pointer is not usable.  */
 # define CURRENT_STACK_FRAME \
-  ({ register char *frame __asm__("rsp"); frame; })
+  ({ register void * p__ __asm__(RSP_REG); \
+     asm volatile("" : "=r" (p__)); \
+     p__; })
 #else
 # define CURRENT_STACK_FRAME	__builtin_frame_address (0)
 #endif

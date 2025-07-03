@@ -1,7 +1,6 @@
 /* Test mq_notify.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -31,6 +30,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <support/check.h>
 #include "tst-mqueue.h"
 
 #if _POSIX_THREADS
@@ -40,7 +40,7 @@
 static int
 (mqsend) (mqd_t q, int line)
 {
-  char c;
+  char c = 0;
   if (mq_send (q, &c, 1, 1) != 0)
     {
       printf ("mq_send on line %d failed with: %m\n", line);
@@ -117,11 +117,14 @@ do_test (void)
 
   if (q == (mqd_t) -1)
     {
+      if (errno == ENOSYS)
+	FAIL_UNSUPPORTED ("mq_open not supported");
+
       printf ("mq_open failed with: %m\n");
-      return result;
+      return 1;
     }
-  else
-    add_temp_mq (name);
+
+  add_temp_mq (name);
 
   pthread_attr_t nattr;
   if (pthread_attr_init (&nattr)

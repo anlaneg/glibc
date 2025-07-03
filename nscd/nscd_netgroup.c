@@ -1,6 +1,5 @@
-/* Copyright (C) 2011-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gmail.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -32,7 +31,8 @@ libc_locked_map_ptr (static, map_handle);
 /* Note that we only free the structure if necessary.  The memory
    mapping is not removed since it is not visible to the malloc
    handling.  */
-libc_freeres_fn (pw_map_free)
+void
+__nscd_group_map_freemem (void)
 {
   if (map_handle.mapped != NO_MAPPING)
     {
@@ -149,7 +149,7 @@ __nscd_setnetgrent (const char *group, struct __netgrent *datap)
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}
@@ -273,7 +273,7 @@ __nscd_innetgr (const char *netgroup, const char *host, const char *user,
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}

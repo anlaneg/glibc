@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -144,9 +144,10 @@ do_system (const char *line)
   __posix_spawnattr_setflags (&spawn_attr,
 			      POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK);
 
-  ret = __posix_spawn (&pid, SHELL_PATH, 0, &spawn_attr,
+  ret = __posix_spawn (&pid, SHELL_PATH, NULL, &spawn_attr,
 		       (char *const[]){ (char *) SHELL_NAME,
 					(char *) "-c",
+					(char *) "--",
 					(char *) line, NULL },
 		       __environ);
   __posix_spawnattr_destroy (&spawn_attr);
@@ -174,21 +175,25 @@ do_system (const char *line)
       __libc_cleanup_region_end (0);
 #endif
     }
+  else if (ret == EAGAIN || ret == ENOMEM)
+    /* POSIX states that failure to create a child process should
+       return -1.  */
+    status = -1;
   else
-   /* POSIX states that failure to execute the shell should return
-      as if the shell had terminated using _exit(127).  */
-   status = W_EXITCODE (127, 0);
+    /* POSIX states that failure to execute the shell should return
+       as if the shell had terminated using _exit(127).  */
+    status = W_EXITCODE (127, 0);
 
+  /* sigaction can not fail with SIGINT/SIGQUIT used with old
+     disposition.  Same applies for sigprocmask.  */
   DO_LOCK ();
   if (SUB_REF () == 0)
     {
-      /* sigaction can not fail with SIGINT/SIGQUIT used with old
-	 disposition.  Same applies for sigprocmask.  */
       __sigaction (SIGINT, &intr, NULL);
       __sigaction (SIGQUIT, &quit, NULL);
-      __sigprocmask (SIG_SETMASK, &omask, NULL);
     }
   DO_UNLOCK ();
+  __sigprocmask (SIG_SETMASK, &omask, NULL);
 
   if (ret != 0)
     __set_errno (ret);

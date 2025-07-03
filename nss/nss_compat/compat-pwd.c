@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@vt.uni-paderborn.de>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -438,7 +437,7 @@ getpwent_next_nss (struct passwd *result, ent_t *ent, char *buffer,
   return NSS_STATUS_SUCCESS;
 }
 
-/* This function handle the +user entrys in /etc/passwd */
+/* This function handle the +user entries in /etc/passwd */
 static enum nss_status
 getpwnam_plususer (const char *name, struct passwd *result, ent_t *ent,
 		   char *buffer, size_t buflen, int *errnop)

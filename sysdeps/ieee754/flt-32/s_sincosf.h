@@ -1,5 +1,5 @@
 /* Used by sinf, cosf and sincosf functions.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 /* 2PI * 2^-64.  */
 static const double pi63 = 0x1.921FB54442D18p-62;
 /* PI / 4.  */
-static const double pio4 = 0x1.921FB54442D18p-1;
+static const float pio4 = 0x1.921FB6p-1f;
 
 /* Polynomial data (the cosine polynomial is negated in the 2nd entry).  */
 extern const sincos_t __sincosf_table[2] attribute_hidden;

@@ -1,5 +1,5 @@
 /* Useful functions for tests that use struct timespec.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ make_timespec (time_t s, long int ns)
 
 enum { TIMESPEC_HZ = 1000000000 };
 
-#ifndef __USE_TIME_BITS64
+#ifndef __USE_TIME64_REDIRECTS
 struct timespec timespec_add (struct timespec, struct timespec)
   __attribute__((const));
 struct timespec timespec_sub (struct timespec, struct timespec)
@@ -56,6 +56,8 @@ struct timespec support_timespec_normalize (struct timespec time);
 int support_timespec_check_in_range (struct timespec expected,
 				     struct timespec observed,
 				     double lower_bound, double upper_bound);
+
+struct timespec dtotimespec (double sec) __attribute__((const));
 
 #else
 struct timespec __REDIRECT (timespec_add, (struct timespec, struct timespec),
@@ -82,6 +84,8 @@ int __REDIRECT (support_timespec_check_in_range, (struct timespec expected,
 						  double lower_bound,
 						  double upper_bound),
 		support_timespec_check_in_range_time64);
+
+struct timespec __REDIRECT (dtotimespec, (double sec), dtotimespec_time64);
 #endif
 
 /* Check that the timespec on the left represents a time before the

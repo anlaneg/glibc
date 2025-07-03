@@ -1,5 +1,5 @@
 /* Multiple versions of memrchr.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,21 +17,21 @@
    <https://www.gnu.org/licenses/>.  */
 
 #if IS_IN (libc)
+# define memrchr __redirect_memrchr
 # include <string.h>
 # include <shlib-compat.h>
 # include "init-arch.h"
 
 extern __typeof (__memrchr) __memrchr_ppc attribute_hidden;
 extern __typeof (__memrchr) __memrchr_power7 attribute_hidden;
+# undef memrchr
 
 /* Avoid DWARF definition DIE on ifunc symbol so that GDB can handle
    ifunc symbol properly.  */
-libc_ifunc (__memrchr,
-	    (hwcap & PPC_FEATURE_HAS_VSX)
-            ? __memrchr_power7
-            : __memrchr_ppc);
-
-weak_alias (__memrchr, memrchr)
+libc_ifunc_redirected (__redirect_memrchr, memrchr,
+		       (hwcap & PPC_FEATURE_HAS_VSX)
+		       ? __memrchr_power7
+		       : __memrchr_ppc);
 #else
 #include <string/memrchr.c>
 #endif

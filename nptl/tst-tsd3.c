@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -37,7 +36,7 @@ destr1 (void *arg)
     {
       puts ("set key2");
 
-      /* Use an arbirary but valid pointer to avoid GCC warnings.  */
+      /* Use an arbitrary but valid pointer to avoid GCC warnings.  */
       if (pthread_setspecific (key2, (void *) &left) != 0)
 	{
 	  puts ("destr1: setspecific failed");
@@ -54,7 +53,7 @@ destr2 (void *arg)
     {
       puts ("set key1");
 
-      /* Use an arbirary but valid pointer to avoid GCC warnings.  */
+      /* Use an arbitrary but valid pointer to avoid GCC warnings.  */
       if (pthread_setspecific (key1, (void *) &left) != 0)
 	{
 	  puts ("destr2: setspecific failed");
@@ -70,7 +69,7 @@ tf (void *arg)
   /* Let the destructors work.  */
   left = 7;
 
-  /* Use an arbirary but valid pointer to avoid GCC warnings.  */
+  /* Use an arbitrary but valid pointer to avoid GCC warnings.  */
   if (pthread_setspecific (key1, (void *) &left) != 0
       || pthread_setspecific (key2, (void *) &left) != 0)
     {

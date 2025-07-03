@@ -1,5 +1,5 @@
 /* Bug 23844: Test for pthread_rwlock_trywrlock stalls.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
    Summary for the pthread_rwlock_trywrlock() stall:
 
    The stall is caused by pthread_rwlock_trywrlock setting
-   __wrphase_futex futex to 1 and loosing the
+   __wrphase_futex futex to 1 and losing the
    PTHREAD_RWLOCK_FUTEX_USED bit.
 
    The fix for bug 23844 ensures that waiters on __wrphase_futex are

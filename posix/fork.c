@@ -1,5 +1,5 @@
 /* fork - create a child process.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -45,9 +45,10 @@ __libc_fork (void)
      requirement for fork (Austin Group tracker issue #62) this is
      best effort to make is async-signal-safe at least for single-thread
      case.  */
-  bool multiple_threads = __libc_single_threaded == 0;
+  bool multiple_threads = !SINGLE_THREAD_P;
+  uint64_t lastrun;
 
-  __run_fork_handlers (atfork_run_prepare, multiple_threads);
+  lastrun = __run_prefork_handlers (multiple_threads);
 
   struct nss_database_data nss_database_data;
 
@@ -61,6 +62,7 @@ __libc_fork (void)
       call_function_static_weak (__nss_database_fork_prepare_parent,
 				 &nss_database_data);
 
+      _IO_proc_file_chain_lock ();
       _IO_list_lock ();
 
       /* Acquire malloc locks.  This needs to come last because fork
@@ -83,6 +85,8 @@ __libc_fork (void)
 
 	  fork_system_setup_after_fork ();
 
+	  call_function_static_weak (__abort_fork_reset_child);
+
 	  /* Release malloc locks.  */
 	  call_function_static_weak (__malloc_fork_unlock_child);
 
@@ -91,6 +95,7 @@ __libc_fork (void)
 
 	  /* Reset locks in the I/O code.  */
 	  _IO_list_resetlock ();
+	  _IO_proc_file_chain_resetlock ();
 
 	  call_function_static_weak (__nss_database_fork_subprocess,
 				     &nss_database_data);
@@ -99,10 +104,13 @@ __libc_fork (void)
       /* Reset the lock the dynamic loader uses to protect its data.  */
       __rtld_lock_initialize (GL(dl_load_lock));
 
+      /* Reset the lock protecting dynamic TLS related data.  */
+      __rtld_lock_initialize (GL(dl_load_tls_lock));
+
       reclaim_stacks ();
 
       /* Run the handlers registered for the child.  */
-      __run_fork_handlers (atfork_run_child, multiple_threads);
+      __run_postfork_handlers (atfork_run_child, multiple_threads, lastrun);
     }
   else
     {
@@ -117,10 +125,11 @@ __libc_fork (void)
 
 	  /* We execute this even if the 'fork' call failed.  */
 	  _IO_list_unlock ();
+	  _IO_proc_file_chain_unlock ();
 	}
 
       /* Run the handlers registered for the parent.  */
-      __run_fork_handlers (atfork_run_parent, multiple_threads);
+      __run_postfork_handlers (atfork_run_parent, multiple_threads, lastrun);
 
       if (pid < 0)
 	__set_errno (save_errno);

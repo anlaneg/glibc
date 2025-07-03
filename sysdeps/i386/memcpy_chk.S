@@ -1,5 +1,5 @@
 /* Checking memcpy for i386.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,7 +28,8 @@
 ENTRY (__memcpy_chk)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
-	jb	__chk_fail
-	jmp	memcpy
+	jb	HIDDEN_JUMPTARGET (__chk_fail)
+	jmp	JUMPTARGET (memcpy)
 END (__memcpy_chk)
+libc_hidden_builtin_def (__memcpy_chk)
 #endif

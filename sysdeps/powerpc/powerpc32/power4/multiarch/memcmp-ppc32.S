@@ -1,5 +1,5 @@
 /* Default memcmp implementation for PowerPC32.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -40,6 +40,10 @@
 # undef weak_alias
 # define weak_alias(a, b)					\
   .weak b ; b = __memcmp_ppc
+
+# undef strong_alias
+# define strong_alias(a, b)					\
+  .globl b ; b = __memcmp_ppc
 #endif
 
 #include <sysdeps/powerpc/powerpc32/power4/memcmp.S>

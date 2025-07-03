@@ -337,7 +337,7 @@ pointer.
 @end deftypefun
 
 @deftypefun {char *} secure_getenv (const char *@var{name})
-@standards{GNU, stdlib.h}
+@standards{POSIX.1-2024, stdlib.h}
 @safety{@prelim{}@mtsafe{@mtsenv{}}@assafe{}@acsafe{}}
 @c Calls getenv unless secure mode is enabled.
 This function is similar to @code{getenv}, but it returns a null
@@ -346,7 +346,8 @@ program file has SUID or SGID bits set.  General-purpose libraries
 should always prefer this function over @code{getenv} to avoid
 vulnerabilities if the library is referenced from a SUID/SGID program.
 
-This function is a GNU extension.
+This function was originally a GNU extension, but was added in
+POSIX.1-2024.
 @end deftypefun
 
 
@@ -567,8 +568,7 @@ Manual}) use the @code{TERM} environment variable, for example.
 @item TZ
 @cindex @code{TZ} environment variable
 
-This specifies the time zone.  @xref{TZ Variable}, for information about
-the format of this string and how it is used.
+This specifies the time zone ruleset.  @xref{TZ Variable}.
 
 @item LANG
 @cindex @code{LANG} environment variable
@@ -665,8 +665,12 @@ basis there may be information that is not available any other way.
 This function is used to inquire about the entries in the auxiliary
 vector.  The @var{type} argument should be one of the @samp{AT_} symbols
 defined in @file{elf.h}.  If a matching entry is found, the value is
-returned; if the entry is not found, zero is returned and @code{errno} is
-set to @code{ENOENT}.
+returned; if the entry is not found, zero is returned and @code{errno}
+is set to @code{ENOENT}.
+
+@strong{Note:} There is no relationship between the @samp{AT_} contants
+defined in @file{elf.h} and the file name lookup flags in
+@file{fcntl.h}.  @xref{Descriptor-Relative Access}.
 @end deftypefun
 
 For some platforms, the key @code{AT_HWCAP} is the easiest way to inquire
@@ -690,7 +694,25 @@ you don't need to know about it because you can just use @theglibc{}'s
 @code{chmod} function.
 
 @cindex kernel call
-System calls are sometimes called kernel calls.
+System calls are sometimes called syscalls or kernel calls, and this
+interface is mostly a purely mechanical translation from the kernel's
+ABI to the C ABI. For the set of syscalls where we do not guarantee
+POSIX Thread cancellation the wrappers only organize the incoming
+arguments from the C calling convention to the calling convention of
+the target kernel. For the set of syscalls where we provided POSIX
+Thread cancellation the wrappers set some internal state in the
+library to support cancellation, but this does not impact the
+behaviour of the syscall provided by the kernel.
+
+In some cases, if @theglibc{} detects that a system call has been
+superseded by a more capable one, the wrapper may map the old call to
+the new one.  For example, @code{dup2} is implemented via @code{dup3}
+by passing an additional empty flags argument, and @code{open} calls
+@code{openat} passing the additional @code{AT_FDCWD}.  Sometimes even
+more is done, such as converting between 32-bit and 64-bit time
+values.  In general, though, such processing is only to make the
+system call better match the C ABI, rather than change its
+functionality.
 
 However, there are times when you want to make a system call explicitly,
 and for that, @theglibc{} provides the @code{syscall} function.
@@ -712,6 +734,8 @@ we won't describe it here either because anyone who is coding
 library source code as a specification of the interface between them
 anyway.
 
+@code{syscall} does not provide cancellation logic, even if the system
+call you're calling is listed as cancellable above.
 
 @code{syscall} is declared in @file{unistd.h}.
 
@@ -727,8 +751,7 @@ identified by a number.  Macros for all the possible system call numbers
 are defined in @file{sys/syscall.h}
 
 The remaining arguments are the arguments for the system call, in
-order, and their meanings depend on the kind of system call.  Each kind
-of system call has a definite number of arguments, from zero to five.
+order, and their meanings depend on the kind of system call.
 If you code more arguments than the system call takes, the extra ones to
 the right are ignored.
 
@@ -992,10 +1015,7 @@ for this function is in @file{stdlib.h}.
 
 @deftypefun void abort (void)
 @standards{ISO, stdlib.h}
-@safety{@prelim{}@mtsafe{}@asunsafe{@asucorrupt{}}@acunsafe{@aculock{} @acucorrupt{}}}
-@c The implementation takes a recursive lock and attempts to support
-@c calls from signal handlers, but if we're in the middle of flushing or
-@c using streams, we may encounter them in inconsistent states.
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 The @code{abort} function causes abnormal program termination.  This
 does not execute cleanup functions registered with @code{atexit} or
 @code{on_exit}.
@@ -1003,6 +1023,10 @@ does not execute cleanup functions registered with @code{atexit} or
 This function actually terminates the process by raising a
 @code{SIGABRT} signal, and your program can include a handler to
 intercept this signal; see @ref{Signal Handling}.
+
+If either the signal handler does not terminate the process, or if the
+signal is blocked, @code{abort} will reset the signal disposition to the
+default @code{SIG_DFL} action and raise the signal again.
 @end deftypefun
 
 @node Termination Internals

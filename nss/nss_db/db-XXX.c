@@ -1,5 +1,5 @@
 /* Common code for DB-based databases in nss_db module.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -269,7 +269,7 @@ CONCAT(_nss_db_get,ENTNAME_r) (struct STRUCTURE *result, char *buffer,
 			       + state.header->valstrlen);
       while (entidx < end)
 	{
-	  const char *next = rawmemchr (entidx, '\0') + 1;
+	  const char *next = strchr (entidx, '\0') + 1;
 	  size_t len = next - entidx;
 
 	  if (len > buflen)

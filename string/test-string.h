@@ -1,7 +1,6 @@
 /* Test and measure string and memory functions.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -41,16 +40,7 @@ extern impl_t __start_impls[], __stop_impls[];
 
 #undef __USE_STRING_INLINES
 
-/* We are compiled under _ISOMAC, so libc-symbols.h does not do this
-   for us.  */
-#include "config.h"
-#ifdef HAVE_CC_INHIBIT_LOOP_TO_LIBCALL
-# define inhibit_loop_to_libcall \
-    __attribute__ ((__optimize__ ("-fno-tree-loop-distribute-patterns")))
-#else
-# define inhibit_loop_to_libcall
-#endif
-
+#include <libc-misc.h>
 #include <getopt.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -69,7 +59,9 @@ extern impl_t __start_impls[], __stop_impls[];
 
 
 # define TEST_FUNCTION test_main
-# define TIMEOUT (4 * 60)
+# ifndef TIMEOUT
+#  define TIMEOUT (4 * 60)
+# endif
 # define OPT_ITERATIONS 10000
 # define OPT_RANDOM 10001
 # define OPT_SEED 10002
@@ -129,8 +121,8 @@ cmdline_process_function (int c)
 /* Increase size of FUNC_LIST if assert is triggered at run-time.  */
 static struct libc_ifunc_impl func_list[32];
 static int func_count;
-static int impl_count = -1;
-static impl_t *impl_array;
+static int impl_count __attribute__ ((unused)) = -1;
+static impl_t *impl_array __attribute__ ((unused));
 
 # define FOR_EACH_IMPL(impl, notall) \
   impl_t *impl;								\

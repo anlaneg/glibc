@@ -1,5 +1,5 @@
 /* System-specific socket constants and types.  Hurd version.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -147,13 +147,13 @@ enum __socket_type
 #define	AF_MAX		PF_MAX
 
 /* Maximum queue length specifiable by listen.  */
-#define SOMAXCONN	128	/* 5 on the origional 4.4 BSD.  */
+#define SOMAXCONN	4096	/* 5 on the original 4.4 BSD.  */
 
 /* Get the definition of the macro to define the common sockaddr members.  */
 #include <bits/sockaddr.h>
 
 /* Structure describing a generic socket address.  */
-struct sockaddr
+struct __attribute_struct_may_alias__ sockaddr
   {
     __SOCKADDR_COMMON (sa_);	/* Common data: address family and length.  */
     char sa_data[14];		/* Address data.  */
@@ -170,7 +170,7 @@ struct sockaddr
 #define _SS_PADSIZE \
   (_SS_SIZE - __SOCKADDR_COMMON_SIZE - sizeof (__ss_aligntype))
 
-struct sockaddr_storage
+struct __attribute_struct_may_alias__ sockaddr_storage
   {
     __SOCKADDR_COMMON (ss_);	/* Address family, etc.  */
     char __ss_padding[_SS_PADSIZE];
@@ -197,8 +197,11 @@ enum
 #define MSG_WAITALL MSG_WAITALL
     MSG_DONTWAIT	= 0x80,	/* This message should be nonblocking.  */
 #define MSG_DONTWAIT MSG_DONTWAIT
-    MSG_NOSIGNAL	= 0x0400	/* Do not generate SIGPIPE on EPIPE.  */
+    MSG_NOSIGNAL	= 0x0400,	/* Do not generate SIGPIPE on EPIPE.  */
 #define MSG_NOSIGNAL MSG_NOSIGNAL
+    MSG_CMSG_CLOEXEC	= 0x40000	/* Atomically set close-on-exec flag
+					   for file descriptors in SCM_RIGHTS.  */
+#define MSG_CMSG_CLOEXEC MSG_CMSG_CLOEXEC
   };
 
 
@@ -225,17 +228,13 @@ struct cmsghdr
 				   of cmsghdr structure.  */
     int cmsg_level;		/* Originating protocol.  */
     int cmsg_type;		/* Protocol specific type.  */
-#if __glibc_c99_flexarr_available
-    __extension__ unsigned char __cmsg_data __flexarr; /* Ancillary data.  */
-#endif
+ /* This field is to be aligned with CMSG_ALIGN */
+ /* __extension__ unsigned char __cmsg_data __flexarr; */ /* Ancillary data.  */
   };
 
 /* Ancillary data object manipulation macros.  */
-#if __glibc_c99_flexarr_available
-# define CMSG_DATA(cmsg) ((cmsg)->__cmsg_data)
-#else
-# define CMSG_DATA(cmsg) ((unsigned char *) ((struct cmsghdr *) (cmsg) + 1))
-#endif
+#define CMSG_DATA(cmsg) \
+  ((unsigned char *) (cmsg) + CMSG_ALIGN (sizeof (struct cmsghdr)))
 
 #define CMSG_NXTHDR(mhdr, cmsg) __cmsg_nxthdr (mhdr, cmsg)
 
@@ -249,6 +248,12 @@ struct cmsghdr
 			 + CMSG_ALIGN (sizeof (struct cmsghdr)))
 #define CMSG_LEN(len)   (CMSG_ALIGN (sizeof (struct cmsghdr)) + (len))
 
+/* Given a length, return the additional padding necessary such that
+   len + __CMSG_PADDING(len) == CMSG_ALIGN (len).  */
+#define __CMSG_PADDING(len) ((sizeof (size_t) \
+                              - ((len) & (sizeof (size_t) - 1))) \
+                             & (sizeof (size_t) - 1))
+
 extern struct cmsghdr *__cmsg_nxthdr (struct msghdr *__mhdr,
 				      struct cmsghdr *__cmsg) __THROW;
 #ifdef __USE_EXTERN_INLINES
@@ -258,18 +263,38 @@ extern struct cmsghdr *__cmsg_nxthdr (struct msghdr *__mhdr,
 _EXTERN_INLINE struct cmsghdr *
 __NTH (__cmsg_nxthdr (struct msghdr *__mhdr, struct cmsghdr *__cmsg))
 {
+  /* We may safely assume that __cmsg lies between __mhdr->msg_control and
+     __mhdr->msg_controllen because the user is required to obtain the first
+     cmsg via CMSG_FIRSTHDR, set its length, then obtain subsequent cmsgs
+     via CMSG_NXTHDR, setting lengths along the way.  However, we don't yet
+     trust the value of __cmsg->cmsg_len and therefore do not use it in any
+     pointer arithmetic until we check its value.  */
+
+  unsigned char * __msg_control_ptr = (unsigned char *) __mhdr->msg_control;
+  unsigned char * __cmsg_ptr = (unsigned char *) __cmsg;
+
+  size_t __size_needed = sizeof (struct cmsghdr)
+                         + __CMSG_PADDING (__cmsg->cmsg_len);
+
+  /* The current header is malformed, too small to be a full header.  */
   if ((size_t) __cmsg->cmsg_len < sizeof (struct cmsghdr))
-    /* The kernel header does this so there may be a reason.  */
     return (struct cmsghdr *) 0;
 
+  /* There isn't enough space between __cmsg and the end of the buffer to
+  hold the current cmsg *and* the next one.  */
+  if (((size_t)
+         (__msg_control_ptr + __mhdr->msg_controllen - __cmsg_ptr)
+       < __size_needed)
+      || ((size_t)
+            (__msg_control_ptr + __mhdr->msg_controllen - __cmsg_ptr
+             - __size_needed)
+          < __cmsg->cmsg_len))
+
+    return (struct cmsghdr *) 0;
+
+  /* Now, we trust cmsg_len and can use it to find the next header.  */
   __cmsg = (struct cmsghdr *) ((unsigned char *) __cmsg
 			       + CMSG_ALIGN (__cmsg->cmsg_len));
-  if ((unsigned char *) (__cmsg + 1) > ((unsigned char *) __mhdr->msg_control
-					+ __mhdr->msg_controllen)
-      || ((unsigned char *) __cmsg + CMSG_ALIGN (__cmsg->cmsg_len)
-	  > ((unsigned char *) __mhdr->msg_control + __mhdr->msg_controllen)))
-    /* No more entries.  */
-    return (struct cmsghdr *) 0;
   return __cmsg;
 }
 #endif	/* Use `extern inline'.  */

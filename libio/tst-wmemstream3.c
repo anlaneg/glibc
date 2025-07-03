@@ -1,5 +1,5 @@
 /* Test for open_memstream implementation.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,7 +18,7 @@
 
 #include <wchar.h>
 
-/* Straighforward implementation so tst-memstream3 could use check
+/* Straightforward implementation so tst-memstream3 could use check
    fwrite on open_memstream.  */
 static size_t
 fwwrite (const void *ptr, size_t size, size_t nmemb, FILE *arq)

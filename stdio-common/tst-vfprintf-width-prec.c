@@ -1,5 +1,5 @@
 /* Test for memory leak with large width and precision.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -87,12 +87,6 @@ do_test (void)
   }
   {
     wchar_t result[100];
-    if (result == NULL)
-      {
-        printf ("error: calloc (%d, %zu): %m", ret + 1, sizeof (wchar_t));
-        return 1;
-      }
-
     ret = swprintf (result, 100, L"%133000.999999999x", 17);
     if (ret >= 0)
       {

@@ -1,6 +1,5 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.ai.mit.edu>, August 1995.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -140,6 +139,13 @@ __semctl64 (int semid, int semnum, int cmd, ...)
 {
   union semun64 arg64 = { 0 };
   va_list ap;
+
+  /* Some applications pass the __IPC_64 flag in cmd, to invoke
+     previously unsupported commands back when there was no EINVAL
+     error checking in glibc.  Mask the flag for the switch statements
+     below.  semctl_syscall adds back the __IPC_64 flag for the actual
+     system call.  */
+  cmd &= ~__IPC_64;
 
   /* Get the argument only if required.  */
   switch (cmd)

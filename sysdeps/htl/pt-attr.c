@@ -1,5 +1,5 @@
 /* Default attributes.  Generic version.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #include <pt-internal.h>
 
 struct __pthread_attr __pthread_default_attr = {
-  __schedparam: { sched_priority: 0 },
+  __schedparam: { __sched_priority: 0 },
   __stacksize: 0,
   __stackaddr: NULL,
 #ifdef PAGESIZE
@@ -37,3 +37,4 @@ struct __pthread_attr __pthread_default_attr = {
   __contentionscope: PTHREAD_SCOPE_SYSTEM,
   __schedpolicy: SCHED_OTHER
 };
+libc_hidden_data_def (__pthread_default_attr)

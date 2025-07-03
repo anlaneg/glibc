@@ -1,8 +1,6 @@
 /* Test and measure strcpy functions.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
-   Added wcscpy support by Liubov Dmitrieva <liubov.dmitrieva@gmail.com>, 2011
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -49,25 +47,37 @@
 # endif
 # include "test-string.h"
 # ifndef WIDE
-#  define SIMPLE_STRCPY simple_strcpy
 #  define STRCPY strcpy
 # else
-#  define SIMPLE_STRCPY simple_wcscpy
 #  define STRCPY wcscpy
 # endif
 
-CHAR *SIMPLE_STRCPY (CHAR *, const CHAR *);
-
-IMPL (SIMPLE_STRCPY, 0)
 IMPL (STRCPY, 1)
 
-CHAR *
-SIMPLE_STRCPY (CHAR *dst, const CHAR *src)
-{
-  CHAR *ret = dst;
-  while ((*dst++ = *src++) != '\0');
-  return ret;
-}
+/* Also check the generic implementation.  */
+#undef STRCPY
+#undef libc_hidden_builtin_def
+#define libc_hidden_builtin_def(a)
+#undef libc_hidden_def
+#define libc_hidden_def(a)
+#undef weak_alias
+#define weak_alias(a,b)
+#undef attribute_hidden
+#define attribute_hidden
+# ifndef WIDE
+#  define STPCPY __stpcpy_default
+#  include "string/stpcpy.c"
+#  define STRCPY __strcpy_default
+#  define __stpcpy __stpcpy_default
+#  include "string/strcpy.c"
+IMPL (__strcpy_default, 1)
+# else
+#  define __wcslen wcslen
+#  define __wmemcpy wmemcpy
+#  define WCSCPY __wcscpy_default
+#  include "wcsmbs/wcscpy.c"
+IMPL (__wcscpy_default, 1)
+# endif
 #endif
 
 typedef CHAR *(*proto_t) (CHAR *, const CHAR *);

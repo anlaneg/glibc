@@ -1,5 +1,5 @@
 /* Return true if the process can perform a chroot operation.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,14 +29,14 @@ static void
 callback (void *closure)
 {
   int *result = closure;
-  struct stat64 before;
+  struct stat before;
   xstat ("/dev", &before);
   if (chroot ("/dev") != 0)
     {
       *result = errno;
       return;
     }
-  struct stat64 after;
+  struct stat after;
   xstat ("/", &after);
   TEST_VERIFY (before.st_dev == after.st_dev);
   TEST_VERIFY (before.st_ino == after.st_ino);

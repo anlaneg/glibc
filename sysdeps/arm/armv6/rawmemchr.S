@@ -1,5 +1,5 @@
 /* rawmemchr -- find a byte within an unsized memory block.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ ENTRY (__rawmemchr)
 	cmpne	r2, r1			@ ... or C
 	bne	1b
 
-	@ Disambiguate the exit possibilites above
+	@ Disambiguate the exit possibilities above
 	cmp	r2, r1			@ Found C
 	it	eq
 	bxeq	lr

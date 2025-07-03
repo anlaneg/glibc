@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,11 +26,14 @@
 #include <futex-internal.h>
 #include <libc-lock.h>
 
+
 #if !PTHREAD_IN_LIBC
 /* The private names are not exported from libc.  */
 # define __link link
 # define __unlink unlink
 #endif
+
+#define SEM_OPEN_FLAGS (O_RDWR | O_NOFOLLOW | O_CLOEXEC)
 
 sem_t *
 __sem_open (const char *name, int oflag, ...)
@@ -48,25 +50,21 @@ __sem_open (const char *name, int oflag, ...)
     }
 
   struct shmdir_name dirname;
-  if (__shm_get_name (&dirname, name, true) != 0)
+  int ret = __shm_get_name (&dirname, name, true);
+  if (ret != 0)
     {
-      __set_errno (EINVAL);
+      __set_errno (ret);
       return SEM_FAILED;
     }
 
   /* Disable asynchronous cancellation.  */
-#ifdef __libc_ptf_call
-  int state;
-  __libc_ptf_call (__pthread_setcancelstate,
-                   (PTHREAD_CANCEL_DISABLE, &state), 0);
-#endif
+  int state = __pthread_setcancelstate (PTHREAD_CANCEL_DISABLE, &state);
 
   /* If the semaphore object has to exist simply open it.  */
   if ((oflag & O_CREAT) == 0 || (oflag & O_EXCL) == 0)
     {
     try_again:
-      fd = __open (dirname.name,
-		   (oflag & ~(O_CREAT|O_ACCMODE)) | O_NOFOLLOW | O_RDWR);
+      fd = __open (dirname.name, (oflag & O_EXCL) | SEM_OPEN_FLAGS);
 
       if (fd == -1)
 	{
@@ -75,6 +73,7 @@ __sem_open (const char *name, int oflag, ...)
 	    goto try_create;
 
 	  /* Return.  errno is already set.  */
+	  result = SEM_FAILED;
 	}
       else
 	/* Check whether we already have this semaphore mapped and
@@ -133,7 +132,7 @@ __sem_open (const char *name, int oflag, ...)
 	    }
 
 	  /* Open the file.  Make sure we do not overwrite anything.  */
-	  fd = __open (tmpfname, O_RDWR | O_CREAT | O_EXCL, mode);
+	  fd = __open (tmpfname, O_CREAT | O_EXCL | SEM_OPEN_FLAGS, mode);
 	  if (fd == -1)
 	    {
 	      if (errno == EEXIST)
@@ -212,9 +211,7 @@ __sem_open (const char *name, int oflag, ...)
     }
 
 out:
-#ifdef __libc_ptf_call
-  __libc_ptf_call (__pthread_setcancelstate, (state, NULL), 0);
-#endif
+  __pthread_setcancelstate (state, NULL);
 
   return result;
 }

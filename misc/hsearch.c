@@ -1,5 +1,4 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
-   Contributed by Ulrich Drepper <drepper@gnu.ai.mit.edu>
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -47,7 +46,3 @@ __hdestroy (void)
   __hdestroy_r (&htab);
 }
 weak_alias (__hdestroy, hdestroy)
-
-/* Make sure the table is freed if we want to free everything before
-   exiting.  */
-text_set_element (__libc_subfreeres, __hdestroy);

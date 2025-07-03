@@ -1,4 +1,4 @@
-/* Copyright (C) 1992-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1992-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,6 +17,7 @@
 
 #include <mach.h>
 #include <mach/mig_support.h>
+#include <mach/vm_param.h>
 #include <unistd.h>
 
 mach_port_t __mach_task_self_;
@@ -34,11 +35,18 @@ __mach_init (void)
 {
   kern_return_t err;
 
+  if (__mach_host_self_)
+    /* Already initialized.  */
+    return;
+
   __mach_task_self_ = (__mach_task_self) ();
   __mach_host_self_ = (__mach_host_self) ();
   __mig_init (0);
 
-#ifdef HAVE_HOST_PAGE_SIZE
+#ifdef PAGE_SIZE
+  __vm_page_size = PAGE_SIZE;
+  (void) err;
+#elif defined (HAVE_HOST_PAGE_SIZE)
   if (err = __host_page_size (__mach_host_self (), &__vm_page_size))
     _exit (err);
 #else

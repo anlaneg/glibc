@@ -1,5 +1,5 @@
 /* Determine protocol families for which interfaces exist.  Linux version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -66,25 +66,10 @@ static struct cached_data *cache;
 __libc_lock_define_initialized (static, lock);
 
 
-#if IS_IN (nscd)
-static uint32_t nl_timestamp;
-
-uint32_t
-__bump_nl_timestamp (void)
-{
-  if (atomic_increment_val (&nl_timestamp) == 0)
-    atomic_increment (&nl_timestamp);
-
-  return nl_timestamp;
-}
-#endif
-
 static inline uint32_t
 get_nl_timestamp (void)
 {
-#if IS_IN (nscd)
-  return nl_timestamp;
-#elif defined USE_NSCD
+#if defined USE_NSCD
   return __nscd_get_nl_timestamp ();
 #else
   return 0;
@@ -278,7 +263,7 @@ make_request (int fd, pid_t pid)
     {
       free (result);
 
-      atomic_add (&noai6ai_cached.usecnt, 2);
+      atomic_fetch_add_relaxed (&noai6ai_cached.usecnt, 2);
       noai6ai_cached.seen_ipv4 = seen_ipv4;
       noai6ai_cached.seen_ipv6 = seen_ipv6;
       result = &noai6ai_cached;
@@ -292,6 +277,14 @@ make_request (int fd, pid_t pid)
   return NULL;
 }
 
+#ifdef __EXCEPTIONS
+static void
+cancel_handler (void *arg __attribute__((unused)))
+{
+  /* Release the lock.  */
+  __libc_lock_unlock (lock);
+}
+#endif
 
 void
 attribute_hidden
@@ -304,12 +297,16 @@ __check_pf (bool *seen_ipv4, bool *seen_ipv6,
   struct cached_data *olddata = NULL;
   struct cached_data *data = NULL;
 
+#ifdef __EXCEPTIONS
+  /* Make sure that lock is released when the thread is cancelled.  */
+  __libc_cleanup_push (cancel_handler, NULL);
+#endif
   __libc_lock_lock (lock);
 
   if (cache_valid_p ())
     {
       data = cache;
-      atomic_increment (&cache->usecnt);
+      atomic_fetch_add_relaxed (&cache->usecnt, 1);
     }
   else
     {
@@ -338,6 +335,9 @@ __check_pf (bool *seen_ipv4, bool *seen_ipv6,
 	}
     }
 
+#ifdef __EXCEPTIONS
+  __libc_cleanup_pop (0);
+#endif
   __libc_lock_unlock (lock);
 
   if (data != NULL)
@@ -349,7 +349,7 @@ __check_pf (bool *seen_ipv4, bool *seen_ipv6,
       *in6ai = data->in6ai;
 
       if (olddata != NULL && olddata->usecnt > 0
-	  && atomic_add_zero (&olddata->usecnt, -1))
+	  && atomic_fetch_add_relaxed (&olddata->usecnt, -1) == 1)
 	free (olddata);
 
       return;
@@ -362,7 +362,8 @@ __check_pf (bool *seen_ipv4, bool *seen_ipv6,
 }
 
 /* Free the cache if it has been allocated.  */
-libc_freeres_fn (freecache)
+void
+__check_pf_freemem (void)
 {
   if (cache)
     __free_in6ai (cache->in6ai);
@@ -377,7 +378,7 @@ __free_in6ai (struct in6addrinfo *ai)
 	(struct cached_data *) ((char *) ai
 				- offsetof (struct cached_data, in6ai));
 
-      if (atomic_add_zero (&data->usecnt, -1))
+      if (atomic_fetch_add_relaxed (&data->usecnt, -1) == 1)
 	{
 	  __libc_lock_lock (lock);
 

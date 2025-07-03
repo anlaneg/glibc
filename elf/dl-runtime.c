@@ -1,5 +1,5 @@
 /* On-demand PLT fixup for shared objects.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,9 +16,8 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#define IN_DL_RUNTIME 1		/* This can be tested in dl-machine.h.  */
-
 #include <alloca.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/param.h>
@@ -30,19 +29,6 @@
 #include <dl-runtime.h>
 
 
-#if (!ELF_MACHINE_NO_RELA && !defined ELF_MACHINE_PLT_REL) \
-    || ELF_MACHINE_NO_REL
-# define PLTREL  ElfW(Rela)
-#else
-# define PLTREL  ElfW(Rel)
-#endif
-
-/* The fixup functions might have need special attributes.  If none
-   are provided define the macro as empty.  */
-#ifndef ARCH_FIXUP_ATTRIBUTE
-# define ARCH_FIXUP_ATTRIBUTE
-#endif
-
 /* This function is called through a special trampoline from the PLT the
    first time each PLT entry is called.  We must perform the relocation
    specified in the PLT of the given shared object, and return the resolved
@@ -51,7 +37,7 @@
    function.  */
 
 DL_FIXUP_VALUE_TYPE
-attribute_hidden __attribute ((noinline)) ARCH_FIXUP_ATTRIBUTE
+attribute_hidden __attribute ((noinline)) DL_ARCH_FIXUP_ATTRIBUTE
 _dl_fixup (
 # ifdef ELF_MACHINE_RUNTIME_FIXUP_ARGS
 	   ELF_MACHINE_RUNTIME_FIXUP_ARGS,
@@ -138,6 +124,37 @@ _dl_fixup (
       && __builtin_expect (ELFW(ST_TYPE) (sym->st_info) == STT_GNU_IFUNC, 0))
     value = elf_ifunc_invoke (DL_FIXUP_VALUE_ADDR (value));
 
+#ifdef SHARED
+  /* Auditing checkpoint: we have a new binding.  Provide the auditing
+     libraries the possibility to change the value and tell us whether further
+     auditing is wanted.
+     The l_reloc_result is only allocated if there is an audit module which
+     provides a la_symbind.  */
+  if (l->l_reloc_result != NULL)
+    {
+      /* This is the address in the array where we store the result of previous
+	 relocations.  */
+      struct reloc_result *reloc_result
+	= &l->l_reloc_result[reloc_index (pltgot, reloc_arg, sizeof (PLTREL))];
+      unsigned int init = atomic_load_acquire (&reloc_result->init);
+      if (init == 0)
+	{
+	  _dl_audit_symbind (l, reloc_result, reloc, sym, &value, result, true);
+
+	  /* Store the result for later runs.  */
+	  if (__glibc_likely (! GLRO(dl_bind_not)))
+	    {
+	      reloc_result->addr = value;
+	      /* Guarantee all previous writes complete before init is
+		 updated.  See CONCURRENCY NOTES below.  */
+	      atomic_store_release (&reloc_result->init, 1);
+	    }
+	}
+      else
+	value = reloc_result->addr;
+    }
+#endif
+
   /* Finally, fix up the plt itself.  */
   if (__glibc_unlikely (GLRO(dl_bind_not)))
     return value;
@@ -145,13 +162,14 @@ _dl_fixup (
   return elf_machine_fixup_plt (l, result, refsym, sym, reloc, rel_addr, value);
 }
 
-#ifndef PROF
+#if !defined PROF && defined SHARED
 DL_FIXUP_VALUE_TYPE
-__attribute ((noinline)) ARCH_FIXUP_ATTRIBUTE
+__attribute ((noinline))
+DL_ARCH_FIXUP_ATTRIBUTE
 _dl_profile_fixup (
-#ifdef ELF_MACHINE_RUNTIME_FIXUP_ARGS
+# ifdef ELF_MACHINE_RUNTIME_FIXUP_ARGS
 		   ELF_MACHINE_RUNTIME_FIXUP_ARGS,
-#endif
+# endif
 		   struct link_map *l, ElfW(Word) reloc_arg,
 		   ElfW(Addr) retaddr, void *regs, long int *framesizep)
 {
@@ -291,90 +309,12 @@ _dl_profile_fixup (
       /* And now perhaps the relocation addend.  */
       value = elf_machine_plt_value (l, reloc, value);
 
-#ifdef SHARED
       /* Auditing checkpoint: we have a new binding.  Provide the
 	 auditing libraries the possibility to change the value and
 	 tell us whether further auditing is wanted.  */
       if (defsym != NULL && GLRO(dl_naudit) > 0)
-	{
-	  reloc_result->bound = result;
-	  /* Compute index of the symbol entry in the symbol table of
-	     the DSO with the definition.  */
-	  reloc_result->boundndx = (defsym
-				    - (ElfW(Sym) *) D_PTR (result,
-							   l_info[DT_SYMTAB]));
-
-	  /* Determine whether any of the two participating DSOs is
-	     interested in auditing.  */
-	  if ((l->l_audit_any_plt | result->l_audit_any_plt) != 0)
-	    {
-	      unsigned int flags = 0;
-	      struct audit_ifaces *afct = GLRO(dl_audit);
-	      /* Synthesize a symbol record where the st_value field is
-		 the result.  */
-	      ElfW(Sym) sym = *defsym;
-	      sym.st_value = DL_FIXUP_VALUE_ADDR (value);
-
-	      /* Keep track whether there is any interest in tracing
-		 the call in the lower two bits.  */
-	      assert (DL_NNS * 2 <= sizeof (reloc_result->flags) * 8);
-	      assert ((LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT) == 3);
-	      reloc_result->enterexit = LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT;
-
-	      const char *strtab2 = (const void *) D_PTR (result,
-							  l_info[DT_STRTAB]);
-
-	      for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-		{
-		  /* XXX Check whether both DSOs must request action or
-		     only one */
-		  struct auditstate *l_state = link_map_audit_state (l, cnt);
-		  struct auditstate *result_state
-		    = link_map_audit_state (result, cnt);
-		  if ((l_state->bindflags & LA_FLG_BINDFROM) != 0
-		      && (result_state->bindflags & LA_FLG_BINDTO) != 0)
-		    {
-		      if (afct->symbind != NULL)
-			{
-			  uintptr_t new_value
-			    = afct->symbind (&sym, reloc_result->boundndx,
-					     &l_state->cookie,
-					     &result_state->cookie,
-					     &flags,
-					     strtab2 + defsym->st_name);
-			  if (new_value != (uintptr_t) sym.st_value)
-			    {
-			      flags |= LA_SYMB_ALTVALUE;
-			      sym.st_value = new_value;
-			    }
-			}
-
-		      /* Remember the results for every audit library and
-			 store a summary in the first two bits.  */
-		      reloc_result->enterexit
-			&= flags & (LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT);
-		      reloc_result->enterexit
-			|= ((flags & (LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT))
-			    << ((cnt + 1) * 2));
-		    }
-		  else
-		    /* If the bind flags say this auditor is not interested,
-		       set the bits manually.  */
-		    reloc_result->enterexit
-		      |= ((LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT)
-			  << ((cnt + 1) * 2));
-
-		  afct = afct->next;
-		}
-
-	      reloc_result->flags = flags;
-	      value = DL_FIXUP_ADDR_VALUE (sym.st_value);
-	    }
-	  else
-	    /* Set all bits since this symbol binding is not interesting.  */
-	    reloc_result->enterexit = (1u << DL_NNS) - 1;
-	}
-#endif
+	_dl_audit_symbind (l, reloc_result, reloc, defsym, &value, result,
+			   true);
 
       /* Store the result for later runs.  */
       if (__glibc_likely (! GLRO(dl_bind_not)))
@@ -393,82 +333,9 @@ _dl_profile_fixup (
   long int framesize = -1;
 
 
-#ifdef SHARED
   /* Auditing checkpoint: report the PLT entering and allow the
      auditors to change the value.  */
-  if (GLRO(dl_naudit) > 0
-      /* Don't do anything if no auditor wants to intercept this call.  */
-      && (reloc_result->enterexit & LA_SYMB_NOPLTENTER) == 0)
-    {
-      /* Sanity check:  DL_FIXUP_VALUE_CODE_ADDR (value) should have been
-	 initialized earlier in this function or in another thread.  */
-      assert (DL_FIXUP_VALUE_CODE_ADDR (value) != 0);
-      ElfW(Sym) *defsym = ((ElfW(Sym) *) D_PTR (reloc_result->bound,
-						l_info[DT_SYMTAB])
-			   + reloc_result->boundndx);
-
-      /* Set up the sym parameter.  */
-      ElfW(Sym) sym = *defsym;
-      sym.st_value = DL_FIXUP_VALUE_ADDR (value);
-
-      /* Get the symbol name.  */
-      const char *strtab = (const void *) D_PTR (reloc_result->bound,
-						 l_info[DT_STRTAB]);
-      const char *symname = strtab + sym.st_name;
-
-      /* Keep track of overwritten addresses.  */
-      unsigned int flags = reloc_result->flags;
-
-      struct audit_ifaces *afct = GLRO(dl_audit);
-      for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-	{
-	  if (afct->ARCH_LA_PLTENTER != NULL
-	      && (reloc_result->enterexit
-		  & (LA_SYMB_NOPLTENTER << (2 * (cnt + 1)))) == 0)
-	    {
-	      long int new_framesize = -1;
-	      struct auditstate *l_state = link_map_audit_state (l, cnt);
-	      struct auditstate *bound_state
-		= link_map_audit_state (reloc_result->bound, cnt);
-	      uintptr_t new_value
-		= afct->ARCH_LA_PLTENTER (&sym, reloc_result->boundndx,
-					  &l_state->cookie,
-					  &bound_state->cookie,
-					  regs, &flags, symname,
-					  &new_framesize);
-	      if (new_value != (uintptr_t) sym.st_value)
-		{
-		  flags |= LA_SYMB_ALTVALUE;
-		  sym.st_value = new_value;
-		}
-
-	      /* Remember the results for every audit library and
-		 store a summary in the first two bits.  */
-	      reloc_result->enterexit
-		|= ((flags & (LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT))
-		    << (2 * (cnt + 1)));
-
-	      if ((reloc_result->enterexit & (LA_SYMB_NOPLTEXIT
-					      << (2 * (cnt + 1))))
-		  == 0 && new_framesize != -1 && framesize != -2)
-		{
-		  /* If this is the first call providing information,
-		     use it.  */
-		  if (framesize == -1)
-		    framesize = new_framesize;
-		  /* If two pltenter calls provide conflicting information,
-		     use the larger value.  */
-		  else if (new_framesize != framesize)
-		    framesize = MAX (new_framesize, framesize);
-		}
-	    }
-
-	  afct = afct->next;
-	}
-
-      value = DL_FIXUP_ADDR_VALUE (sym.st_value);
-    }
-#endif
+  _dl_audit_pltenter (l, reloc_result, &value, regs, &framesize);
 
   /* Store the frame size information.  */
   *framesizep = framesize;
@@ -478,53 +345,4 @@ _dl_profile_fixup (
   return value;
 }
 
-#endif /* PROF */
-
-
-#include <stdio.h>
-void
-ARCH_FIXUP_ATTRIBUTE
-_dl_call_pltexit (struct link_map *l, ElfW(Word) reloc_arg,
-		  const void *inregs, void *outregs)
-{
-#ifdef SHARED
-  const uintptr_t pltgot = (uintptr_t) D_PTR (l, l_info[DT_PLTGOT]);
-
-  /* This is the address in the array where we store the result of previous
-     relocations.  */
-  // XXX Maybe the bound information must be stored on the stack since
-  // XXX with bind_not a new value could have been stored in the meantime.
-  struct reloc_result *reloc_result =
-    &l->l_reloc_result[reloc_index (pltgot, reloc_arg, sizeof (PLTREL))];
-  ElfW(Sym) *defsym = ((ElfW(Sym) *) D_PTR (reloc_result->bound,
-					    l_info[DT_SYMTAB])
-		       + reloc_result->boundndx);
-
-  /* Set up the sym parameter.  */
-  ElfW(Sym) sym = *defsym;
-  sym.st_value = DL_FIXUP_VALUE_ADDR (reloc_result->addr);
-
-  /* Get the symbol name.  */
-  const char *strtab = (const void *) D_PTR (reloc_result->bound,
-					     l_info[DT_STRTAB]);
-  const char *symname = strtab + sym.st_name;
-
-  struct audit_ifaces *afct = GLRO(dl_audit);
-  for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-    {
-      if (afct->ARCH_LA_PLTEXIT != NULL
-	  && (reloc_result->enterexit
-	      & (LA_SYMB_NOPLTEXIT >> (2 * cnt))) == 0)
-	{
-	  struct auditstate *l_state = link_map_audit_state (l, cnt);
-	  struct auditstate *bound_state
-	    = link_map_audit_state (reloc_result->bound, cnt);
-	  afct->ARCH_LA_PLTEXIT (&sym, reloc_result->boundndx,
-				 &l_state->cookie, &bound_state->cookie,
-				 inregs, outregs, symname);
-	}
-
-      afct = afct->next;
-    }
-#endif
-}
+#endif /* !defined PROF && defined SHARED */

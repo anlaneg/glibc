@@ -1,7 +1,6 @@
 /* Profiling of shared libraries.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
    Based on the BSD mcount implementation.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -39,7 +38,7 @@
 
 /* The LD_PROFILE feature has to be implemented different to the
    normal profiling using the gmon/ functions.  The problem is that an
-   arbitrary amount of processes simulataneously can be run using
+   arbitrary amount of processes simultaneously can be run using
    profiling and all write the results in the same file.  To provide
    this mechanism one could implement a complicated mechanism to merge
    the content of two profiling runs or one could extend the file
@@ -178,7 +177,7 @@ static unsigned int log_hashfraction;
 
 
 
-/* Set up profiling data to profile object desribed by MAP.  The output
+/* Set up profiling data to profile object described by MAP.  The output
    file is found (or created) in OUTPUT_DIR.  */
 void
 _dl_start_profile (void)
@@ -219,7 +218,7 @@ _dl_start_profile (void)
       }
 
   /* Now we can compute the size of the profiling data.  This is done
-     with the same formulars as in `monstartup' (see gmon.c).  */
+     with the same formulas as in `monstartup' (see gmon.c).  */
   running = 0;
   lowpc = ROUNDDOWN (mapstart + GL(dl_profile_map)->l_addr,
 		     HISTFRACTION * sizeof (HISTCOUNTER));
@@ -325,7 +324,8 @@ _dl_start_profile (void)
   *cp++ = '/';
   __stpcpy (__stpcpy (cp, GLRO(dl_profile)), ".profile");
 
-  fd = __open64_nocancel (filename, O_RDWR|O_CREAT|O_NOFOLLOW, DEFFILEMODE);
+  fd = __open64_nocancel (filename, O_RDWR | O_CREAT | O_NOFOLLOW
+			  | O_CLOEXEC, DEFFILEMODE);
   if (fd == -1)
     {
       char buf[400];
@@ -549,7 +549,7 @@ _dl_mcount (ElfW(Addr) frompc, ElfW(Addr) selfpc)
 	      size_t newfromidx;
 	      to_index = (data[narcs].self_pc
 			  / (HASHFRACTION * sizeof (*tos)));
-	      newfromidx = catomic_exchange_and_add (&fromidx, 1) + 1;
+	      newfromidx = atomic_fetch_add_relaxed (&fromidx, 1) + 1;
 	      froms[newfromidx].here = &data[narcs];
 	      froms[newfromidx].link = tos[to_index];
 	      tos[to_index] = newfromidx;
@@ -559,14 +559,14 @@ _dl_mcount (ElfW(Addr) frompc, ElfW(Addr) selfpc)
 	  /* If we still have no entry stop searching and insert.  */
 	  if (*topcindex == 0)
 	    {
-	      uint_fast32_t newarc = catomic_exchange_and_add (narcsp, 1);
+	      unsigned int newarc = atomic_fetch_add_relaxed (narcsp, 1);
 
 	      /* In rare cases it could happen that all entries in FROMS are
 		 occupied.  So we cannot count this anymore.  */
 	      if (newarc >= fromlimit)
 		goto done;
 
-	      *topcindex = catomic_exchange_and_add (&fromidx, 1) + 1;
+	      *topcindex = atomic_fetch_add_relaxed (&fromidx, 1) + 1;
 	      fromp = &froms[*topcindex];
 
 	      fromp->here = &data[newarc];
@@ -574,7 +574,7 @@ _dl_mcount (ElfW(Addr) frompc, ElfW(Addr) selfpc)
 	      data[newarc].self_pc = selfpc;
 	      data[newarc].count = 0;
 	      fromp->link = 0;
-	      catomic_increment (&narcs);
+	      atomic_fetch_add_relaxed (&narcs, 1);
 
 	      break;
 	    }
@@ -587,7 +587,7 @@ _dl_mcount (ElfW(Addr) frompc, ElfW(Addr) selfpc)
     }
 
   /* Increment the counter.  */
-  catomic_increment (&fromp->here->count);
+  atomic_fetch_add_relaxed (&fromp->here->count, 1);
 
  done:
   ;

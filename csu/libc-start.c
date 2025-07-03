@@ -1,5 +1,5 @@
 /* Perform initialization and invoke main.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -262,31 +262,7 @@ LIBC_START_MAIN (int (*main) (int, char **, char ** MAIN_AUXVEC_DECL),
   }
 #  endif
   _dl_aux_init (auxvec);
-  if (GL(dl_phdr) == NULL)
 # endif
-    {
-      /* Starting from binutils-2.23, the linker will define the
-         magic symbol __ehdr_start to point to our own ELF header
-         if it is visible in a segment that also includes the phdrs.
-         So we can set up _dl_phdr and _dl_phnum even without any
-         information from auxv.  */
-
-      extern const ElfW(Ehdr) __ehdr_start
-# if BUILD_PIE_DEFAULT
-	__attribute__ ((visibility ("hidden")));
-# else
-	__attribute__ ((weak, visibility ("hidden")));
-      if (&__ehdr_start != NULL)
-# endif
-        {
-          assert (__ehdr_start.e_phentsize == sizeof *GL(dl_phdr));
-          GL(dl_phdr) = (const void *) &__ehdr_start + __ehdr_start.e_phoff;
-          GL(dl_phnum) = __ehdr_start.e_phnum;
-        }
-    }
-
-  /* Initialize very early so that tunables can use it.  */
-  __libc_init_secure ();
 
   __tunables_init (__environ);
 
@@ -314,14 +290,6 @@ LIBC_START_MAIN (int (*main) (int, char **, char ** MAIN_AUXVEC_DECL),
   THREAD_SET_STACK_GUARD (stack_chk_guard);
 # else
   __stack_chk_guard = stack_chk_guard;
-# endif
-
-# ifdef DL_SYSDEP_OSCHECK
-  {
-    /* This needs to run to initiliaze _dl_osversion before TLS
-       setup might check it.  */
-    DL_SYSDEP_OSCHECK (__libc_fatal);
-  }
 # endif
 
   /* Initialize libpthread if linked in.  */
@@ -377,32 +345,15 @@ LIBC_START_MAIN (int (*main) (int, char **, char ** MAIN_AUXVEC_DECL),
     /* This is a current program.  Use the dynamic segment to find
        constructors.  */
     call_init (argc, argv, __environ);
-#else /* !SHARED */
-  call_init (argc, argv, __environ);
-#endif /* SHARED */
 
-#ifdef SHARED
   /* Auditing checkpoint: we have a new object.  */
-  if (__glibc_unlikely (GLRO(dl_naudit) > 0))
-    {
-      struct audit_ifaces *afct = GLRO(dl_audit);
-      struct link_map *head = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
-      for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-	{
-	  if (afct->preinit != NULL)
-	    afct->preinit (&link_map_audit_state (head, cnt)->cookie);
+  _dl_audit_preinit (GL(dl_ns)[LM_ID_BASE]._ns_loaded);
 
-	  afct = afct->next;
-	}
-    }
-#endif
-
-#ifdef SHARED
   if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_IMPCALLS))
     GLRO(dl_debug_printf) ("\ntransferring control: %s\n\n", argv[0]);
-#endif
+#else /* !SHARED */
+  call_init (argc, argv, __environ);
 
-#ifndef SHARED
   _dl_debug_initialize (0, LM_ID_BASE);
 #endif
 

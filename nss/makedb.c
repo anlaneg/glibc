@@ -1,7 +1,6 @@
 /* Create simple DB database from textual input.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,6 +25,7 @@
 #include <inttypes.h>
 #include <libintl.h>
 #include <locale.h>
+#include <scratch_buffer.h>
 #include <search.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -48,6 +48,7 @@
 
 /* SELinux support.  */
 #ifdef HAVE_SELINUX
+# include <selinux/label.h>
 # include <selinux/selinux.h>
 #endif
 
@@ -387,7 +388,7 @@ print_version (FILE *stream, struct argp_state *state)
 Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
-"), "2021");
+"), "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Ulrich Drepper");
 }
 
@@ -619,6 +620,45 @@ next_prime (size_t seed)
   return seed;
 }
 
+static size_t max_chainlength;
+static char *wp;
+static size_t nhashentries;
+static bool copy_string;
+
+void add_key(const void *nodep, VISIT which, void *arg)
+{
+  if (which != leaf && which != postorder)
+    return;
+
+  const struct database *db = (const struct database *) arg;
+  const struct dbentry *dbe = *(const struct dbentry **) nodep;
+
+  ptrdiff_t stridx;
+  if (copy_string)
+    {
+      stridx = wp - db->keystrtab;
+      wp = stpcpy (wp, dbe->str) + 1;
+    }
+  else
+    stridx = 0;
+
+  size_t hidx = dbe->hashval % nhashentries;
+  size_t hval2 = 1 + dbe->hashval % (nhashentries - 2);
+  size_t chainlength = 0;
+
+  while (db->hashtable[hidx] != ~((stridx_t) 0))
+    {
+      ++chainlength;
+      if ((hidx += hval2) >= nhashentries)
+	hidx -= nhashentries;
+    }
+
+  db->hashtable[hidx] = ((db->extra_string ? valstrlen : 0)
+			     + dbe->validx);
+  db->keyidxtab[hidx] = stridx;
+
+  max_chainlength = MAX (max_chainlength, chainlength);
+}
 
 static void
 compute_tables (void)
@@ -650,45 +690,6 @@ compute_tables (void)
 	db->keyidxtab = db->hashtable + nhashentries_max;
 	db->keystrtab = (char *) (db->keyidxtab + nhashentries_max);
 
-	static size_t max_chainlength;
-	static char *wp;
-	static size_t nhashentries;
-	static bool copy_string;
-
-	void add_key(const void *nodep, const VISIT which, const int depth)
-	{
-	  if (which != leaf && which != postorder)
-	    return;
-
-	  const struct dbentry *dbe = *(const struct dbentry **) nodep;
-
-	  ptrdiff_t stridx;
-	  if (copy_string)
-	    {
-	      stridx = wp - db->keystrtab;
-	      wp = stpcpy (wp, dbe->str) + 1;
-	    }
-	  else
-	    stridx = 0;
-
-	  size_t hidx = dbe->hashval % nhashentries;
-	  size_t hval2 = 1 + dbe->hashval % (nhashentries - 2);
-	  size_t chainlength = 0;
-
-	  while (db->hashtable[hidx] != ~((stridx_t) 0))
-	    {
-	      ++chainlength;
-	      if ((hidx += hval2) >= nhashentries)
-		hidx -= nhashentries;
-	    }
-
-	  db->hashtable[hidx] = ((db->extra_string ? valstrlen : 0)
-				 + dbe->validx);
-	  db->keyidxtab[hidx] = stridx;
-
-	  max_chainlength = MAX (max_chainlength, chainlength);
-	}
-
 	copy_string = false;
 	nhashentries = nhashentries_min;
 	for (size_t cnt = 0; cnt < TEST_RANGE; ++cnt)
@@ -698,7 +699,7 @@ compute_tables (void)
 	    max_chainlength = 0;
 	    wp = db->keystrtab;
 
-	    twalk (db->entries, add_key);
+	    twalk_r (db->entries, add_key, db);
 
 	    if (max_chainlength == 0)
 	      {
@@ -725,7 +726,7 @@ compute_tables (void)
 	copy_string = true;
 	wp = db->keystrtab;
 
-	twalk (db->entries, add_key);
+	twalk_r (db->entries, add_key, db);
 
 	db->nhashentries = nhashentries_best;
 	nhashentries_total += nhashentries_best;
@@ -739,7 +740,15 @@ write_output (int fd)
   struct nss_db_header *header;
   uint64_t file_offset = (sizeof (struct nss_db_header)
 			  + (ndatabases * sizeof (header->dbs[0])));
-  header = alloca (file_offset);
+  struct scratch_buffer sbuf;
+  scratch_buffer_init (&sbuf);
+
+  if (!scratch_buffer_set_array_size (&sbuf, 1, file_offset))
+    {
+      error (0, errno, gettext ("failed to allocate memory"));
+      return EXIT_FAILURE;
+    }
+  header = sbuf.data;
 
   header->magic = NSS_DB_MAGIC;
   header->ndbs = ndatabases;
@@ -803,6 +812,7 @@ write_output (int fd)
   if (writev (fd, iov, iov_nelts) != keydataoffset)
     {
       error (0, errno, gettext ("failed to write new database file"));
+      scratch_buffer_free (&sbuf);
       return EXIT_FAILURE;
     }
 
@@ -810,6 +820,7 @@ write_output (int fd)
   DIAG_POP_NEEDS_COMMENT;
 #endif
 
+  scratch_buffer_free (&sbuf);
   return EXIT_SUCCESS;
 }
 
@@ -856,18 +867,13 @@ print_database (int fd)
 
 #ifdef HAVE_SELINUX
 
-/* security_context_t and matchpathcon (along with several other symbols) were
-   marked as deprecated by the SELinux API starting from version 3.1.  We use
-   them here, but should eventually switch to the newer API.  */
-DIAG_PUSH_NEEDS_COMMENT
-DIAG_IGNORE_NEEDS_COMMENT (10, "-Wdeprecated-declarations");
-
 static void
 set_file_creation_context (const char *outname, mode_t mode)
 {
   static int enabled;
   static int enforcing;
-  security_context_t ctx;
+  struct selabel_handle *label_hnd = NULL;
+  char* ctx;
 
   /* Check if SELinux is enabled, and remember. */
   if (enabled == 0)
@@ -879,9 +885,17 @@ set_file_creation_context (const char *outname, mode_t mode)
   if (enforcing == 0)
     enforcing = security_getenforce () ? 1 : -1;
 
+  /* Open the file contexts backend. */
+  label_hnd = selabel_open(SELABEL_CTX_FILE, NULL, 0);
+  if (!label_hnd)
+    {
+      error (enforcing > 0 ? EXIT_FAILURE : 0, 0,
+	     gettext ("cannot initialize SELinux context"));
+      return;
+    }
   /* Determine the context which the file should have. */
   ctx = NULL;
-  if (matchpathcon (outname, S_IFREG | mode, &ctx) == 0 && ctx != NULL)
+  if (selabel_lookup(label_hnd, &ctx, outname, S_IFREG | mode) == 0)
     {
       if (setfscreatecon (ctx) != 0)
 	error (enforcing > 0 ? EXIT_FAILURE : 0, 0,
@@ -890,8 +904,10 @@ set_file_creation_context (const char *outname, mode_t mode)
 
       freecon (ctx);
     }
+
+  /* Close the file contexts backend. */
+  selabel_close(label_hnd);
 }
-DIAG_POP_NEEDS_COMMENT
 
 static void
 reset_file_creation_context (void)

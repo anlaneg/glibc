@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # Helpers for glibc system call list processing.
-# Copyright (C) 2018-2021 Free Software Foundation, Inc.
+# Copyright (C) 2018-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ def extract_system_call_name(macro):
     else:
         raise ValueError('invalid system call name: {!r}'.format(macro))
 
-# Matches macros for systme call names.
+# Matches macros for system call names.
 RE_SYSCALL = re.compile('__NR_.*')
 
 # Some __NR_ constants are not real
@@ -41,7 +41,7 @@ RE_PSEUDO_SYSCALL = re.compile(r"""__NR_(
     (unused|reserved)[0-9]+
 
     # Pseudo-system call which describes a range.
-    |(syscalls|arch_specific_syscall|(OABI_)?SYSCALL_BASE)
+    |(syscalls|arch_specific_syscall|(OABI_)?SYSCALL_BASE|SYSCALL_MASK)
     |(|64_|[NO]32_)Linux(_syscalls)?
    )""", re.X)
 
@@ -54,7 +54,7 @@ def kernel_constants(cc):
     return {extract_system_call_name(name) : int(value)
             for name, value in glibcextract.compute_macro_consts(
                     '#include <asm/unistd.h>\n'
-                    # Regularlize the kernel definitions if necessary.
+                    # Regularize the kernel definitions if necessary.
                     '#include <fixup-asm-unistd.h>',
                     cc, macro_re=RE_SYSCALL, exclude_re=RE_PSEUDO_SYSCALL)
             .items()}

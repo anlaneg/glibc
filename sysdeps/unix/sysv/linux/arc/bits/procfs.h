@@ -1,5 +1,5 @@
 /* Types for registers for sys/procfs.h.  ARC version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -31,5 +31,5 @@
 typedef unsigned long int elf_greg_t;
 typedef unsigned long int elf_gregset_t[ELF_NGREG];
 
-/* There's no seperate floating point reg file in ARCv2.  */
+/* There's no separate floating point reg file in ARCv2.  */
 typedef struct { } elf_fpregset_t;

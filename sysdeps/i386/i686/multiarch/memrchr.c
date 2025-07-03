@@ -1,6 +1,6 @@
 /* Multiple versions of memrchr.
    All versions must be listed in ifunc-impl-list.c.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,8 +20,10 @@
 /* Define multiple versions only for the definition in libc.  */
 #if IS_IN (libc)
 # define memrchr __redirect_memrchr
+# define __memrchr __redirect___memrchr
 # include <string.h>
 # undef memrchr
+# undef __memrchr
 
 # define SYMBOL_NAME memrchr
 # include "ifunc-sse2-bsf.h"

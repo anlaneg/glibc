@@ -1,5 +1,5 @@
 /* Close a range of file descriptors.  Linux version.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,6 +21,8 @@
 #include <not-cancel.h>
 #include <stdbool.h>
 
+#if !__ASSUME_CLOSE_RANGE
+
 /* Fallback code: iterates over /proc/self/fd, closing each file descriptor
    that fall on the criteria.  If DIRFD_FALLBACK is set, a failure on
    /proc/self/fd open will trigger a fallback that tries to close a file
@@ -28,16 +30,16 @@
 _Bool
 __closefrom_fallback (int from, _Bool dirfd_fallback)
 {
-  bool ret = false;
-
   int dirfd = __open_nocancel (FD_TO_FILENAME_PREFIX, O_RDONLY | O_DIRECTORY,
                                0);
   if (dirfd == -1)
     {
-      /* The closefrom should work even when process can't open new files.  */
-      if (errno == ENOENT || !dirfd_fallback)
-        goto err;
+      /* Return if procfs can not be opened for some reason.  */
+      if ((errno != EMFILE && errno != ENFILE && errno != ENOMEM)
+	  || !dirfd_fallback)
+	return false;
 
+      /* The closefrom should work even when process can't open new files.  */
       for (int i = from; i < INT_MAX; i++)
         {
           int r = __close_nocancel (i);
@@ -48,10 +50,11 @@ __closefrom_fallback (int from, _Bool dirfd_fallback)
       dirfd = __open_nocancel (FD_TO_FILENAME_PREFIX, O_RDONLY | O_DIRECTORY,
                                0);
       if (dirfd == -1)
-        goto err;
+        return false;
     }
 
   char buffer[1024];
+  bool ret = false;
   while (true)
     {
       ssize_t ret = __getdents64 (dirfd, buffer, sizeof (buffer));
@@ -97,3 +100,5 @@ err:
   __close_nocancel (dirfd);
   return ret;
 }
+
+#endif

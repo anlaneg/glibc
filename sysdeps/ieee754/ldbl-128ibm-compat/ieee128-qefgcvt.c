@@ -1,5 +1,5 @@
 /* IEEE binary128 versions of *cvt functions.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -42,6 +42,7 @@ typeof (qfcvt_r) ___qfcvtieee128_r;
 #define __GCVT ___qgcvtieee128
 #define __ECVT_R ___qecvtieee128_r
 #define __FCVT_R ___qfcvtieee128_r
+#define __EFGCVT_FREEMEM_PTR __libc_efgcvtieee128_freemem_ptr
 #include <efgcvt-ldbl-macros.h>
 #include <efgcvt-template.c>
 

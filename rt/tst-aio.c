@@ -1,7 +1,6 @@
 /* Tests for AIO in librt.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -275,7 +274,7 @@ do_test (int argc, char *argv[])
   for (cnt = 10; cnt > 0; )
     if (aio_cancel (fd, cbp[--cnt]) == -1)
       /* This is not an error.  The request can simply be finished.  */
-      printf ("aio_cancel (fd, cbp[%Zd]) cannot be canceled\n", cnt);
+      printf ("aio_cancel (fd, cbp[%zd]) cannot be canceled\n", cnt);
   puts ("finished2");
 
   result |= do_wait (cbp, 10, ECANCELED);

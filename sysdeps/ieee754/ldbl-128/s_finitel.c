@@ -1,5 +1,4 @@
 /* s_finitel.c -- long double version of s_finite.c.
- * Conversion to IEEE quad long double by Jakub Jelinek, jj@ultra.linux.cz.
  */
 
 /*
@@ -33,4 +32,6 @@ int __finitel(_Float128 x)
 				-0x7fff000000000000LL)>>63);
 }
 mathx_hidden_def (__finitel)
+#ifndef finitel
 weak_alias (__finitel, finitel)
+#endif

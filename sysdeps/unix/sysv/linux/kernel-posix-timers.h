@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -69,7 +68,7 @@ struct timer
 
 
 /* For !SIGEV_THREAD, the resulting 'timer_t' is the returned kernel timer
-   identifer (kernel_timer_t), while for SIGEV_THREAD it uses the fact malloc
+   identifier (kernel_timer_t), while for SIGEV_THREAD it uses the fact malloc
    returns at least _Alignof (max_align_t) pointers plus that valid
    kernel_timer_t are always positive to set the MSB bit of the returned
    'timer_t' to indicate the timer handles a SIGEV_THREAD.  */

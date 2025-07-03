@@ -1,5 +1,5 @@
 /* memcmp optimized for i686.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,10 +26,17 @@
    used by IFUNC.  */
 #  define libc_hidden_builtin_def(name) \
 	.globl __GI_memcmp; __GI_memcmp = memcmp
+
+#  undef libc_hidden_def
+#  define libc_hidden_def(name) \
+	.globl __GI___memcmpeq; __GI___memcmpeq = __memcmpeq
 # endif
 
 # undef weak_alias
 # define weak_alias(original, alias)
+
+# undef strong_alias
+# define strong_alias(original, alias)
 #endif
 
 #include <sysdeps/i386/i686/memcmp.S>

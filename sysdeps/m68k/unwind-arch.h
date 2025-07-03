@@ -1,5 +1,5 @@
 /* Dynamic loading of the libgcc unwinder.  m68k customization.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@
   assert (local.ptr__Unwind_GetGR != NULL);                   \
   PTR_MANGLE (local.ptr__Unwind_GetGR);
 
-/* This is overriden by the m680x0 variant.  */
+/* This is overridden by the m680x0 variant.  */
 #define UNWIND_LINK_FRAME_STATE_FOR 0
 
 #endif /* _ARCH_UNWIND_LINK_H */

@@ -1,5 +1,6 @@
 /* Map in a shared object's segments.  Generic version.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,6 +18,52 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <dl-load.h>
+#include <setvmaname.h>
+
+/* Map a segment and align it properly.  */
+
+static __always_inline ElfW(Addr)
+_dl_map_segment (const struct loadcmd *c, ElfW(Addr) mappref,
+		 const size_t maplength, int fd)
+{
+  if (__glibc_likely (c->mapalign <= GLRO(dl_pagesize)))
+    return (ElfW(Addr)) __mmap ((void *) mappref, maplength, c->prot,
+				MAP_COPY|MAP_FILE, fd, c->mapoff);
+
+  /* If the segment alignment > the page size, allocate enough space to
+     ensure that the segment can be properly aligned.  */
+  ElfW(Addr) maplen = (maplength >= c->mapalign
+		       ? (maplength + c->mapalign)
+		       : (2 * c->mapalign));
+  ElfW(Addr) map_start = (ElfW(Addr)) __mmap ((void *) mappref, maplen,
+					      PROT_NONE,
+					      MAP_ANONYMOUS|MAP_COPY,
+					      -1, 0);
+  if (__glibc_unlikely ((void *) map_start == MAP_FAILED))
+    return map_start;
+
+  ElfW(Addr) map_start_aligned = ALIGN_UP (map_start, c->mapalign);
+  map_start_aligned = (ElfW(Addr)) __mmap ((void *) map_start_aligned,
+					   maplength, c->prot,
+					   MAP_COPY|MAP_FILE|MAP_FIXED,
+					   fd, c->mapoff);
+  if (__glibc_unlikely ((void *) map_start_aligned == MAP_FAILED))
+    __munmap ((void *) map_start, maplen);
+  else
+    {
+      /* Unmap the unused regions.  */
+      ElfW(Addr) delta = map_start_aligned - map_start;
+      if (delta)
+	__munmap ((void *) map_start, delta);
+      ElfW(Addr) map_end = map_start_aligned + maplength;
+      map_end = ALIGN_UP (map_end, GLRO(dl_pagesize));
+      delta = map_start + maplen - map_end;
+      if (delta)
+	__munmap ((void *) map_end, delta);
+    }
+
+  return map_start_aligned;
+}
 
 /* This implementation assumes (as does the corresponding implementation
    of _dl_unmap_segments, in dl-unmap-segments.h) that shared objects
@@ -48,15 +95,11 @@ _dl_map_segments (struct link_map *l, int fd,
          prefer to map such objects at; but this is only a preference,
          the OS can do whatever it likes. */
       ElfW(Addr) mappref
-        = (ELF_PREFERRED_ADDRESS (loader, maplength,
-                                  c->mapstart & GLRO(dl_use_load_bias))
+        = (ELF_PREFERRED_ADDRESS (loader, maplength, c->mapstart)
            - MAP_BASE_ADDR (l));
 
       /* Remember which part of the address space this object uses.  */
-      l->l_map_start = (ElfW(Addr)) __mmap ((void *) mappref, maplength,
-                                            c->prot,
-                                            MAP_COPY|MAP_FILE,
-                                            fd, c->mapoff);
+      l->l_map_start = _dl_map_segment (c, mappref, maplength, fd);
       if (__glibc_unlikely ((void *) l->l_map_start == MAP_FAILED))
         return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
 
@@ -70,6 +113,9 @@ _dl_map_segments (struct link_map *l, int fd,
              unallocated.  Then jump into the normal segment-mapping loop to
              handle the portion of the segment past the end of the file
              mapping.  */
+	  if (__glibc_unlikely (loadcmds[nloadcmds - 1].mapstart <
+				c->mapend))
+	    return N_("ELF load command address/offset not page-aligned");
           if (__glibc_unlikely
               (__mprotect ((caddr_t) (l->l_addr + c->mapend),
                            loadcmds[nloadcmds - 1].mapstart - c->mapend,
@@ -137,12 +183,41 @@ _dl_map_segments (struct link_map *l, int fd,
           if (zeroend > zeropage)
             {
               /* Map the remaining zero pages in from the zero fill FD.  */
+              char bssname[ANON_VMA_NAME_MAX_LEN] = " glibc: .bss";
+
               caddr_t mapat;
               mapat = __mmap ((caddr_t) zeropage, zeroend - zeropage,
                               c->prot, MAP_ANON|MAP_PRIVATE|MAP_FIXED,
                               -1, 0);
               if (__glibc_unlikely (mapat == MAP_FAILED))
                 return DL_MAP_SEGMENTS_ERROR_MAP_ZERO_FILL;
+              if (__is_decorate_maps_enabled ())
+                {
+                  if (l->l_name != NULL && *l->l_name != '\0')
+                    {
+                      int i = strlen (bssname), j = 0;
+                      int namelen = strlen (l->l_name);
+
+                      bssname[i++] = ' ';
+                      if (namelen > sizeof (bssname) - i - 1)
+                        for (j = namelen - 1; j > 0; j--)
+                          if (l->l_name[j - 1] == '/')
+                            break;
+
+                      for (; l->l_name[j] != '\0' && i < sizeof (bssname) - 1;
+                           i++, j++)
+                        {
+                          char ch = l->l_name[j];
+                          /* Replace non-printable characters and
+                             \, `, $, [ and ].  */
+                          if (ch <= 0x1f || ch >= 0x7f || strchr("\\`$[]", ch))
+                            ch = '!';
+                          bssname[i] = ch;
+                        }
+                      bssname[i] = 0;
+                    }
+                  __set_vma_name ((void*)zeropage, zeroend - zeropage, bssname);
+                }
             }
         }
 

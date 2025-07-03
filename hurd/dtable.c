@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ DEFINE_HOOK (_hurd_fd_subinit, (void));
 
 /* Initialize the file descriptor table at startup.  */
 
-static void
+static void attribute_used_retain
 init_dtable (void)
 {
   int i;
@@ -60,18 +60,50 @@ init_dtable (void)
 	_hurd_dtable[i] = NULL;
       else
 	{
+	  int copy;
 	  /* Allocate a new file descriptor structure.  */
 	  struct hurd_fd *new = malloc (sizeof (struct hurd_fd));
 	  if (new == NULL)
 	    __libc_fatal ("hurd: Can't allocate initial file descriptors\n");
 
-	  /* Initialize the port cells.  */
-	  _hurd_port_init (&new->port, MACH_PORT_NULL);
-	  _hurd_port_init (&new->ctty, MACH_PORT_NULL);
+	  /* See if this file descriptor is the same as a previous one we have
+	     already installed.  In this case, we can just copy over the same
+	     ctty port without making any more RPCs.  We only check the the
+	     immediately preceding fd and fd 0 -- this should be enough to
+	     handle the common cases while not requiring quadratic
+	     complexity.  */
+	  if (i > 0 && _hurd_init_dtable[i] == _hurd_init_dtable[i - 1])
+	    copy = i - 1;
+	  else if (i > 0 && _hurd_init_dtable[i] == _hurd_init_dtable[0])
+	    copy = 0;
+	  else
+	    copy = -1;
 
-	  /* Install the port in the descriptor.
-	     This sets up all the ctty magic.  */
-	  _hurd_port2fd (new, _hurd_init_dtable[i], 0);
+	  if (copy < 0)
+	    {
+	      /* Initialize the port cells.  */
+	      _hurd_port_init (&new->port, MACH_PORT_NULL);
+	      _hurd_port_init (&new->ctty, MACH_PORT_NULL);
+
+	      /* Install the port in the descriptor.
+	         This sets up all the ctty magic.  */
+	      _hurd_port2fd (new, _hurd_init_dtable[i], 0);
+	    }
+	  else
+	    {
+	      /* Copy over ctty from the already set up file descriptor that
+	         contains the same port.  We can access the contents of the
+	         cell without any locking since no one could have seen it
+	         yet.  */
+	      mach_port_t ctty = _hurd_dtable[copy]->ctty.port;
+
+	      if (MACH_PORT_VALID (ctty))
+	        __mach_port_mod_refs (__mach_task_self (), ctty,
+	                              MACH_PORT_RIGHT_SEND, +1);
+
+	      _hurd_port_init (&new->port, _hurd_init_dtable[i]);
+	      _hurd_port_init (&new->ctty, ctty);
+	    }
 
 	  _hurd_dtable[i] = new;
 	}
@@ -91,12 +123,10 @@ init_dtable (void)
 
   /* Run things that want to run after the file descriptor table
      is initialized.  */
-  RUN_HOOK (_hurd_fd_subinit, ());
-
-  (void) &init_dtable;		/* Avoid "defined but not used" warning.  */
+  RUN_RELHOOK (_hurd_fd_subinit, ());
 }
 
-text_set_element (_hurd_subinit, init_dtable);
+SET_RELHOOK (_hurd_subinit, init_dtable);
 
 /* XXX when the linker supports it, the following functions should all be
    elsewhere and just have text_set_elements here.  */
@@ -259,6 +289,7 @@ reauth_dtable (void)
 {
   int i;
 
+retry:
   HURD_CRITICAL_BEGIN;
   __mutex_lock (&_hurd_dtable_lock);
 
@@ -266,6 +297,7 @@ reauth_dtable (void)
     {
       struct hurd_fd *const d = _hurd_dtable[i];
       mach_port_t new, newctty, ref;
+      error_t err = 0;
 
       if (d == NULL)
 	/* Nothing to do for an unused descriptor cell.  */
@@ -278,23 +310,23 @@ reauth_dtable (void)
 
       /* Reauthenticate the descriptor's port.  */
       if (d->port.port != MACH_PORT_NULL
-	  && ! __io_reauthenticate (d->port.port,
-				    ref, MACH_MSG_TYPE_MAKE_SEND)
-	  && ! __USEPORT (AUTH, __auth_user_authenticate
-			  (port,
-			   ref, MACH_MSG_TYPE_MAKE_SEND,
-			   &new)))
+	  && ! (err = __io_reauthenticate (d->port.port,
+					   ref, MACH_MSG_TYPE_MAKE_SEND))
+	  && ! (err = __USEPORT (AUTH, __auth_user_authenticate
+				 (port,
+				  ref, MACH_MSG_TYPE_MAKE_SEND,
+				  &new))))
 	{
 	  /* Replace the port in the descriptor cell
 	     with the newly reauthenticated port.  */
 
 	  if (d->ctty.port != MACH_PORT_NULL
-	      && ! __io_reauthenticate (d->ctty.port,
-					ref, MACH_MSG_TYPE_MAKE_SEND)
-	      && ! __USEPORT (AUTH, __auth_user_authenticate
-			      (port,
-			       ref, MACH_MSG_TYPE_MAKE_SEND,
-			       &newctty)))
+	      && ! (err = __io_reauthenticate (d->ctty.port,
+					       ref, MACH_MSG_TYPE_MAKE_SEND))
+	      && ! (err = __USEPORT (AUTH, __auth_user_authenticate
+				     (port,
+				      ref, MACH_MSG_TYPE_MAKE_SEND,
+				      &newctty))))
 	    _hurd_port_set (&d->ctty, newctty);
 
 	  _hurd_port_locked_set (&d->port, new);
@@ -304,6 +336,15 @@ reauth_dtable (void)
 	__spin_unlock (&d->port.lock);
 
       __mach_port_destroy (__mach_task_self (), ref);
+
+      if (err == EINTR)
+	{
+	  /* Got a signal while inside an RPC of the critical section,
+	     retry again */
+	  __mutex_unlock (&_hurd_dtable_lock);
+	  HURD_CRITICAL_UNLOCK;
+	  goto retry;
+	}
     }
 
   __mutex_unlock (&_hurd_dtable_lock);

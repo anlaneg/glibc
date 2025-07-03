@@ -1,5 +1,5 @@
 /* Temporary, thread-local resolver state.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -78,7 +78,7 @@ void __resolv_context_put (struct resolv_context *ctx);
 libc_hidden_proto (__resolv_context_put)
 
 /* Like __resolv_context_get, but the _res structure can be partially
-   initialzed and those changes will not be overwritten.  */
+   initialized and those changes will not be overwritten.  */
 struct resolv_context *__resolv_context_get_preinit (void)
   __attribute__ ((warn_unused_result));
 libc_hidden_proto (__resolv_context_get_preinit)

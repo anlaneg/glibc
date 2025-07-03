@@ -1,5 +1,5 @@
 /* f_setlk -- locking part of fcntl
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <fcntl.h>
+#include <hurd.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -39,8 +40,7 @@ __f_setlk (int fd, int type, int whence, __off64_t start, __off64_t len, int wai
     case F_WRLCK: cmd = LOCK_EX; break;
     case F_UNLCK: cmd = LOCK_UN; break;
     default:
-      errno = EINVAL;
-      return -1;
+      return __hurd_fail (EINVAL);
     }
 
   if (cmd != LOCK_UN && wait == 0)
@@ -71,11 +71,9 @@ __f_setlk (int fd, int type, int whence, __off64_t start, __off64_t len, int wai
       /* FALLTHROUGH */
     case SEEK_CUR:
     case SEEK_END:
-      errno = ENOTSUP;
-      return -1;
+      return __hurd_fail (ENOTSUP);
     default:
-      errno = EINVAL;
-      return -1;
+      return __hurd_fail (EINVAL);
     }
 
   return __flock (fd, cmd);

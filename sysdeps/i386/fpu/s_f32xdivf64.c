@@ -1,5 +1,5 @@
 /* Divide _Float64 values, converting the result to _Float32x.  i386 version.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,6 @@ __f32xdivf64 (_Float64 x, _Float64 y)
 {
   /* To avoid double rounding, use round-to-odd on long double.  */
   NARROW_DIV_ROUND_TO_ODD ((long double) x, (long double) y, double,
-			   union ieee854_long_double, l, mantissa1);
+			   union ieee854_long_double, l, mantissa1, false);
 }
 libm_alias_float32x_float64 (div)

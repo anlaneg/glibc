@@ -1,5 +1,5 @@
 /* Helpers for On-demand PLT fixup for shared objects.  x86_64 version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,7 +18,7 @@
    02111-1307 USA.  */
 
 /* The ABI calls for the PLT stubs to pass the index of the relocation
-   and not its offset.  In _dl_profile_fixup and _dl_call_pltexit we
+   and not its offset.  In _dl_profile_fixup and _dl_audit_pltexit we
    also use the index.  Therefore it is wasteful to compute the offset
    in the trampoline just to reverse the operation immediately
    afterwards.  */

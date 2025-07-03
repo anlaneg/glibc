@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,23 +27,7 @@
 char *
 STRRCHR (const char *s, int c)
 {
-  const char *found, *p;
-
-  c = (unsigned char) c;
-
-  /* Since strchr is fast, we use it rather than the obvious loop.  */
-
-  if (c == '\0')
-    return strchr (s, '\0');
-
-  found = NULL;
-  while ((p = strchr (s, c)) != NULL)
-    {
-      found = p;
-      s = p + 1;
-    }
-
-  return (char *) found;
+  return __memrchr (s, c, strlen (s) + 1);
 }
 
 #ifdef weak_alias

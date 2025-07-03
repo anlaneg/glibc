@@ -1,5 +1,5 @@
 /* Long File Support glob with 64-bit time support.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -45,6 +45,6 @@ __glob64_time64 (const char *pattern, int flags,
 }
 libc_hidden_def (__glob64_time64)
 
-stub_warning (glob64)
+stub_warning (__glob64_time64)
 
 #endif

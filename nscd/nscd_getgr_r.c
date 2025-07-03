@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@uni-paderborn.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -69,7 +68,8 @@ libc_locked_map_ptr (,__gr_map_handle) attribute_hidden;
 /* Note that we only free the structure if necessary.  The memory
    mapping is not removed since it is not visible to the malloc
    handling.  */
-libc_freeres_fn (gr_map_free)
+void
+__nscd_gr_map_freemem (void)
 {
   if (__gr_map_handle.mapped != NO_MAPPING)
     {
@@ -160,7 +160,7 @@ nscd_getgr_r (const char *key, size_t keylen, request_type type,
 
       /* Now allocate the buffer the array for the group members.  We must
 	 align the pointer.  */
-      align = ((__alignof__ (char *) - (p - ((char *) 0)))
+      align = ((__alignof__ (char *) - ((uintptr_t) p))
 	       & (__alignof__ (char *) - 1));
       total_len = (align + (1 + gr_resp.gr_mem_cnt) * sizeof (char *)
 		   + gr_resp.gr_name_len + gr_resp.gr_passwd_len);
@@ -313,7 +313,7 @@ nscd_getgr_r (const char *key, size_t keylen, request_type type,
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}

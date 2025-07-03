@@ -1,5 +1,4 @@
 /* e_fmodl.c -- long double version of e_fmod.c.
- * Conversion to IEEE quad long double by Jakub Jelinek, jj@ultra.linux.cz.
  */
 /*
  * ====================================================
@@ -65,7 +64,10 @@ __ieee754_remainderl(_Float128 x, _Float128 p)
 		if(x>=p_half) x -= p;
 	    }
 	}
-	GET_LDOUBLE_MSW64(hx,x);
+	GET_LDOUBLE_WORDS64(hx,lx,x);
+	/* Make sure x is not -0. This can occur only when x = p
+	   and rounding direction is towards negative infinity. */
+	if ((hx==0x8000000000000000ULL)&&(lx==0)) hx = 0;
 	SET_LDOUBLE_MSW64(x,hx^sx);
 	return x;
 }

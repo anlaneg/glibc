@@ -1,6 +1,6 @@
 /* Multiple versions of strchrnul.
    All versions must be listed in ifunc-impl-list.c.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -31,4 +31,8 @@
 libc_ifunc_redirected (__redirect_strchrnul, __strchrnul,
 		       IFUNC_SELECTOR ());
 weak_alias (__strchrnul, strchrnul)
+# ifdef SHARED
+__hidden_ver1 (__strchrnul, __GI___strchrnul, __redirect_strchrnul)
+  __attribute__((visibility ("hidden"))) __attribute_copy__ (strchrnul);
+# endif
 #endif

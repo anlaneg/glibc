@@ -1,9 +1,8 @@
 ! SPARC v9 64-bit VIS3 __mpn_mul_1 -- Multiply a limb vector with a single
 ! limb and store the product in a second limb vector.
 !
-! Copyright (C) 2013-2021 Free Software Foundation, Inc.
+! Copyright (C) 2013-2025 Free Software Foundation, Inc.
 ! This file is part of the GNU C Library.
-! Contributed by David S. Miller <davem@davemloft.net>
 !
 ! The GNU C Library is free software; you can redistribute it and/or
 ! modify it under the terms of the GNU Lesser General Public

@@ -1,6 +1,6 @@
 /* Sizes of structs with flexible array members.
 
-   Copyright 2016-2021 Free Software Foundation, Inc.
+   Copyright 2016-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -16,9 +16,8 @@
 
    You should have received a copy of the GNU Lesser General Public
    License along with the GNU C Library; if not, see
-   <https://www.gnu.org/licenses/>.
+   <https://www.gnu.org/licenses/>.  */
 
-   Written by Paul Eggert.  */
 
 #include <stddef.h>
 

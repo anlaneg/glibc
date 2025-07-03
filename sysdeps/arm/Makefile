@@ -1,11 +1,6 @@
 gnulib-arch = $(elf-objpfx)libgcc-stubs.a
 static-gnulib-arch = $(elf-objpfx)libgcc-stubs.a
 
-# All supported build tools support TLS descriptors, but the OS may not.
-ifndef have-arm-tls-desc
-have-arm-tls-desc = yes
-endif
-
 ifeq ($(subdir),elf)
 sysdep-dl-routines += tlsdesc dl-tlsdesc
 sysdep_routines += aeabi_unwind_cpp_pr1 find_exidx
@@ -18,15 +13,15 @@ $(objpfx)libgcc-stubs.a: $(objpfx)aeabi_unwind_cpp_pr1.os
 lib-noranlib: $(objpfx)libgcc-stubs.a
 
 ifeq ($(build-shared),yes)
-ifeq ($(have-arm-tls-desc),yes)
+ifneq (no,$(have-test-mtls-descriptor))
 tests += tst-armtlsdescloc tst-armtlsdescextnow tst-armtlsdescextlazy
 modules-names += tst-armtlsdesclocmod
 modules-names += tst-armtlsdescextlazymod tst-armtlsdescextnowmod
 CPPFLAGS-tst-armtlsdescextnowmod.c += -Dstatic=
 CPPFLAGS-tst-armtlsdescextlazymod.c += -Dstatic=
-CFLAGS-tst-armtlsdesclocmod.c += -mtls-dialect=gnu2
-CFLAGS-tst-armtlsdescextnowmod.c += -mtls-dialect=gnu2
-CFLAGS-tst-armtlsdescextlazymod.c += -mtls-dialect=gnu2
+CFLAGS-tst-armtlsdesclocmod.c += -mtls-dialect=$(have-test-mtls-descriptor)
+CFLAGS-tst-armtlsdescextnowmod.c += -mtls-dialect=$(have-test-mtls-descriptor)
+CFLAGS-tst-armtlsdescextlazymod.c += -mtls-dialect=$(have-test-mtls-descriptor)
 LDFLAGS-tst-armtlsdescextnowmod.so += -Wl,-z,now
 tst-armtlsdescloc-ENV = LD_BIND_NOW=1
 tst-armtlsdescextnow-ENV = LD_BIND_NOW=1
@@ -57,6 +52,10 @@ endif
 
 ifeq ($(subdir),gmon)
 sysdep_routines += arm-mcount
+endif
+
+ifeq ($(subdir),math)
+CFLAGS-feupdateenv.c += $(config-cflags-wno-ignored-attributes)
 endif
 
 ifeq ($(subdir),rt)

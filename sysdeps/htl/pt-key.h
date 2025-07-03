@@ -1,5 +1,5 @@
-/* pthread_key internal declatations for the Hurd version.
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* pthread_key internal declarations for the Hurd version.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,9 +20,14 @@
 #include <libc-lockP.h>
 #include <pthreadP.h>
 
+/* When using e.g. jemalloc, we need to be able to create and use keys before
+   being able to allocate.  */
+#define PTHREAD_STATIC_KEYS 4
+
 #define PTHREAD_KEY_MEMBERS \
   void **thread_specifics;		/* This is only resized by the thread, and always growing */ \
-  unsigned thread_specifics_size;	/* Number of entries in thread_specifics */
+  unsigned thread_specifics_size;	/* Number of entries in thread_specifics */ \
+  void *static_thread_specifics[PTHREAD_STATIC_KEYS];	/* Static storage for a few entries */
 
 #define PTHREAD_KEY_INVALID (void *) (-1)
 
@@ -47,14 +52,15 @@ extern int __pthread_key_invalid_count;
 /* Protects the above variables.  This must be a recursive lock: the
    destructors may call pthread_key_delete.  */
 extern pthread_mutex_t __pthread_key_lock;
+
+/* Protects the initialization of the mutex above.  */
+extern pthread_once_t __pthread_key_once;
 
 #include <assert.h>
 
 static inline void
 __pthread_key_lock_ready (void)
 {
-  static pthread_once_t o = PTHREAD_ONCE_INIT;
-
   void do_init (void)
   {
     int err;
@@ -73,5 +79,5 @@ __pthread_key_lock_ready (void)
     assert_perror (err);
   }
 
-  __pthread_once (&o, do_init);/*保证只调用一次do_init*/
+  __pthread_once (&__pthread_key_once, do_init);/*保证只调用一次do_init*/
 }

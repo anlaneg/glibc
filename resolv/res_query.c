@@ -80,6 +80,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <shlib-compat.h>
+#include <scratch_buffer.h>
+#include <stdbool.h>
 
 #if PACKETSZ > 65536
 #define MAXPACKET	PACKETSZ
@@ -112,13 +114,17 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 		     int *nanswerp2, int *resplen2, int *answerp2_malloced)
 {
 	struct __res_state *statp = ctx->resp;
-	HEADER *hp = (HEADER *) answer;
-	HEADER *hp2;
-	int n, use_malloc = 0;
+	UHEADER *hp = (UHEADER *) answer;
+	UHEADER *hp2;
+	int n;
+	bool retried = false;
 
-	size_t bufsize = (type == T_QUERY_A_AND_AAAA ? 2 : 1) * QUERYSIZE;
-	u_char *buf = alloca (bufsize);
-	u_char *query1 = buf;
+	/* It requires 2 times QUERYSIZE for type == T_QUERY_A_AND_AAAA.  */
+	struct scratch_buffer buf;
+	scratch_buffer_init (&buf);
+	_Static_assert (2 * QUERYSIZE <= sizeof (buf.__space.__c),
+			"scratch_buffer too small");
+	u_char *query1 = buf.data;
 	int nquery1 = -1;
 	u_char *query2 = NULL;
 	int nquery2 = 0;
@@ -130,37 +136,28 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 	  {
 		/*构建a及4a记录查询*/
 	    n = __res_context_mkquery (ctx, QUERY, name, class, T_A, NULL,
-				       query1, bufsize);
+				       query1, buf.length);
 	    if (n > 0)
 	      {
 		if ((statp->options & (RES_USE_EDNS0|RES_USE_DNSSEC)) != 0)
 		  {
 		    /* Use RESOLV_EDNS_BUFFER_SIZE because the receive
 		       buffer can be reallocated.  */
-		    n = __res_nopt (ctx, n, query1, bufsize,
+		    n = __res_nopt (ctx, n, query1, buf.length,
 				    RESOLV_EDNS_BUFFER_SIZE);
 		    if (n < 0)
 		      goto unspec_nomem;
 		  }
 
 		nquery1 = n;
-		/* Align the buffer.  */
-		int npad = ((nquery1 + __alignof__ (HEADER) - 1)
-			    & ~(__alignof__ (HEADER) - 1)) - nquery1;
-		if (n > bufsize - npad)
-		  {
-		    n = -1;
-		    goto unspec_nomem;
-		  }
-		int nused = n + npad;
-		query2 = buf + nused;
+		query2 = buf.data + n;
 		n = __res_context_mkquery (ctx, QUERY, name, class, T_AAAA,
-					   NULL, query2, bufsize - nused);
+					   NULL, query2, buf.length - n);
 		if (n > 0
 		    && (statp->options & (RES_USE_EDNS0|RES_USE_DNSSEC)) != 0)
 		  /* Use RESOLV_EDNS_BUFFER_SIZE because the receive
 		     buffer can be reallocated.  */
-		  n = __res_nopt (ctx, n, query2, bufsize,
+		  n = __res_nopt (ctx, n, query2, buf.length,
 				  RESOLV_EDNS_BUFFER_SIZE);
 		nquery2 = n;
 	      }
@@ -170,7 +167,7 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 	else
 	  {
 	    n = __res_context_mkquery (ctx, QUERY, name, class, type, NULL,
-				       query1, bufsize);
+				       query1, buf.length);
 
 	    if (n > 0
 		&& (statp->options & (RES_USE_EDNS0|RES_USE_DNSSEC)) != 0)
@@ -182,35 +179,50 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 		  advertise = anslen;
 		else
 		  advertise = RESOLV_EDNS_BUFFER_SIZE;
-		n = __res_nopt (ctx, n, query1, bufsize, advertise);
+		n = __res_nopt (ctx, n, query1, buf.length, advertise);
 	      }
 
 	    nquery1 = n;
 	  }
 
-	if (__glibc_unlikely (n <= 0) && !use_malloc) {
+	if (__glibc_unlikely (n <= 0) && !retried) {
 		/* Retry just in case res_nmkquery failed because of too
 		   short buffer.  Shouldn't happen.  */
-		bufsize = (type == T_QUERY_A_AND_AAAA ? 2 : 1) * MAXPACKET;
-		buf = malloc (bufsize);
-		if (buf != NULL) {
-			query1 = buf;
-			use_malloc = 1;
+		if (scratch_buffer_set_array_size (&buf,
+						   (type == T_QUERY_A_AND_AAAA)
+						   ? 2 : 1,
+						   MAXPACKET)) {
+			query1 = buf.data;
+			retried = true;
 			goto again;
 		}
 	}
 	if (__glibc_unlikely (n <= 0))       {
 		RES_SET_H_ERRNO(statp, NO_RECOVERY);
-		if (use_malloc)
-			free (buf);
+		scratch_buffer_free (&buf);
 		return (n);
 	}
-	assert (answerp == NULL || (void *) *answerp == (void *) answer);
-	n = __res_context_send (ctx, query1, nquery1, query2, nquery2, answer,
-				anslen, answerp, answerp2, nanswerp2, resplen2,
-				answerp2_malloced);
-	if (use_malloc)
-		free (buf);
+
+	/* Suppress AAAA lookups if required.  __res_handle_no_aaaa
+	   checks RES_NOAAAA first, so avoids parsing the
+	   just-generated query packet in most cases.  nss_dns avoids
+	   using T_QUERY_A_AND_AAAA in RES_NOAAAA mode, so there is no
+	   need to handle it here.  */
+	if (type == T_AAAA && __res_handle_no_aaaa (ctx, query1, nquery1,
+						    answer, anslen, &n))
+	  /* There must be no second query for AAAA queries.  The code
+	     below is still needed to translate NODATA responses.  */
+	  assert (query2 == NULL);
+	else
+	  {
+	    assert (answerp == NULL || (void *) *answerp == (void *) answer);
+	    n = __res_context_send (ctx, query1, nquery1, query2, nquery2,
+				    answer, anslen,
+				    answerp, answerp2, nanswerp2, resplen2,
+				    answerp2_malloced);
+	  }
+
+	scratch_buffer_free (&buf);
 	if (n < 0) {
 		RES_SET_H_ERRNO(statp, TRY_AGAIN);
 		return (n);
@@ -218,7 +230,7 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 
 	if (answerp != NULL)
 	  /* __res_context_send might have reallocated the buffer.  */
-	  hp = (HEADER *) *answerp;
+	  hp = (UHEADER *) *answerp;
 
 	/* We simplify the following tests by assigning HP to HP2 or
 	   vice versa.  It is easy to verify that this is the same as
@@ -229,7 +241,7 @@ __res_context_query (struct resolv_context *ctx, const char *name,
 	  }
 	else
 	  {
-	    hp2 = (HEADER *) *answerp2;
+	    hp2 = (UHEADER *) *answerp2;
 	    if (n < (int) sizeof (HEADER))
 	      {
 	        hp = hp2;
@@ -339,7 +351,7 @@ __res_context_search (struct resolv_context *ctx,
 {
 	struct __res_state *statp = ctx->resp;
 	const char *cp;
-	HEADER *hp = (HEADER *) answer;
+	UHEADER *hp = (UHEADER *) answer;
 	char tmp[NS_MAXDNAME];
 	u_int dots;
 	int trailing_dot, ret, saved_herrno;
@@ -615,7 +627,9 @@ __res_context_querydomain (struct resolv_context *ctx,
 			RES_SET_H_ERRNO(statp, NO_RECOVERY);
 			return (-1);
 		}
-		sprintf(nbuf, "%s.%s", name, domain);
+		char *p = __stpcpy (nbuf, name);
+		*p++ = '.';
+		strcpy (p, domain);
 	}
 	return __res_context_query (ctx, longname, class, type, answer,
 				    anslen, answerp, answerp2, nanswerp2,

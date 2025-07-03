@@ -1,7 +1,6 @@
 /* Machine-dependent ELF dynamic relocation inline functions.
    64 bit S/390 Version.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
-   Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,8 +25,10 @@
 #include <sys/param.h>
 #include <string.h>
 #include <link.h>
-#include <sysdeps/s390/dl-procinfo.h>
 #include <dl-irel.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
+#include <cpu-features.c>
 
 #define ELF_MACHINE_IRELATIVE       R_390_IRELATIVE
 
@@ -42,40 +43,30 @@ elf_machine_matches_host (const Elf64_Ehdr *ehdr)
 	 && ehdr->e_ident[EI_CLASS] == ELFCLASS64;
 }
 
-/* Return the link-time address of _DYNAMIC.  Conveniently, this is the
-   first element of the GOT.  This must be inlined in a function which
-   uses global data.  */
-
-static inline Elf64_Addr
-elf_machine_dynamic (void)
-{
-  register Elf64_Addr *got;
-
-  __asm__ ( "	larl   %0,_GLOBAL_OFFSET_TABLE_\n"
-	    : "=&a" (got) : : "0" );
-
-  return *got;
-}
-
 /* Return the run-time load address of the shared object.  */
 static inline Elf64_Addr
 elf_machine_load_address (void)
 {
-  Elf64_Addr addr;
+  /* Starting from binutils-2.23, the linker will define the magic symbol
+     __ehdr_start to point to our own ELF header.  */
+  extern const ElfW(Ehdr) __ehdr_start attribute_hidden;
+  return (ElfW(Addr)) &__ehdr_start;
+}
 
-  __asm__( "   larl	 %0,_dl_start\n"
-	   "   larl	 1,_GLOBAL_OFFSET_TABLE_\n"
-	   "   lghi	 2,_dl_start@GOT\n"
-	   "   slg	 %0,0(2,1)"
-	   : "=&d" (addr) : : "1", "2" );
-  return addr;
+/* Return the link-time address of _DYNAMIC.  */
+static inline Elf64_Addr
+elf_machine_dynamic (void)
+{
+  extern ElfW(Dyn) _DYNAMIC[] attribute_hidden;
+  return (ElfW(Addr)) _DYNAMIC - elf_machine_load_address ();
 }
 
 /* Set up the loaded object described by L so its unrelocated PLT
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int __attribute__ ((unused))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   extern void _dl_runtime_resolve (Elf64_Word);
   extern void _dl_runtime_profile (Elf64_Word);
@@ -108,16 +99,17 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	 to intercept the calls to collect information.	 In this case we
 	 don't store the address in the GOT so that all future calls also
 	 end in this function.	*/
+#ifdef SHARED
       if (__glibc_unlikely (profile))
 	{
-#if defined HAVE_S390_VX_ASM_SUPPORT
+# if defined HAVE_S390_VX_ASM_SUPPORT
 	  if (GLRO(dl_hwcap) & HWCAP_S390_VX)
 	    got[2] = (Elf64_Addr) &_dl_runtime_profile_vx;
 	  else
 	    got[2] = (Elf64_Addr) &_dl_runtime_profile;
-#else
+# else
 	  got[2] = (Elf64_Addr) &_dl_runtime_profile;
-#endif
+# endif
 
 	  if (GLRO(dl_profile) != NULL
 	      && _dl_name_match_p (GLRO(dl_profile), l))
@@ -126,6 +118,7 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	    GL(dl_profile_map) = l;
 	}
       else
+#endif
 	{
 	  /* This function will get called to fix up the GOT entry indicated by
 	     the offset on the stack, and then jump to the resolved address.  */
@@ -165,22 +158,6 @@ _dl_start_user:\n\
 	lgr   %r8,%r2\n\
 	# Point %r12 at the GOT.\n\
 	larl  %r12,_GLOBAL_OFFSET_TABLE_\n\
-	# See if we were run as a command with the executable file\n\
-	# name as an extra leading argument.\n\
-	lghi  %r1,_dl_skip_args@GOT\n\
-	lg    %r1,0(%r1,%r12)\n\
-	lgf   %r1,0(%r1)	  # load _dl_skip_args\n\
-	# Get the original argument count.\n\
-	lg    %r0,160(%r15)\n\
-	# Subtract _dl_skip_args from it.\n\
-	sgr   %r0,%r1\n\
-	# Adjust the stack pointer to skip _dl_skip_args words.\n\
-	sllg  %r1,%r1,3\n\
-	agr   %r15,%r1\n\
-	# Set the back chain to zero again\n\
-	xc    0(8,%r15),0(%r15)\n\
-	# Store back the modified argument count.\n\
-	stg   %r0,160(%r15)\n\
 	# The special initializer gets called with the stack just\n\
 	# as the application's entry point will see it; it can\n\
 	# switch stacks if it moves these contents over.\n\
@@ -224,10 +201,6 @@ _dl_start_user:\n\
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
 #define ELF_MACHINE_JMP_SLOT	R_390_JMP_SLOT
 
-/* The 64 bit S/390 never uses Elf64_Rel relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
-
 /* We define an initialization functions.  This is called very early in
    _dl_sysdep_start.  */
 #define DL_PLATFORM_INIT dl_platform_init ()
@@ -238,6 +211,13 @@ dl_platform_init (void)
   if (GLRO(dl_platform) != NULL && *GLRO(dl_platform) == '\0')
     /* Avoid an empty string which would disturb us.  */
     GLRO(dl_platform) = NULL;
+
+#ifdef SHARED
+  /* init_cpu_features has been called early from __libc_start_main in
+     static executable.  */
+  init_cpu_features (&GLRO(dl_s390_cpu_features));
+#endif
+
 }
 
 static inline Elf64_Addr
@@ -268,43 +248,31 @@ elf_machine_plt_value (struct link_map *map, const Elf64_Rela *reloc,
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
-		  const Elf64_Sym *sym, const struct r_found_version *version,
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const Elf64_Rela *reloc, const Elf64_Sym *sym,
+		  const struct r_found_version *version,
 		  void *const reloc_addr_arg, int skip_ifunc)
 {
   Elf64_Addr *const reloc_addr = reloc_addr_arg;
   const unsigned int r_type = ELF64_R_TYPE (reloc->r_info);
 
-#if !defined RTLD_BOOTSTRAP || !defined HAVE_Z_COMBRELOC
+#if !defined RTLD_BOOTSTRAP
   if (__glibc_unlikely (r_type == R_390_RELATIVE))
-    {
-# if !defined RTLD_BOOTSTRAP && !defined HAVE_Z_COMBRELOC
-      /* This is defined in rtld.c, but nowhere in the static libc.a;
-	 make the reference weak so static programs can still link.
-	 This declaration cannot be done when compiling rtld.c
-	 (i.e. #ifdef RTLD_BOOTSTRAP) because rtld.c contains the
-	 common defn for _dl_rtld_map, which is incompatible with a
-	 weak decl in the same file.  */
-#  ifndef SHARED
-      weak_extern (GL(dl_rtld_map));
-#  endif
-      if (map != &GL(dl_rtld_map)) /* Already done in rtld itself.  */
-# endif
-	*reloc_addr = map->l_addr + reloc->r_addend;
-    }
+    *reloc_addr = map->l_addr + reloc->r_addend;
   else
 #endif
   if (__glibc_unlikely (r_type == R_390_NONE))
     return;
   else
     {
-#if !defined RTLD_BOOTSTRAP && !defined RESOLVE_CONFLICT_FIND_MAP
+#if !defined RTLD_BOOTSTRAP
       /* Only needed for R_390_COPY below.  */
       const Elf64_Sym *const refsym = sym;
 #endif
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       Elf64_Addr value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       if (sym != NULL
@@ -327,34 +295,33 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
 	  *reloc_addr = value + reloc->r_addend;
 	  break;
 
-#ifndef RESOLVE_CONFLICT_FIND_MAP
 	case R_390_TLS_DTPMOD:
-# ifdef RTLD_BOOTSTRAP
+#ifdef RTLD_BOOTSTRAP
 	  /* During startup the dynamic linker is always the module
 	     with index 1.
 	     XXX If this relocation is necessary move before RESOLVE
 	     call.  */
 	  *reloc_addr = 1;
-# else
+#else
 	  /* Get the information from the link map returned by the
 	     resolv function.  */
 	  if (sym_map != NULL)
 	    *reloc_addr = sym_map->l_tls_modid;
-# endif
+#endif
 	  break;
 	case R_390_TLS_DTPOFF:
-# ifndef RTLD_BOOTSTRAP
+#ifndef RTLD_BOOTSTRAP
 	  /* During relocation all TLS symbols are defined and used.
 	     Therefore the offset is already correct.  */
 	  if (sym != NULL)
 	    *reloc_addr = sym->st_value + reloc->r_addend;
-# endif
+#endif
 	  break;
 	case R_390_TLS_TPOFF:
 	  /* The offset is negative, forward from the thread pointer.  */
-# ifdef RTLD_BOOTSTRAP
+#ifdef RTLD_BOOTSTRAP
 	  *reloc_addr = sym->st_value + reloc->r_addend - map->l_tls_offset;
-# else
+#else
 	  /* We know the offset of the object the symbol is contained in.
 	     It is a negative value which will be added to the
 	     thread pointer.  */
@@ -366,10 +333,8 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
 	    }
 #endif
 	  break;
-#endif  /* use TLS */
 
 #ifndef RTLD_BOOTSTRAP
-# ifndef RESOLVE_CONFLICT_FIND_MAP
 	/* Not needed for dl-conflict.c.  */
 	case R_390_COPY:
 	  if (sym == NULL)
@@ -390,7 +355,6 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
 	  memcpy (reloc_addr_arg, (void *) value,
 		  MIN (sym->st_size, refsym->st_size));
 	  break;
-# endif
 	case R_390_64:
 	  *reloc_addr = value + reloc->r_addend;
 	  break;
@@ -403,7 +367,6 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
 	case R_390_8:
 	  *(char *) reloc_addr = value + reloc->r_addend;
 	  break;
-# ifndef RESOLVE_CONFLICT_FIND_MAP
 	case R_390_PC64:
 	  *reloc_addr = value +reloc->r_addend - (Elf64_Addr) reloc_addr;
 	  break;
@@ -425,7 +388,6 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
 	  break;
 	case R_390_NONE:
 	  break;
-# endif
 #endif
 #if !defined(RTLD_BOOTSTRAP) || defined(_NDEBUG)
 	default:
@@ -438,7 +400,7 @@ elf_machine_rela (struct link_map *map, const Elf64_Rela *reloc,
     }
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -447,9 +409,9 @@ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
   *reloc_addr = l_addr + reloc->r_addend;
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_lazy_rel (struct link_map *map,
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      Elf64_Addr l_addr, const Elf64_Rela *reloc,
 		      int skip_ifunc)
 {

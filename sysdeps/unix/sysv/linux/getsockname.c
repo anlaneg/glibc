@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -15,19 +15,14 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#include <errno.h>
-#include <signal.h>
 #include <sys/socket.h>
-
 #include <socketcall.h>
-#include <kernel-features.h>
-#include <sys/syscall.h>
 
 int
 __getsockname (int fd, __SOCKADDR_ARG addr, socklen_t *len)
 {
 #ifdef __ASSUME_GETSOCKNAME_SYSCALL
-  return INLINE_SYSCALL (getsockname, 3, fd, addr.__sockaddr__, len);
+  return INLINE_SYSCALL_CALL (getsockname, fd, addr.__sockaddr__, len);
 #else
   return SOCKETCALL (getsockname, fd, addr.__sockaddr__, len);
 #endif

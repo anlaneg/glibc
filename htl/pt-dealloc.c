@@ -1,5 +1,5 @@
 /* Deallocate a thread structure.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,13 +29,11 @@ extern struct __pthread *__pthread_free_threads;
 extern pthread_mutex_t __pthread_free_threads_lock;
 
 
-/* Deallocate the thread structure for PTHREAD.  */
+/* Deallocate the content of the thread structure for PTHREAD.  */
 void
 __pthread_dealloc (struct __pthread *pthread)
 {
-  assert (pthread->state != PTHREAD_TERMINATED);
-
-  if (!atomic_decrement_and_test (&pthread->nr_refs))
+  if (atomic_fetch_add_relaxed (&pthread->nr_refs, -1) != 1)
     return;
 
   /* Withdraw this thread from the thread ID lookup table.  */
@@ -56,13 +54,18 @@ __pthread_dealloc (struct __pthread *pthread)
   __pthread_mutex_lock (&__pthread_free_threads_lock);
   __pthread_enqueue (&__pthread_free_threads, pthread);
   __pthread_mutex_unlock (&__pthread_free_threads_lock);
+}
 
-  /* Setting PTHREAD->STATE to PTHREAD_TERMINATED makes this TCB
+/* Confirm deallocation of the thread structure for PTHREAD.  */
+void
+__pthread_dealloc_finish (struct __pthread *pthread)
+{
+  /* Setting PTHREAD->TERMINATED makes this TCB
      available for reuse.  After that point, we can no longer assume
      that PTHREAD is valid.
 
      Note that it is safe to not lock this update to PTHREAD->STATE:
      the only way that it can now be accessed is in __pthread_alloc,
      which reads this variable.  */
-  pthread->state = PTHREAD_TERMINATED;
+  pthread->terminated = TRUE;
 }

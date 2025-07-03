@@ -1,7 +1,6 @@
 /* Get a thread-specific data pointer for a thread.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -43,8 +42,8 @@ td_thr_tsd (const td_thrhandle_t *th, const thread_key_t tk, void **data)
     return TD_BADKEY;
 
   /* This makes sure we have the size information on hand.  */
-  err = DB_GET_FIELD_ADDRESS (level2, th->th_ta_p, 0, pthread_key_data_level2,
-			      data, 1);
+  err = DB_GET_FIELD_ADDRESS (level2, th->th_ta_p, NULL,
+			      pthread_key_data_level2, data, 1);
   if (err != TD_OK)
     return err;
 
@@ -63,7 +62,7 @@ td_thr_tsd (const td_thrhandle_t *th, const thread_key_t tk, void **data)
     return err;
 
   /* Check the pointer to the second level array.  */
-  if (level1 == 0)
+  if (level1 == NULL)
     return TD_NOTSD;
 
   /* Locate the element within the second level array.  */

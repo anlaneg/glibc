@@ -1,5 +1,5 @@
 /* Multiple versions of strncmp.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,8 +26,6 @@
 # include "init-arch.h"
 
 extern __typeof (strncmp) __strncmp_ppc attribute_hidden;
-extern __typeof (strncmp) __strncmp_power4 attribute_hidden;
-extern __typeof (strncmp) __strncmp_power7 attribute_hidden;
 extern __typeof (strncmp) __strncmp_power8 attribute_hidden;
 # ifdef __LITTLE_ENDIAN__
 extern __typeof (strncmp) __strncmp_power9 attribute_hidden;
@@ -44,9 +42,5 @@ libc_ifunc_redirected (__redirect_strncmp, strncmp,
 # endif
 		       (hwcap2 & PPC_FEATURE2_ARCH_2_07)
 		       ? __strncmp_power8
-		       : (hwcap & PPC_FEATURE_ARCH_2_06)
-			 ? __strncmp_power7
-			 : (hwcap & PPC_FEATURE_POWER4)
-			   ? __strncmp_power4
-			   : __strncmp_ppc);
+		       : __strncmp_ppc);
 #endif

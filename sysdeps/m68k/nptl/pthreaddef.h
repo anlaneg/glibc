@@ -1,6 +1,5 @@
-/* Copyright (C) 2010-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Maxim Kuvyrkov <maxim@codesourcery.com>, 2010.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,9 +26,6 @@
 
 /* Minimal stack size after allocating thread descriptor and guard size.  */
 #define MINIMAL_REST_STACK	2048
-
-/* Alignment requirement for TCB.  */
-#define TCB_ALIGNMENT		16
 
 
 /* Location of current stack frame.  */

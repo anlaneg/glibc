@@ -1,5 +1,5 @@
 /* Convert string for NaN payload to corresponding NaN.  Narrow strings.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,4 +19,4 @@
 #define STRING_TYPE char
 #define L_(Ch) Ch
 #define STRTOULL(S, E, B) ____strtoull_l_internal ((S), (E), (B), 0,	\
-						   _nl_C_locobj_ptr)
+						   false, _nl_C_locobj_ptr)

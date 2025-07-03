@@ -1,5 +1,5 @@
 /* Test _nss_dns_getcanonname_r corner cases.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -153,7 +153,7 @@ response (const struct resolv_response_context *ctx,
         }
       break;
     case 103:
-      /* NODATA repsonse.  */
+      /* NODATA response.  */
       resolv_response_init (b, (struct resolv_response_flags) {});
       resolv_response_add_question (b, qname, qclass, qtype);
       break;

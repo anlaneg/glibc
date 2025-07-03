@@ -1,6 +1,5 @@
-/* Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Kaz Kylheku <kaz@ashi.footprints.net>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -109,7 +108,7 @@ timer_create (clockid_t clock_id, struct sigevent *evp, timer_t *timerid)
       else
 	pthread_attr_init (&newtimer->attr);
 
-      /* Ensure thread attributes call for deatched thread.  */
+      /* Ensure thread attributes call for detached thread.  */
       pthread_attr_setdetachstate (&newtimer->attr, PTHREAD_CREATE_DETACHED);
 
       /* Try to find existing thread having the right attributes.  */

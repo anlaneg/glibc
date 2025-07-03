@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,8 +25,9 @@
 static ssize_t
 do_write (void *cookie,	const char *buf, size_t n)
 {
-  error_t error = __io_write ((io_t) cookie, buf, n, -1,
-			      (mach_msg_type_number_t *) &n);
+  io_t io = (io_t) (uintptr_t) cookie;
+  vm_size_t amount = n;
+  error_t error = __io_write (io, buf, n, -1, &amount);
   if (error)
     return __hurd_fail (error);
   return n;
@@ -51,7 +52,8 @@ vpprintf (io_t port, const char *format, va_list arg)
 #endif
 
   _IO_cookie_init (&temp_f.cfile, _IO_NO_READS,
-		   (void *) port, (cookie_io_functions_t) { write: do_write });
+                   (void *) (uintptr_t) port,
+                   (cookie_io_functions_t) { write: do_write });
 
   done = __vfprintf_internal (&temp_f.cfile.__fp.file, format, arg, 0);
 

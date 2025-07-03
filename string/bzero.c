@@ -1,6 +1,5 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,12 +17,12 @@
 
 #include <string.h>
 
-#undef __bzero
-
 /* Set N bytes of S to 0.  */
 void
 __bzero (void *s, size_t len)
 {
   memset (s, '\0', len);
 }
+#ifndef __bzero
 weak_alias (__bzero, bzero)
+#endif

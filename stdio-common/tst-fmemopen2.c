@@ -1,5 +1,5 @@
 /* fmemopen tests.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -157,7 +157,7 @@ do_test_without_buffer (void)
   return result;
 }
 
-/* Check fmemopen with a buffer lenght of zero.  */
+/* Check fmemopen with a buffer length of zero.  */
 static int
 do_test_length_zero (void)
 {

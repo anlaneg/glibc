@@ -1,5 +1,5 @@
 /* Cleanup function for `struct hurd_port' users.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,7 +26,8 @@
 void
 _hurd_port_cleanup (void *cleanup_data, jmp_buf env, int val)
 {
-  __mach_port_deallocate (__mach_task_self (), (mach_port_t) cleanup_data);
+  mach_port_t port = (mach_port_t) (uintptr_t) cleanup_data;
+  __mach_port_deallocate (__mach_task_self (), port);
 }
 
 /* We were cancelled while using a port, and called from the cleanup unwinding.

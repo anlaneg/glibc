@@ -69,8 +69,8 @@ Support for @code{_Float@var{N}} or @code{_Float@var{N}x} types is
 provided for @code{_Float32}, @code{_Float64} and @code{_Float32x} on
 all platforms.
 It is also provided for @code{_Float128} and @code{_Float64x} on
-powerpc64le (PowerPC 64-bits little-endian), x86_64, x86, ia64,
-aarch64, alpha, mips64, riscv, s390 and sparc.
+powerpc64le (PowerPC 64-bits little-endian), x86_64, x86,
+aarch64, alpha, loongarch, mips64, riscv, s390 and sparc.
 
 @menu
 * Mathematical Constants::      Precise numeric values for often-used
@@ -80,7 +80,7 @@ aarch64, alpha, mips64, riscv, s390 and sparc.
 * Exponents and Logarithms::    Also pow and sqrt.
 * Hyperbolic Functions::        sinh, cosh, tanh, etc.
 * Special Functions::           Bessel, gamma, erf.
-* Errors in Math Functions::    Known Maximum Errors in Math Functions.
+* Errors in Math Functions::    Remarks in Errors in Math Functions.
 * Pseudo-Random Numbers::       Functions for generating pseudo-random
 				 numbers.
 * FP Function Optimizations::   Fast code or small code.
@@ -131,9 +131,10 @@ defined.  The default set of features includes these constants.
 @xref{Feature Test Macros}.
 
 All values are of type @code{double}.  As an extension, @theglibc{}
-also defines these constants with type @code{long double}.  The
-@code{long double} macros have a lowercase @samp{l} appended to their
-names: @code{M_El}, @code{M_PIl}, and so forth.  These are only
+also defines these constants with type @code{long double} and
+@code{float}.  The @code{long double} macros have a lowercase @samp{l}
+while the @code{float} macros have a lowercase @samp{f} appended to
+their names: @code{M_El}, @code{M_PIl}, and so forth.  These are only
 available if @code{_GNU_SOURCE} is defined.
 
 Likewise, @theglibc{} also defines these constants with the types
@@ -237,6 +238,44 @@ the range of @code{-1} to @code{1}.
 All these functions, including the @code{_Float@var{N}} and
 @code{_Float@var{N}x} variants, are GNU extensions.  Portable programs
 should be prepared to cope with their absence.
+@end deftypefun
+
+@deftypefun double sinpi (double @var{x})
+@deftypefunx float sinpif (float @var{x})
+@deftypefunx {long double} sinpil (long double @var{x})
+@deftypefunx _FloatN sinpifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx sinpifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return the sine of pi multiplied by @var{x}.  The
+return value is in the range @code{-1} to @code{1}.
+
+The @code{sinpi} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double cospi (double @var{x})
+@deftypefunx float cospif (float @var{x})
+@deftypefunx {long double} cospil (long double @var{x})
+@deftypefunx _FloatN cospifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx cospifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return the cosine of pi multiplied by @var{x}.  The
+return value is in the range @code{-1} to @code{1}.
+
+The @code{cospi} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double tanpi (double @var{x})
+@deftypefunx float tanpif (float @var{x})
+@deftypefunx {long double} tanpil (long double @var{x})
+@deftypefunx _FloatN tanpifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx tanpifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return the tangent of pi multiplied by @var{x}.
+
+The @code{tanpi} functions are from TS 18661-4:2015.
 @end deftypefun
 
 @cindex complex trigonometric functions
@@ -403,6 +442,68 @@ Logarithms}.)
 If both @var{x} and @var{y} are zero, @code{atan2} returns zero.
 @end deftypefun
 
+@deftypefun double asinpi (double @var{x})
+@deftypefunx float asinpif (float @var{x})
+@deftypefunx {long double} asinpil (long double @var{x})
+@deftypefunx _FloatN asinpifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx asinpifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions compute the arcsine of @var{x}, divided by pi.  The
+result is in the interval between @code{-0.5} and @code{0.5} (inclusive).
+
+The arcsine function is defined mathematically only over the domain
+@code{-1} to @code{1}.  If @var{x} is outside the domain,
+@code{asinpi} signals a domain error.
+
+The @code{asinpi} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double acospi (double @var{x})
+@deftypefunx float acospif (float @var{x})
+@deftypefunx {long double} acospil (long double @var{x})
+@deftypefunx _FloatN acospifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx acospifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions compute the arccosine of @var{x}, divided by pi.  The
+result is in the interval between @code{0} and @code{1} (inclusive).
+
+The arccosine function is defined mathematically only
+over the domain @code{-1} to @code{1}.  If @var{x} is outside the
+domain, @code{acospi} signals a domain error.
+
+The @code{acospi} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double atanpi (double @var{x})
+@deftypefunx float atanpif (float @var{x})
+@deftypefunx {long double} atanpil (long double @var{x})
+@deftypefunx _FloatN atanpifN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx atanpifNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions compute the arctangent of @var{x}, divided by pi.  The
+result is in the interval between @code{-0.5} and @code{0.5}
+(inclusive).
+
+The @code{atanpi} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double atan2pi (double @var{y}, double @var{x})
+@deftypefunx float atan2pif (float @var{y}, float @var{x})
+@deftypefunx {long double} atan2pil (long double @var{y}, long double @var{x})
+@deftypefunx _FloatN atan2pifN (_Float@var{N} @var{y}, _Float@var{N} @var{x})
+@deftypefunx _FloatNx atan2pifNx (_Float@var{N}x @var{y}, _Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These function computes the arctangent of @var{y}/@var{x}, divided by
+pi, with the signs of both arguments used to determine the quadrant of
+the result, as for @code{atan2}.
+
+The @code{atan2pi} functions are from TS 18661-4:2015.
+@end deftypefun
+
 @cindex inverse complex trigonometric functions
 @w{ISO C99} defines complex versions of the inverse trig functions.
 
@@ -559,8 +660,11 @@ These functions return the base-2 logarithm of @var{x}.
 @standardsx{logbfNx, TS 18661-3:2015, math.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 These functions extract the exponent of @var{x} and return it as a
-floating-point value.  If @code{FLT_RADIX} is two, @code{logb} is equal
-to @code{floor (log2 (x))}, except it's probably faster.
+floating-point value.
+If @code{FLT_RADIX} is two,
+@code{logb (x)} is similar to @code{floor (log2 (fabs (x)))},
+except that the latter may give an incorrect integer
+due to intermediate rounding.
 
 If @var{x} is de-normalized, @code{logb} returns the exponent @var{x}
 would have if it were normalized.  If @var{x} is infinity (positive or
@@ -670,6 +774,51 @@ do that, so instead it signals a domain error. @code{pow} may also
 underflow or overflow the destination type.
 @end deftypefun
 
+@deftypefun double powr (double @var{base}, double @var{power})
+@deftypefunx float powrf (float @var{base}, float @var{power})
+@deftypefunx {long double} powrl (long double @var{base}, long double @var{power})
+@deftypefunx _FloatN powrfN (_Float@var{N} @var{base}, _Float@var{N} @var{power})
+@deftypefunx _FloatNx powrfNx (_Float@var{N}x @var{base}, _Float@var{N}x @var{power})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These return @var{base} raised to @var{power}, but with special cases
+based on @code{exp (power * log (base))}.  For example, if @var{base}
+is negative, the @code{powr} functions always signal a domain error,
+but this is valid for @code{pow} if @var{power} is an integer.
+
+The @code{powr} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double pown (double @var{base}, long long int @var{power})
+@deftypefunx float pownf (float @var{base}, long long int @var{power})
+@deftypefunx {long double} pownl (long double @var{base}, long long int @var{power})
+@deftypefunx _FloatN pownfN (_Float@var{N} @var{base}, long long int @var{power})
+@deftypefunx _FloatNx pownfNx (_Float@var{N}x @var{base}, long long int @var{power})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These return @var{base} raised to @var{power} (an integer).
+
+The @code{pown} functions are from TS 18661-4:2015 (which used
+@code{intmax_t} as the type of @var{power}; the type changed to
+@code{long long int} in C23).
+@end deftypefun
+
+@deftypefun double compoundn (double @var{x}, long long int @var{power})
+@deftypefunx float compoundnf (float @var{x}, long long int @var{power})
+@deftypefunx {long double} compoundnl (long double @var{x}, long long int @var{power})
+@deftypefunx _FloatN compoundnfN (_Float@var{N} @var{x}, long long int @var{power})
+@deftypefunx _FloatNx compoundnfNx (_Float@var{N}x @var{x}, long long int @var{power})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These return @code{1 + @var{x}} raised to @var{power} (an integer).
+If @var{x} is less than @minus{}1, @code{compoundn} signals a domain
+error.
+
+The @code{compoundn} functions are from TS 18661-4:2015 (which used
+@code{intmax_t} as the type of @var{power}; the type changed to
+@code{long long int} in C23).
+@end deftypefun
+
 @cindex square root function
 @deftypefun double sqrt (double @var{x})
 @deftypefunx float sqrtf (float @var{x})
@@ -686,6 +835,19 @@ If @var{x} is negative, @code{sqrt} signals a domain error.
 Mathematically, it should return a complex number.
 @end deftypefun
 
+@deftypefun double rsqrt (double @var{x})
+@deftypefunx float rsqrtf (float @var{x})
+@deftypefunx {long double} rsqrtl (long double @var{x})
+@deftypefunx _FloatN rsqrtfN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx rsqrtfNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return the reciprocal of the nonnegative square root of @var{x}.
+If @var{x} is negative, @code{rsqrt} signals a domain error.
+
+The @code{rsqrt} functions are from TS 18661-4:2015.
+@end deftypefun
+
 @cindex cube root function
 @deftypefun double cbrt (double @var{x})
 @deftypefunx float cbrtf (float @var{x})
@@ -696,8 +858,12 @@ Mathematically, it should return a complex number.
 @standardsx{cbrtfN, TS 18661-3:2015, math.h}
 @standardsx{cbrtfNx, TS 18661-3:2015, math.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
-These functions return the cube root of @var{x}.  They cannot
-fail; every representable real value has a representable real cube root.
+These functions return the cube root of @var{x}.
+They cannot fail;
+every representable real value
+has a real cube root,
+and rounding it to a representable value
+never causes overflow nor underflow.
 @end deftypefun
 
 @deftypefun double hypot (double @var{x}, double @var{y})
@@ -717,6 +883,22 @@ instead of the direct formula is wise, since the error is
 much smaller.  See also the function @code{cabs} in @ref{Absolute Value}.
 @end deftypefun
 
+@deftypefun double rootn (double @var{x}, long long int @var{n})
+@deftypefunx float rootnf (float @var{x}, long long int @var{n})
+@deftypefunx {long double} rootnl (long double @var{x}, long long int @var{n})
+@deftypefunx _FloatN rootnfN (_Float@var{N} @var{x}, long long int @var{n})
+@deftypefunx _FloatNx rootnfNx (_Float@var{N}x @var{x}, long long int @var{n})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These return the @var{n}th root of @var{x}.  If @var{n} is zero, or if
+@var{x} is negative and @var{n} is even, @code{rootn} signals a domain
+error.
+
+The @code{rootn} functions are from TS 18661-4:2015 (which used
+@code{intmax_t} as the type of @var{n}; the type changed to
+@code{long long int} in C23).
+@end deftypefun
+
 @deftypefun double expm1 (double @var{x})
 @deftypefunx float expm1f (float @var{x})
 @deftypefunx {long double} expm1l (long double @var{x})
@@ -732,18 +914,88 @@ near zero---a case where @code{exp (@var{x}) - 1} would be inaccurate owing
 to subtraction of two numbers that are nearly equal.
 @end deftypefun
 
+@deftypefun double exp2m1 (double @var{x})
+@deftypefunx float exp2m1f (float @var{x})
+@deftypefunx {long double} exp2m1l (long double @var{x})
+@deftypefunx _FloatN exp2m1fN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx exp2m1fNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return a value equivalent to @code{exp2 (@var{x}) - 1}.
+They are computed in a way that is accurate even if @var{x} is
+near zero---a case where @code{exp2 (@var{x}) - 1} would be inaccurate owing
+to subtraction of two numbers that are nearly equal.
+
+The @code{exp2m1} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double exp10m1 (double @var{x})
+@deftypefunx float exp10m1f (float @var{x})
+@deftypefunx {long double} exp10m1l (long double @var{x})
+@deftypefunx _FloatN exp10m1fN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx exp10m1fNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return a value equivalent to @code{exp10 (@var{x}) - 1}.
+They are computed in a way that is accurate even if @var{x} is
+near zero---a case where @code{exp10 (@var{x}) - 1} would be inaccurate owing
+to subtraction of two numbers that are nearly equal.
+
+The @code{exp10m1} functions are from TS 18661-4:2015.
+@end deftypefun
+
 @deftypefun double log1p (double @var{x})
 @deftypefunx float log1pf (float @var{x})
 @deftypefunx {long double} log1pl (long double @var{x})
 @deftypefunx _FloatN log1pfN (_Float@var{N} @var{x})
 @deftypefunx _FloatNx log1pfNx (_Float@var{N}x @var{x})
+@deftypefunx double logp1 (double @var{x})
+@deftypefunx float logp1f (float @var{x})
+@deftypefunx {long double} logp1l (long double @var{x})
+@deftypefunx _FloatN logp1fN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx logp1fNx (_Float@var{N}x @var{x})
 @standards{ISO, math.h}
 @standardsx{log1pfN, TS 18661-3:2015, math.h}
 @standardsx{log1pfNx, TS 18661-3:2015, math.h}
+@standardsx{logp1, TS 18661-4:2015, math.h}
+@standardsx{logp1f, TS 18661-4:2015, math.h}
+@standardsx{logp1l, TS 18661-4:2015, math.h}
+@standardsx{logp1fN, TS 18661-4:2015, math.h}
+@standardsx{logp1fNx, TS 18661-4:2015, math.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 These functions return a value equivalent to @w{@code{log (1 + @var{x})}}.
 They are computed in a way that is accurate even if @var{x} is
 near zero.
+
+The @code{logp1} names for these functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double log2p1 (double @var{x})
+@deftypefunx float log2p1f (float @var{x})
+@deftypefunx {long double} log2p1l (long double @var{x})
+@deftypefunx _FloatN log2p1fN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx log2p1fNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return a value equivalent to @w{@code{log2 (1 + @var{x})}}.
+They are computed in a way that is accurate even if @var{x} is
+near zero.
+
+The @code{log2p1} functions are from TS 18661-4:2015.
+@end deftypefun
+
+@deftypefun double log10p1 (double @var{x})
+@deftypefunx float log10p1f (float @var{x})
+@deftypefunx {long double} log10p1l (long double @var{x})
+@deftypefunx _FloatN log10p1fN (_Float@var{N} @var{x})
+@deftypefunx _FloatNx log10p1fNx (_Float@var{N}x @var{x})
+@standards{TS 18661-4:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return a value equivalent to @w{@code{log10 (1 + @var{x})}}.
+They are computed in a way that is accurate even if @var{x} is
+near zero.
+
+The @code{log10p1} functions are from TS 18661-4:2015.
 @end deftypefun
 
 @cindex complex exponentiation functions
@@ -1270,12 +1522,11 @@ extensions.
 @end deftypefun
 
 @node Errors in Math Functions
-@section Known Maximum Errors in Math Functions
+@section Errors in Math Functions
 @cindex math errors
 @cindex ulps
 
-This section lists the known errors of the functions in the math
-library.  Errors are measured in ``units of the last place''.  This is a
+Errors are measured in ``units of the last place''.  This is a
 measure for the relative error.  For a number @math{z} with the
 representation @math{d.d@dots{}d@mul{}2^e} (we assume IEEE
 floating-point numbers with base 2) the ULP is represented by
@@ -1385,21 +1636,25 @@ functions.
 @end itemize
 
 Therefore many of the functions in the math library have errors.  The
-table lists the maximum error for each function which is exposed by one
-of the existing tests in the test suite.  The table tries to cover as much
-as possible and list the actual maximum error (or at least a ballpark
-figure) but this is often not achieved due to the large search space.
+math testsuite only flags results larger than 9ulp (or 16 for IBM
+@code{long double} format) as errors; although most of the implementations
+show errors smaller than the limit.
 
-The table lists the ULP values for different architectures.  Different
-architectures have different results since their hardware support for
-floating-point operations varies and also the existing hardware support
-is different.  Only the round-to-nearest rounding mode is covered by
-this table, and vector versions of functions are not covered.
-Functions not listed do not have known errors.
+A more comprehensive analysis of @theglibc{} math functions precision could
+be found in 'Accuracy of Mathematical Functions in Single, Double, Double
+Extended, and Quadruple Precision'; Brian Gladman, Vincenzo Innocente,
+John Mather, and Paul Zimmermann at
+@url{<https://inria.hal.science/hal-03141101>}.  It does not cover complex
+functions, nor @code{jn}/@code{yn}, and it is only for x86_64, and for
+rounding to nearest, and does not cover any architecture variations (in
+particular IBM @code{long double} is out of scope).
 
-@page
-@c This multitable does not fit on a single page
-@include libm-err.texi
+For complex functions, some analysis of @theglibc{} math functions can be
+found in 'Accuracy of Complex Mathematical Operations and Functions in Single
+and Double Precision'; Paul Caprioli, Vincenzo Innocente, Paul Zimmermann
+at @url{https://inria.hal.science/hal-04714173}.  It only covers @code{float}
+and @code{double}, only for x86_64, and for rounding to nearest, and does not
+cover any architecture variations.
 
 @node Pseudo-Random Numbers
 @section Pseudo-Random Numbers
@@ -1445,6 +1700,7 @@ systems.
 * ISO Random::                  @code{rand} and friends.
 * BSD Random::                  @code{random} and friends.
 * SVID Random::                 @code{drand48} and friends.
+* High Quality Random::         @code{arc4random} and friends.
 @end menu
 
 @node ISO Random
@@ -1981,6 +2237,44 @@ If the return value is non-negative the function call succeeded.
 
 This function is a GNU extension and should not be used in portable
 programs.
+@end deftypefun
+
+@node High Quality Random
+@subsection High Quality Random Number Functions
+
+This section describes the random number functions provided as a GNU
+extension, based on OpenBSD interfaces.
+
+@Theglibc{} uses kernel entropy obtained either through @code{getrandom}
+or by reading @file{/dev/urandom} to seed.
+
+These functions provide higher random quality than ISO, BSD, and SVID
+functions, and may be used in cryptographic contexts.
+
+The prototypes for these functions are in @file{stdlib.h}.
+@pindex stdlib.h
+
+@deftypefun uint32_t arc4random (void)
+@standards{BSD, stdlib.h}
+@safety{@mtsafe{}@asunsafe{@asucorrupt{}}@acsafe{}}
+This function returns a single 32-bit value in the range of @code{0} to
+@code{2^32−1} (inclusive), which is twice the range of @code{rand} and
+@code{random}.
+@end deftypefun
+
+@deftypefun void arc4random_buf (void *@var{buffer}, size_t @var{length})
+@standards{BSD, stdlib.h}
+@safety{@mtsafe{}@asunsafe{@asucorrupt{}}@acsafe{}}
+This function fills the region @var{buffer} of length @var{length} bytes
+with random data.
+@end deftypefun
+
+@deftypefun uint32_t arc4random_uniform (uint32_t @var{upper_bound})
+@standards{BSD, stdlib.h}
+@safety{@mtsafe{}@asunsafe{@asucorrupt{}}@acsafe{}}
+This function returns a single 32-bit value, uniformly distributed but
+less than the @var{upper_bound}.  It avoids the @w{modulo bias} when the
+upper bound is not a power of two.
 @end deftypefun
 
 @node FP Function Optimizations

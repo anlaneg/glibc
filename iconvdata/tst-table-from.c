@@ -1,6 +1,5 @@
-/* Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Bruno Haible <haible@clisp.cons.org>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -195,10 +194,9 @@ main (int argc, char *argv[])
       exit (1);
     }
 
-  /* When testing UTF-8 or GB18030, stop at 0x10000, otherwise the output
+  /* When testing UTF-8, stop at 0x10000, otherwise the output
      file gets too big.  */
-  bmp_only = (strcmp (charset, "UTF-8") == 0
-	      || strcmp (charset, "GB18030") == 0);
+  bmp_only = (strcmp (charset, "UTF-8") == 0);
   search_depth = (strcmp (charset, "UTF-8") == 0 ? 3 : 4);
 
   {

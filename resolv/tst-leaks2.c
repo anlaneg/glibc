@@ -1,5 +1,5 @@
 /* Tests for res_init in libresolv
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #include <netdb.h>
 #include <resolv.h>
 #include <support/check.h>
+
+void __libc_freeres (void);
 
 static int
 do_test (void)

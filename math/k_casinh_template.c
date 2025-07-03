@@ -1,7 +1,7 @@
 /* Return arc hyperbolic sine for a complex float type, with the
    imaginary part of the result possibly adjusted for use in
    computing other functions.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ M_DECL_FUNC (__kernel_casinh) (CFLOAT x, int adj)
 	}
 
       res = M_SUF (__clog) (y);
-      __real__ res += (FLOAT) M_MLIT (M_LN2);
+      __real__ res += M_MLIT (M_LN2);
     }
   else if (rx >= M_LIT (0.5) && ix < M_EPSILON / 8)
     {

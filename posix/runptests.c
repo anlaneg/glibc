@@ -1,7 +1,6 @@
 /* POSIX regex testsuite from IEEE 2003.2.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -78,7 +77,7 @@ main (int argc, char *argv[])
 	  }
 	else if (tests[cnt].start == -2)
 	  {
-	    puts ("compiling suceeds, FAIL");
+	    puts ("compiling succeeds, FAIL");
 	    errors++;
 	    continue;
 	  }
@@ -116,7 +115,7 @@ main (int argc, char *argv[])
 	regfree (&re);
       }
 
-  printf ("\n%Zu tests, %d errors\n", cnt, errors);
+  printf ("\n%zu tests, %d errors\n", cnt, errors);
 
   return errors != 0;
 }

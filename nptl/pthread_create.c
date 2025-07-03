@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,10 +32,13 @@
 #include <default-sched.h>
 #include <futex-internal.h>
 #include <tls-setup.h>
+#include <rseq-internal.h>
 #include "libioP.h"
 #include <sys/single_threaded.h>
 #include <version.h>
 #include <clone_internal.h>
+#include <futex-internal.h>
+#include <getrandom-internal.h>
 
 #include <shlib-compat.h>
 
@@ -44,13 +46,15 @@
 
 
 /* Globally enabled events.  */
-td_thr_events_t __nptl_threads_events;
+extern td_thr_events_t __nptl_threads_events;
 libc_hidden_proto (__nptl_threads_events)
+td_thr_events_t __nptl_threads_events;
 libc_hidden_data_def (__nptl_threads_events)
 
 /* Pointer to descriptor with the last event.  */
-struct pthread *__nptl_last_event;
+extern struct pthread *__nptl_last_event;
 libc_hidden_proto (__nptl_last_event)
+struct pthread *__nptl_last_event;
 libc_hidden_data_def (__nptl_last_event)
 
 #ifdef SHARED
@@ -215,7 +219,7 @@ late_init (void)
    __pthread_current_priority reuse the same lock, PD->lock, for a
    similar purpose e.g. synchronizing the setting of similar thread
    attributes.  These functions are never called before the thread is
-   created, so don't participate in startup syncronization, but given
+   created, so don't participate in startup synchronization, but given
    that the lock is present already and in the unlocked state, reusing
    it saves space.
 
@@ -235,7 +239,7 @@ static int create_thread (struct pthread *pd, const struct pthread_attr *attr,
      stopped since we have to set the scheduling parameters or set the
      affinity.  */
   bool need_setaffinity = (attr != NULL && attr->extension != NULL
-			   && attr->extension->cpuset != 0);
+			   && attr->extension->cpuset != NULL);
   if (attr != NULL
       && (__glibc_unlikely (need_setaffinity)
 	  || __glibc_unlikely ((attr->flags & ATTR_FLAG_NOTINHERITSCHED) != 0)))
@@ -366,6 +370,16 @@ start_thread (void *arg)
   /* Initialize pointers to locale data.  */
   __ctype_init ();
 
+  /* Name the thread stack if kernel supports it.  */
+  name_stack_maps (pd, true);
+
+  /* Register rseq TLS to the kernel.  */
+  {
+    bool do_rseq = THREAD_GETMEM (pd, flags) & ATTR_FLAG_DO_RSEQ;
+    if (!rseq_register_current_thread (pd, do_rseq) && do_rseq)
+      __libc_fatal ("Fatal glibc error: rseq registration failed\n");
+  }
+
 #ifndef __ASSUME_SET_ROBUST_LIST
   if (__nptl_set_robust_list_avail)
 #endif
@@ -406,16 +420,16 @@ start_thread (void *arg)
   unwind_buf.priv.data.prev = NULL;
   unwind_buf.priv.data.cleanup = NULL;
 
-  __libc_signal_restore_set (&pd->sigmask);
-
   /* Allow setxid from now onwards.  */
-  if (__glibc_unlikely (atomic_exchange_acq (&pd->setxid_futex, 0) == -2))
+  if (__glibc_unlikely (atomic_exchange_acquire (&pd->setxid_futex, 0) == -2))
     futex_wake (&pd->setxid_futex, 1, FUTEX_PRIVATE);
 
   if (__glibc_likely (! not_first_call))
     {
       /* Store the new cleanup handler info.  */
       THREAD_SETMEM (pd, cleanup_jmp_buf, &unwind_buf);
+
+      internal_signal_restore_set (&pd->sigmask);
 
       LIBC_PROBE (pthread_start, 3, (pthread_t) pd, pd->start_routine, pd->arg);
 
@@ -436,10 +450,7 @@ start_thread (void *arg)
     }
 
   /* Call destructors for the thread_local TLS variables.  */
-#ifndef SHARED
-  if (&__call_tls_dtors != NULL)
-#endif
-    __call_tls_dtors ();
+  call_function_static_weak (__call_tls_dtors);
 
   /* Run the destructor for the thread-local data.  */
   __nptl_deallocate_tsd ();
@@ -479,11 +490,32 @@ start_thread (void *arg)
   /* The thread is exiting now.  Don't set this bit until after we've hit
      the event-reporting breakpoint, so that td_thr_get_info on us while at
      the breakpoint reports TD_THR_RUN state rather than TD_THR_ZOMBIE.  */
-  atomic_bit_set (&pd->cancelhandling, EXITING_BIT);
+  atomic_fetch_or_relaxed (&pd->cancelhandling, EXITING_BITMASK);
 
-  if (__glibc_unlikely (atomic_decrement_and_test (&__nptl_nthreads)))
+  if (__glibc_unlikely (atomic_fetch_add_relaxed (&__nptl_nthreads, -1) == 1))
     /* This was the last thread.  */
     exit (0);
+
+  /* This prevents sending a signal from this thread to itself during
+     its final stages.  This must come after the exit call above
+     because atexit handlers must not run with signals blocked.
+
+     Do not block SIGSETXID.  The setxid handshake below expects the
+     signal to be delivered.  (SIGSETXID cannot run application code,
+     nor does it use pthread_kill.)  Reuse the pd->sigmask space for
+     computing the signal mask, to save stack space.  */
+  internal_sigfillset (&pd->sigmask);
+  internal_sigdelset (&pd->sigmask, SIGSETXID);
+  INTERNAL_SYSCALL_CALL (rt_sigprocmask, SIG_BLOCK, &pd->sigmask, NULL,
+			 __NSIG_BYTES);
+
+  /* Tell __pthread_kill_internal that this thread is about to exit.
+     If there is a __pthread_kill_internal in progress, this delays
+     the thread exit until the signal has been queued by the kernel
+     (so that the TID used to send it remains valid).  */
+  __libc_lock_lock (pd->exit_lock);
+  pd->exiting = true;
+  __libc_lock_unlock (pd->exit_lock);
 
 #ifndef __ASSUME_SET_ROBUST_LIST
   /* If this thread has any robust mutexes locked, handle them now.  */
@@ -510,7 +542,7 @@ start_thread (void *arg)
 # endif
 	  this->__list.__next = NULL;
 
-	  atomic_or (&this->__lock, FUTEX_OWNER_DIED);
+	  atomic_fetch_or_acquire (&this->__lock, FUTEX_OWNER_DIED);
 	  futex_wake ((unsigned int *) &this->__lock, 1,
 		      /* XYZ */ FUTEX_SHARED);
 	}
@@ -518,7 +550,11 @@ start_thread (void *arg)
     }
 #endif
 
-  if (!pd->user_stack)
+  /* Release the vDSO getrandom per-thread buffer with all signal blocked,
+     to avoid creating a new free-state block during thread release.  */
+  __getrandom_vdso_release (pd);
+
+  if (pd->stack_mode != ALLOCATE_GUARD_USER)
     advise_stack_range (pd->stackblock, pd->stackblock_size, (uintptr_t) pd,
 			pd->guardsize);
 
@@ -543,12 +579,24 @@ start_thread (void *arg)
     /* Free the TCB.  */
     __nptl_free_tcb (pd);
 
+  /* Remove the associated name from the thread stack.  */
+  name_stack_maps (pd, false);
+
 out:
   /* We cannot call '_exit' here.  '_exit' will terminate the process.
 
      The 'exit' implementation in the kernel will signal when the
      process is really dead since 'clone' got passed the CLONE_CHILD_CLEARTID
      flag.  The 'tid' field in the TCB will be set to zero.
+
+     rseq TLS is still registered at this point.  Rely on implicit
+     unregistration performed by the kernel on thread teardown.  This is not a
+     problem because the rseq TLS lives on the stack, and the stack outlives
+     the thread.  If TCB allocation is ever changed, additional steps may be
+     required, such as performing explicit rseq unregistration before
+     reclaiming the rseq TLS area memory.  It is NOT sufficient to block
+     signals because the kernel may write to the rseq area even without
+     signals.
 
      The exit code is zero since in case all threads exit by calling
      'pthread_exit' the exit status must be 0 (zero).  */
@@ -586,9 +634,12 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
 
   /* Avoid a data race in the multi-threaded case, and call the
      deferred initialization only once.  */
-  if (__libc_single_threaded)
+  if (__libc_single_threaded_internal)
     {
       late_init ();
+      __libc_single_threaded_internal = 0;
+      /* __libc_single_threaded can be accessed through copy relocations, so
+	 it requires to update the external copy.  */
       __libc_single_threaded = 0;
     }
 
@@ -642,6 +693,11 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
   struct pthread *self = THREAD_SELF;
   pd->flags = ((iattr->flags & ~(ATTR_FLAG_SCHED_SET | ATTR_FLAG_POLICY_SET))
 	       | (self->flags & (ATTR_FLAG_SCHED_SET | ATTR_FLAG_POLICY_SET)));
+
+  /* Inherit rseq registration state.  Without seccomp filters, rseq
+     registration will either always fail or always succeed.  */
+  if ((int) RSEQ_GETMEM_ONCE (cpu_id) >= 0)
+    pd->flags |= ATTR_FLAG_DO_RSEQ;
 
   /* Initialize the field for the ID of the thread which is waiting
      for us.  This is a self-reference in case the thread is created
@@ -713,7 +769,7 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
      we momentarily store a false value; this doesn't matter because there
      is no kosher thing a signal handler interrupting us right here can do
      that cares whether the thread count is correct.  */
-  atomic_increment (&__nptl_nthreads);
+  atomic_fetch_add_relaxed (&__nptl_nthreads, 1);
 
   /* Our local value of stopped_start and thread_ran can be accessed at
      any time. The PD->stopped_start may only be accessed if we have
@@ -723,14 +779,14 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
   /* Block all signals, so that the new thread starts out with
      signals disabled.  This avoids race conditions in the thread
      startup.  */
-  sigset_t original_sigmask;
-  __libc_signal_block_all (&original_sigmask);
+  internal_sigset_t original_sigmask;
+  internal_signal_block_all (&original_sigmask);
 
   if (iattr->extension != NULL && iattr->extension->sigmask_set)
     /* Use the signal mask in the attribute.  The internal signals
        have already been filtered by the public
        pthread_attr_setsigmask_np interface.  */
-    pd->sigmask = iattr->extension->sigmask;
+    internal_sigset_from_sigset (&pd->sigmask, &iattr->extension->sigmask);
   else
     {
       /* Conceptually, the new thread needs to inherit the signal mask
@@ -740,7 +796,7 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
       pd->sigmask = original_sigmask;
       /* Reset the cancellation signal mask in case this thread is
 	 running cancellation.  */
-      __sigdelset (&pd->sigmask, SIGCANCEL);
+      internal_sigdelset (&pd->sigmask, SIGCANCEL);
     }
 
   /* Start the thread.  */
@@ -787,7 +843,7 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
 
   /* Return to the previous signal mask, after creating the new
      thread.  */
-  __libc_signal_restore_set (&original_sigmask);
+  internal_signal_restore_set (&original_sigmask);
 
   if (__glibc_unlikely (retval != 0))
     {
@@ -815,7 +871,7 @@ __pthread_create_2_1 (pthread_t *newthread, const pthread_attr_t *attr,
 	 NOTES above).  */
 
       /* Oops, we lied for a second.  */
-      atomic_decrement (&__nptl_nthreads);
+      atomic_fetch_add_relaxed (&__nptl_nthreads, -1);
 
       /* Free the resources.  */
       __nptl_deallocate_stack (pd);

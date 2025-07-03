@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,10 +17,11 @@
 
 #include <stdlib.h>
 #include <utmp.h>
+#include <set-freeres.h>
 
 
 /* Local buffer to store the result.  */
-libc_freeres_ptr (static struct utmp *buffer);
+static struct utmp *buffer;
 
 
 struct utmp *
@@ -43,3 +43,5 @@ __getutent (void)
 }
 libc_hidden_def (__getutent)
 weak_alias (__getutent, getutent)
+
+weak_alias (buffer, __libc_getutent_freemem_ptr)

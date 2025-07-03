@@ -1,7 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>
-   and Paul Janzen <pcj@primenet.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -155,7 +153,7 @@ __libc_setutent (void)
   return 1;
 }
 
-/* Preform initialization if necessary.  */
+/* Perform initialization if necessary.  */
 static bool
 maybe_setutent (void)
 {
@@ -465,7 +463,7 @@ __libc_updwtmp (const char *file, const struct utmp *utmp)
   int fd;
 
   /* Open WTMP file.  */
-  fd = __open_nocancel (file, O_WRONLY | O_LARGEFILE);
+  fd = __open_nocancel (file, O_WRONLY | O_LARGEFILE | O_CLOEXEC);
   if (fd < 0)
     return -1;
 

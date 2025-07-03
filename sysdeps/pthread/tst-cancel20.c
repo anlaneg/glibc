@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -84,8 +83,6 @@ tf_body (void)
       puts ("read succeeded");
       exit (1);
     }
-
-  read (fd[0], &c, 1);
 
   pthread_cleanup_pop (0);
 }

@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of memrchr.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -161,6 +161,7 @@ ENTRY(MEMRCHR_Z13)
 END(MEMRCHR_Z13)
 
 # if ! HAVE_MEMRCHR_IFUNC
+libc_hidden_def (__memrchr)
 strong_alias (MEMRCHR_Z13, __memrchr)
 weak_alias (__memrchr, memrchr)
 # endif

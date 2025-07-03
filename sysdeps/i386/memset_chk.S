@@ -1,5 +1,5 @@
 /* Checking memset for i386.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,7 +27,8 @@
 ENTRY (__memset_chk)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
-	jb	__chk_fail
-	jmp	memset
+	jb	HIDDEN_JUMPTARGET (__chk_fail)
+	jmp	JUMPTARGET (memset)
 END (__memset_chk)
+libc_hidden_builtin_def (__memset_chk)
 #endif

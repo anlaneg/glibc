@@ -1,5 +1,5 @@
 /* Measure memcmp functions.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,53 +17,25 @@
    <https://www.gnu.org/licenses/>.  */
 
 #define TEST_MAIN
-#ifdef WIDE
+#ifdef TEST_MEMCMPEQ
+# define TEST_NAME "__memcmpeq"
+#elif defined WIDE
 # define TEST_NAME "wmemcmp"
 #else
 # define TEST_NAME "memcmp"
 #endif
 #include "bench-string.h"
-#ifdef WIDE
-
-# define SIMPLE_MEMCMP simple_wmemcmp
-int
-simple_wmemcmp (const wchar_t *s1, const wchar_t *s2, size_t n)
-{
-  int ret = 0;
-  /* Warning!
-	wmemcmp has to use SIGNED comparison for elements.
-	memcmp has to use UNSIGNED comparison for elemnts.
-  */
-  while (n-- && (ret = *s1 < *s2 ? -1 : *s1 == *s2 ? 0 : 1) == 0) {s1++; s2++;}
-  return ret;
-}
-#else
-# include <limits.h>
-
-# define SIMPLE_MEMCMP simple_memcmp
-
-int
-simple_memcmp (const char *s1, const char *s2, size_t n)
-{
-  int ret = 0;
-
-  while (n-- && (ret = *(unsigned char *) s1++ - *(unsigned char *) s2++) == 0);
-  return ret;
-}
-#endif
-
-# include "json-lib.h"
+#include "json-lib.h"
 
 typedef int (*proto_t) (const CHAR *, const CHAR *, size_t);
 
-IMPL (SIMPLE_MEMCMP, 0)
 IMPL (MEMCMP, 1)
 
 static void
 do_one_test (json_ctx_t *json_ctx, impl_t *impl, const CHAR *s1,
-	     const CHAR *s2, size_t len, int exp_result)
+	     const CHAR *s2, size_t len)
 {
-  size_t i, iters = INNER_LOOP_ITERS8;
+  size_t i, iters = INNER_LOOP_ITERS_LARGE;
   timing_t start, stop, cur;
 
   TIMING_NOW (start);
@@ -85,9 +57,6 @@ do_test (json_ctx_t *json_ctx, size_t align1, size_t align2, size_t len,
   size_t i;
   CHAR *s1, *s2;
 
-  if (len == 0)
-    return;
-
   align1 &= (4096 - CHARBYTES);
   if (align1 + (len + 1) * CHARBYTES >= page_size)
     return;
@@ -103,20 +72,22 @@ do_test (json_ctx_t *json_ctx, size_t align1, size_t align2, size_t len,
   json_attr_uint (json_ctx, "result", (double) exp_result);
   json_array_begin (json_ctx, "timings");
 
-  FOR_EACH_IMPL (impl, 0)
+  s1 = (CHAR *)(buf1 + align1);
+  s2 = (CHAR *)(buf2 + align2);
+
+  for (i = 0; i < len; i++)
+    s1[i] = s2[i] = 1 + (23 << ((CHARBYTES - 1) * 8)) * i % MAX_CHAR;
+
+  if (len)
     {
-      s1 = (CHAR *) (buf1 + align1);
-      s2 = (CHAR *) (buf2 + align2);
-
-      for (i = 0; i < len; i++)
-	s1[i] = s2[i] = 1 + (23 << ((CHARBYTES - 1) * 8)) * i % MAX_CHAR;
-
       s1[len] = align1;
       s2[len] = align2;
       s2[len - 1] -= exp_result;
+    }
 
-      do_one_test (json_ctx, impl, s1, s2, len, exp_result);
-      alloc_bufs ();
+  FOR_EACH_IMPL (impl, 0)
+    {
+      do_one_test (json_ctx, impl, s1, s2, len);
     }
 
   json_array_end (json_ctx);
@@ -146,7 +117,7 @@ test_main (void)
   json_array_end (&json_ctx);
 
   json_array_begin (&json_ctx, "results");
-  for (i = 1; i < 32; ++i)
+  for (i = 0; i < 32; ++i)
     {
       do_test (&json_ctx, i * CHARBYTES, i * CHARBYTES, i, 0);
       do_test (&json_ctx, i * CHARBYTES, i * CHARBYTES, i, 1);

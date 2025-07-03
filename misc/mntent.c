@@ -1,5 +1,5 @@
 /* Utilities for reading/writing fstab, mtab, etc.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <mntent.h>
 #include <stdlib.h>
 #include <allocate_once.h>
+#include <set-freeres.h>
 
 struct mntent_buffer
 {
@@ -28,7 +29,7 @@ struct mntent_buffer
 
 /* We don't want to allocate the static buffer all the time since it
    is not always used (in fact, rather infrequently).  */
-libc_freeres_ptr (static void *mntent_buffer);
+static void *mntent_buffer;
 
 static void *
 allocate (void *closure)
@@ -56,3 +57,5 @@ getmntent (FILE *stream)
   return __getmntent_r (stream, &buffer->m,
 			buffer->buffer, sizeof (buffer->buffer));
 }
+
+weak_alias (mntent_buffer, __libc_mntent_freemem_ptr)

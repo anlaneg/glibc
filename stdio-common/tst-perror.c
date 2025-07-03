@@ -1,5 +1,4 @@
 /* Test of perror.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2001.
    To be used only for testing glibc.  */
 
 #include <errno.h>
@@ -10,6 +9,7 @@
 #include <unistd.h>
 #include <wchar.h>
 
+#include <support/xunistd.h>
 
 #define MB_EXP \
   "null mode test 1: Invalid or incomplete multibyte or wide character\n" \
@@ -95,7 +95,7 @@ do_test (void)
     puts ("multibyte test succeeded");
 
   lseek (fd, 0, SEEK_SET);
-  ftruncate (fd, 0);
+  xftruncate (fd, 0);
 
   if (dup2 (fd, 2) == -1)
     {

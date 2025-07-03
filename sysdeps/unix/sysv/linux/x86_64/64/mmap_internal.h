@@ -1,5 +1,5 @@
 /* Linux mmap system call.  x86-64 version.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -22,11 +22,12 @@
 
 #include <ldsodefs.h>
 
-/* If the Prefer_MAP_32BIT_EXEC bit is set, try to map executable pages
-   with MAP_32BIT first.  */
+/* If the Prefer_MAP_32BIT_EXEC bit is set, try to map executable or
+    denywrite pages with MAP_32BIT first.  */
 #define MMAP_PREPARE(addr, len, prot, flags, fd, offset)		\
   if ((addr) == NULL							\
-      && ((prot) & PROT_EXEC) != 0					\
+      && (((prot) & PROT_EXEC) != 0					\
+	  || ((flags) & MAP_DENYWRITE) != 0)				\
       && HAS_ARCH_FEATURE (Prefer_MAP_32BIT_EXEC))			\
     {									\
       void *ret = (void*) INLINE_SYSCALL_CALL (mmap, (addr), (len),	\

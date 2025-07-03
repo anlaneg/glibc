@@ -1,7 +1,6 @@
 /* Mapping tables for CNS 11643, plane 1 handling.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,7 +32,7 @@
 
    The table can be generated using
 
-   egrep '^0x1' CNS11643.TXT |
+   grep -E '^0x1' CNS11643.TXT |
    awk '{print $1, $2}' | perl tab.pl
 
    where tab.pl is:
@@ -1541,8 +1540,8 @@ const char __cns11643l1_from_ucs4_tab2[][2] =
 
 /* Greek alphabet.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x03' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x03' | perl tab.pl
 
    where tab.pl is
 
@@ -1582,8 +1581,8 @@ const char __cns11643l1_from_ucs4_tab3[][2] =
 
 /* General punctuation.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x20' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x20' | perl tab.pl
 
    where tab.pl is
 
@@ -1620,8 +1619,8 @@ const char __cns11643l1_from_ucs4_tab5[][2] =
 
 /* Mathematical operators.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x22[1-6]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x22[1-6]' | perl tab.pl
 
    where tab.pl is
 
@@ -1651,8 +1650,8 @@ const char __cns11643l1_from_ucs4_tab6[][2] =
 
 /* Graphic pictures for control codes.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x24[0-2]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x24[0-2]' | perl tab.pl
 
    where tab.pl is
 
@@ -1687,8 +1686,8 @@ const char __cns11643l1_from_ucs4_tab7[][2] =
 
 /* Circled and Parenthesized numbers.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x24[67]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x24[67]' | perl tab.pl
 
    where tab.pl is
 
@@ -1719,8 +1718,8 @@ const char __cns11643l1_from_ucs4_tab8[][2] =
 
 /* Circled and Parenthesized numbers.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x2[56]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x2[56]' | perl tab.pl
 
    where tab.pl is
 
@@ -1764,8 +1763,8 @@ const char __cns11643l1_from_ucs4_tab9[][2] =
 
 /* CJK punctuation and Hangzhou-style numerals.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x30[0-2]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x30[0-2]' | perl tab.pl
 
    where tab.pl is
 
@@ -1799,8 +1798,8 @@ const char __cns11643l1_from_ucs4_tab10[][2] =
 
 /* Squared latin abbreviations.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x33' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x33' | perl tab.pl
 
    where tab.pl is
 
@@ -1828,8 +1827,8 @@ const char __cns11643l1_from_ucs4_tab11[][2] =
 
 /* CJK Ideographs.  The table can be created using
 
-   egrep '^0x1' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0x[4-9]' | perl tab.pl
+   grep -E '^0x1' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0x[4-9]' | perl tab.pl
 
    where tab.pl is
 
@@ -3658,8 +3657,8 @@ const char __cns11643l1_from_ucs4_tab12[][2] =
 
 /* Glyphs for vertical variants.  The table can be created using
 
-   egrep '^0x' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0xFE' | perl tab.pl
+   grep -E '^0x' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0xFE' | perl tab.pl
 
    where tab.pl is
 
@@ -3700,8 +3699,8 @@ const char __cns11643l1_from_ucs4_tab13[][2] =
 
 /* Fullwidth ASCII variants.  The table can be created using
 
-   egrep '^0x' CNS11643.TXT |
-   awk '{ print $2, $1 }' | sort | egrep '^0xFF[0-5]' | perl tab.pl
+   grep -E '^0x' CNS11643.TXT |
+   awk '{ print $2, $1 }' | sort | grep -E '^0xFF[0-5]' | perl tab.pl
 
    where tab.pl is
 

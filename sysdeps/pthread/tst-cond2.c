@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -125,7 +124,7 @@ do_test (void)
       return 1;
     }
 
-  puts ("get lock outselves");
+  puts ("get lock ourselves");
 
   err = pthread_mutex_lock (&mut);
   if (err != 0)

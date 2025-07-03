@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,6 +25,7 @@
 #include <sys/wait.h>
 #include <string.h>
 
+#include <support/xunistd.h>
 
 static sigset_t ss;
 static pthread_barrier_t *b;
@@ -112,7 +112,7 @@ do_test (void)
 
   int i;
   for (i = 0; i < 20; ++i)
-    write (fd, "foobar xyzzy", 12);
+    xwrite (fd, "foobar xyzzy", 12);
 
   b = mmap (NULL, sizeof (pthread_barrier_t), PROT_READ | PROT_WRITE,
 	    MAP_SHARED, fd, 0);

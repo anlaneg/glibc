@@ -1,6 +1,4 @@
 /*
- * Written by J.T. Conklin <jtc@netbsd.org>.
- * Change for long double by Jakub Jelinek <jj@ultra.linux.cz>
  * Public domain.
  */
 
@@ -26,4 +24,6 @@ __isinfl (_Float128 x)
 	return ~(lx >> 63) & (hx >> 62);
 }
 mathx_hidden_def (__isinfl)
+#ifndef isinfl
 weak_alias (__isinfl, isinfl)
+#endif

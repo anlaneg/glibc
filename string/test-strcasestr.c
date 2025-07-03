@@ -1,7 +1,6 @@
 /* Test and measure strcasestr functions.
-   Copyright (C) 2010-2021 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Ulrich Drepper <drepper@redhat.com>, 2010.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,15 +21,15 @@
 #include "test-string.h"
 
 
-#define STRCASESTR simple_strcasestr
+#define STRCASESTR c_strcasestr
 #define NO_ALIAS
 #define __strncasecmp strncasecmp
 #define __strnlen strnlen
 #include "strcasestr.c"
 
-
+/* Naive implementation to verify results.  */
 static char *
-stupid_strcasestr (const char *s1, const char *s2)
+simple_strcasestr (const char *s1, const char *s2)
 {
   ssize_t s1len = strlen (s1);
   ssize_t s2len = strlen (s2);
@@ -54,8 +53,7 @@ stupid_strcasestr (const char *s1, const char *s2)
 
 typedef char *(*proto_t) (const char *, const char *);
 
-IMPL (stupid_strcasestr, 0)
-IMPL (simple_strcasestr, 0)
+IMPL (c_strcasestr, 0)
 IMPL (strcasestr, 1)
 
 
@@ -130,7 +128,7 @@ check1 (void)
   const char s2[] = "OK";
   char *exp_result;
 
-  exp_result = stupid_strcasestr (s1, s2);
+  exp_result = simple_strcasestr (s1, s2);
   FOR_EACH_IMPL (impl, 0)
     check_result (impl, s1, s2, exp_result);
 }

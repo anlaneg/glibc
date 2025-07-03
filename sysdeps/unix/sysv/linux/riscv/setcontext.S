@@ -1,5 +1,5 @@
 /* Set current context.
-   Copyright (C) 2009-2021 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -92,9 +92,10 @@ LEAF (__setcontext)
 
 	jr	t1
 
-99:	j	__syscall_error
+99:	tail	__syscall_error
 
 END (__setcontext)
+libc_hidden_def (__setcontext)
 weak_alias (__setcontext, setcontext)
 
 LEAF (__start_context)
@@ -108,7 +109,7 @@ LEAF (__start_context)
 	/* Invoke subsequent context if present, else exit(0).  */
 	mv	a0, s2
 	beqz	s2, 1f
-	jal	__setcontext
-1:	j	exit
+	jal	HIDDEN_JUMPTARGET (__setcontext)
+1:	j	HIDDEN_JUMPTARGET (exit)
 
 END (__start_context)

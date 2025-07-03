@@ -1,9 +1,7 @@
 /* Compare two memory blocks for differences in the first COUNT bytes.
    For SPARC v9.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jan Vondrák <jvon4518@ss1000.ms.mff.cuni.cz> and
-                  Jakub Jelinek <jj@ultra.linux.cz>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -139,4 +137,7 @@ END(memcmp)
 
 #undef bcmp
 weak_alias (memcmp, bcmp)
+#undef __memcmpeq
+strong_alias (memcmp, __memcmpeq)
 libc_hidden_builtin_def (memcmp)
+libc_hidden_def (__memcmpeq)

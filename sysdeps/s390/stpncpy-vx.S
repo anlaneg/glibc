@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of stpncpy.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -157,7 +157,7 @@ ENTRY(STPNCPY_Z13)
 	lgr	%r0,%r2		/* Save return-pointer to found zero.  */
 	clgije	%r4,1,.Lend	/* Skip zero-filling, if found zero is last
 				   possible character.
-				   (1 is substracted from r4 below!).  */
+				   (1 is subtracted from r4 below!).  */
 	aghi	%r4,-2		/* mvc with exrl needs count - 1.
 				   (additional -1, see remaining bytes above) */
 	srlg	%r6,%r4,8	/* Split into 256 byte blocks.  */

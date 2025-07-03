@@ -2,7 +2,7 @@ dnl We require that everyone use exactly the same Autoconf version so that
 dnl the internal functions defined and used by the main configure script
 dnl match those expected by the fragments.  When changing this version,
 dnl install.texi also needs to be updated.
-m4_define([GLIBC_AUTOCONF_VERSION], [2.69])
+m4_define([GLIBC_AUTOCONF_VERSION], [2.72])
 m4_if(m4_defn([AC_AUTOCONF_VERSION]), GLIBC_AUTOCONF_VERSION, [],
       [m4_fatal(m4_flatten(
 Exactly version GLIBC_AUTOCONF_VERSION of Autoconf is required but you have
@@ -114,26 +114,37 @@ if test -n "$path_binutils"; then
     path_binutils=`(cd $path_binutils; pwd) | sed 's%/*$%/%'`
     CC="$CC -B$path_binutils"
 fi
-AS=`$CC -print-prog-name=as`
-LD=`$CC -print-prog-name=ld`
-AR=`$CC -print-prog-name=ar`
+case "$CC" in
+    *fuse-ld=lld*) LDNAME=ld.lld;;
+    *)             LDNAME=ld;;
+esac
+if test -z "$LD"; then
+    LD=`$CC -print-prog-name=$LDNAME`
+fi
+if test -z "$AR"; then
+    AR=`$CC -print-prog-name=ar`
+fi
 AC_SUBST(AR)
-OBJDUMP=`$CC -print-prog-name=objdump`
-AC_SUBST(OBJDUMP)
-OBJCOPY=`$CC -print-prog-name=objcopy`
+if test -z "$OBJCOPY"; then
+    OBJCOPY=`$CC -print-prog-name=objcopy`
+fi
 AC_SUBST(OBJCOPY)
-GPROF=`$CC -print-prog-name=gprof`
+if test -z "$GPROF"; then
+    GPROF=`$CC -print-prog-name=gprof`
+fi
 AC_SUBST(GPROF)
-
-# Determine whether we are using GNU binutils.
-AC_CACHE_CHECK(whether $AS is GNU as, libc_cv_prog_as_gnu,
-[LIBC_PROG_FOO_GNU($AS, libc_cv_prog_as_gnu=yes, libc_cv_prog_as_gnu=no)])
-rm -f a.out
-gnu_as=$libc_cv_prog_as_gnu
-
-AC_CACHE_CHECK(whether $LD is GNU ld, libc_cv_prog_ld_gnu,
-[LIBC_PROG_FOO_GNU($LD, libc_cv_prog_ld_gnu=yes, libc_cv_prog_ld_gnu=no)])
-gnu_ld=$libc_cv_prog_ld_gnu
+if test -z "$READELF"; then
+    READELF=`$CC -print-prog-name=readelf`
+fi
+AC_SUBST(READELF)
+if test -z "$OBJDUMP"; then
+    OBJDUMP=`$CC -print-prog-name=objdump`
+fi
+AC_SUBST(OBJDUMP)
+if test -z "$NM"; then
+    NM=`$CC -print-prog-name=nm`
+fi
+AC_SUBST(NM)
 ])
 
 dnl Run a static link test with -nostdlib -nostartfiles.
@@ -154,6 +165,12 @@ dnl Test a compiler option or options with an empty input file.
 dnl LIBC_TRY_CC_OPTION([options], [action-if-true], [action-if-false])
 AC_DEFUN([LIBC_TRY_CC_OPTION],
 [AS_IF([AC_TRY_COMMAND([${CC-cc} $1 -xc /dev/null -S -o /dev/null])],
+	[$2], [$3])])
+
+dnl Test a C++ compiler option or options with an empty input file.
+dnl LIBC_TRY_CXX_OPTION([options], [action-if-true], [action-if-false])
+AC_DEFUN([LIBC_TRY_CXX_OPTION],
+[AS_IF([AC_TRY_COMMAND([${CXX-c++} $1 -xc++ /dev/null -S -o /dev/null])],
 	[$2], [$3])])
 
 dnl Find and source sysdeps/*/preconfigure.
@@ -223,22 +240,23 @@ dnl LIBC_LINKER_FEATURE([ld_option], [cc_option], [action-if-true], [action-if-f
 AC_DEFUN([LIBC_LINKER_FEATURE],
 [AC_MSG_CHECKING([for linker that supports $1])
 libc_linker_feature=no
-if test x"$gnu_ld" = x"yes"; then
-  libc_linker_check=`$LD -v --help 2>/dev/null | grep "\$1"`
-  if test -n "$libc_linker_check"; then
-    cat > conftest.c <<EOF
+cat > conftest.c <<EOF
 int _start (void) { return 42; }
 EOF
-    if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp
-				$2 -nostdlib -nostartfiles
-				-fPIC -shared -o conftest.so conftest.c
-				1>&AS_MESSAGE_LOG_FD])
-    then
-      libc_linker_feature=yes
-    fi
-    rm -f conftest*
+if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp
+		  $2 -nostdlib -nostartfiles
+		  -fPIC -shared -o conftest.so conftest.c
+		  1>&AS_MESSAGE_LOG_FD])
+then
+  if ${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp $2 -nostdlib \
+      -nostartfiles -fPIC -shared -o conftest.so conftest.c 2>&1 \
+      | grep "warning: $1 ignored" > /dev/null 2>&1; then
+    true
+  else
+    libc_linker_feature=yes
   fi
 fi
+rm -f conftest*
 if test $libc_linker_feature = yes; then
   $3
 else
@@ -273,7 +291,7 @@ int _start (void) { $2 return 0; }
 EOF
 if ! AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS $no_ssp
 		     $3 -nostdlib -nostartfiles
-		     -S conftest.c -o - | fgrep "$1"
+		     -S conftest.c -o - | grep -F "$1"
 		     1>&AS_MESSAGE_LOG_FD])
 then
   libc_compiler_builtin_inlined=yes
@@ -303,3 +321,158 @@ case "$prefix" in
   fi
   ;;
 esac])
+
+dnl Run a test with TEST_CC.
+dnl LIBC_CHECK_TEST_CC([commands])
+AC_DEFUN([LIBC_CHECK_TEST_CC],
+[
+saved_CC="$CC"
+CC="$TEST_CC"
+[$1]
+CC="$saved_CC"
+])
+
+dnl Run a test with TEST_CXX.
+dnl LIBC_CHECK_TEST_CXX([commands])
+AC_DEFUN([LIBC_CHECK_TEST_CXX],
+[
+saved_CXX="$CXX"
+CXX="$TEST_CXX"
+[$1]
+CXX="$saved_CXX"
+])
+
+dnl Test a CC and TEST_CC compiler option or options with an empty input
+dnl file.
+dnl LIBC_TRY_CC_AND_TEST_CC_OPTION([message], [options],
+dnl   [CC-cache-id], [CC-action-if-true], [CC-action-if-false]
+dnl   [TEST_CC-cache-id], [TEST_CC-action-if-true], [TEST_CC-action-if-false])
+AC_DEFUN([LIBC_TRY_CC_AND_TEST_CC_OPTION],
+[
+AC_CACHE_CHECK([$1], $3,
+  [LIBC_TRY_CC_OPTION([$2], [$4], [$5])])
+if test "$TEST_CC" = "$CC"; then
+  $6=$[$3]
+else
+  LIBC_CHECK_TEST_CC(
+    AC_CACHE_CHECK([$1 in testing], $6,
+      [LIBC_TRY_CC_OPTION([$2], [$7], [$8])])
+  )
+fi
+])
+
+dnl Test a CC and TEST_CC compiler option or options with an input file.
+dnl LIBC_TRY_CC_AND_TEST_CC_COMMAND([message], [code], [options],
+dnl   [CC-cache-id], [CC-action-if-true], [CC-action-if-false]
+dnl   [TEST_CC-cache-id], [TEST_CC-action-if-true], [TEST_CC-action-if-false])
+AC_DEFUN([LIBC_TRY_CC_AND_TEST_CC_COMMAND],
+[
+cat > conftest.c <<EOF
+$2
+EOF
+AC_CACHE_CHECK([$1], $4, [dnl
+  if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $3 conftest.c -o conftest 1>&AS_MESSAGE_LOG_FD])
+  then
+    [$5]
+  else
+    [$6]
+  fi
+])
+if test "$TEST_CC" = "$CC"; then
+  $7=$[$4]
+else
+  LIBC_CHECK_TEST_CC(
+    AC_CACHE_CHECK([$1 in testing], $7, [dnl
+      if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $3 conftest.c -o conftest 1>&AS_MESSAGE_LOG_FD])
+      then
+	[$8]
+      else
+	[$9]
+      fi])
+  )
+fi
+rm -f conftest*])
+
+dnl Test if CC and TEST_CC can link with an input file.
+dnl LIBC_TRY_CC_AND_TEST_LINK([message], [code],
+dnl   [CC-cache-id], [CC-action-if-true], [CC-action-if-false]
+dnl   [TEST_CC-cache-id], [TEST_CC-action-if-true], [TEST_CC-action-if-false])
+AC_DEFUN([LIBC_TRY_CC_AND_TEST_LINK],
+[
+AC_CACHE_CHECK([$1], $3, [
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([], [$2])],
+   [$4], [$5])
+])
+if test "$TEST_CC" = "$CC"; then
+  $6=$[$3]
+else
+  LIBC_CHECK_TEST_CC(
+    AC_CACHE_CHECK([$1 in testing], $6, [
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([], [$2])],
+      [$7], [$8])
+    ])
+  )
+fi
+])
+
+dnl Test a TEST_CC compiler option or options with an input file.
+dnl LIBC_TRY_TEST_CC_COMMAND([message], [code], [options],
+dnl   [TEST_CC-cache-id], [TEST_CC-action-if-true], [TEST_CC-action-if-false])
+AC_DEFUN([LIBC_TRY_TEST_CC_COMMAND],
+[
+cat > conftest.c <<EOF
+$2
+EOF
+LIBC_CHECK_TEST_CC(
+  AC_CACHE_CHECK([$1 in testing], $4, [dnl
+    if AC_TRY_COMMAND([${CC-cc} $CFLAGS $CPPFLAGS $3 conftest.c -o conftest 1>&AS_MESSAGE_LOG_FD])
+    then
+      [$5]
+    else
+      [$6]
+    fi])
+)
+rm -f conftest*])
+
+dnl Test a TEST_CXX compiler option or options with an input file.
+dnl LIBC_TRY_TEST_CXX_COMMAND([message], [code], [options],
+dnl   [TEST_CXX-cache-id], [TEST_CXX-action-if-true],
+dnl   [TEST_CXX-action-if-false])
+AC_DEFUN([LIBC_TRY_TEST_CXX_COMMAND],
+[
+cat > conftest.cc <<EOF
+$2
+EOF
+LIBC_CHECK_TEST_CXX(
+  AC_CACHE_CHECK([$1 in testing], $4, [dnl
+    if AC_TRY_COMMAND([${CXX-c++} $CXXFLAGS $CPPFLAGS $3 conftest.cc -o conftest 1>&AS_MESSAGE_LOG_FD])
+    then
+      [$5]
+    else
+      [$6]
+    fi])
+)
+rm -f conftest*])
+
+dnl Test a TEST_CC compiler option or options with an empty input file.
+dnl LIBC_TRY_TEST_CC_OPTION([message], [options],
+dnl   [TEST_CC-cache-id], [TEST_CC-action-if-true], [TEST_CC-action-if-false])
+AC_DEFUN([LIBC_TRY_TEST_CC_OPTION],
+[
+LIBC_CHECK_TEST_CC(
+  AC_CACHE_CHECK([$1 in testing], $3,
+    [LIBC_TRY_CC_OPTION([$2], [$4], [$5])])
+  )
+])
+
+dnl Test a TEST_CXX compiler option or options with an empty input file.
+dnl LIBC_TRY_TEST_CXX_OPTION([message], [options],
+dnl   [TEST_CXX-cache-id], [TEST_CXX-action-if-true],
+dnl   [TEST_CXX-action-if-false])
+AC_DEFUN([LIBC_TRY_TEST_CXX_OPTION],
+[
+LIBC_CHECK_TEST_CXX(
+  AC_CACHE_CHECK([$1 in testing], $3,
+    [LIBC_TRY_CXX_OPTION([$2], [$4], [$5])])
+  )
+])

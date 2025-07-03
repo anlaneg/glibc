@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,10 +28,7 @@ __getrlimit (enum __rlimit_resource resource, struct rlimit *rlimits)
   struct rlimit lim;
 
   if (rlimits == NULL || (unsigned int) resource >= RLIMIT_NLIMITS)
-    {
-      errno = EINVAL;
-      return -1;
-    }
+    return __hurd_fail (EINVAL);
 
   HURD_CRITICAL_BEGIN;
   __mutex_lock (&_hurd_rlimit_lock);

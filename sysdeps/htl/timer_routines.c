@@ -1,7 +1,6 @@
 /* Helper code for POSIX timer implementation on NPTL.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Kaz Kylheku <kaz@ashi.footprints.net>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -19,7 +18,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <pthread.h>
+#include <pthreadP.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,7 +46,7 @@ struct timer_node __timer_array[TIMER_MAX];
 /* Global lock to protect operation on the lists.  */
 pthread_mutex_t __timer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Variable to protext initialization.  */
+/* Variable to protect initialization.  */
 pthread_once_t __timer_init_once_control = PTHREAD_ONCE_INIT;
 
 /* Nonzero if initialization of timer implementation failed.  */
@@ -152,7 +151,7 @@ thread_init (struct thread_node *thread, const pthread_attr_t *attr, clockid_t c
 
   thread->exists = 0;
   INIT_LIST_HEAD (&thread->timer_queue);
-  pthread_cond_init (&thread->cond, 0);
+  __pthread_cond_init (&thread->cond, 0);
   thread->current_timer = 0;
   thread->captured = pthread_self ();
   thread->clock_id = clock_id;
@@ -192,7 +191,7 @@ static void
 reinit_after_fork (void)
 {
   init_module ();
-  pthread_mutex_init (&__timer_mutex, 0);
+  __pthread_mutex_init (&__timer_mutex, 0);
 }
 
 
@@ -212,7 +211,7 @@ static void
 thread_deinit (struct thread_node *thread)
 {
   assert (list_isempty (&thread->timer_queue));
-  pthread_cond_destroy (&thread->cond);
+  __pthread_cond_destroy (&thread->cond);
 }
 
 
@@ -266,7 +265,7 @@ thread_cleanup (void *val)
       /* How did the signal thread get killed?  */
       assert (thread != &__timer_signal_thread_rclk);
 
-      pthread_mutex_lock (&__timer_mutex);
+      __pthread_mutex_lock (&__timer_mutex);
 
       thread->exists = 0;
 
@@ -278,10 +277,10 @@ thread_cleanup (void *val)
       else
 	(void) __timer_thread_start (thread);
 
-      pthread_mutex_unlock (&__timer_mutex);
+      __pthread_mutex_unlock (&__timer_mutex);
 
       /* Unblock potentially blocked timer_delete().  */
-      pthread_cond_broadcast (&thread->cond);
+      __pthread_cond_broadcast (&thread->cond);
     }
 }
 
@@ -292,7 +291,7 @@ thread_expire_timer (struct thread_node *self, struct timer_node *timer)
 {
   self->current_timer = timer; /* Lets timer_delete know timer is running. */
 
-  pthread_mutex_unlock (&__timer_mutex);
+  __pthread_mutex_unlock (&__timer_mutex);
 
   switch (__builtin_expect (timer->event.sigev_notify, SIGEV_SIGNAL))
     {
@@ -335,11 +334,11 @@ thread_expire_timer (struct thread_node *self, struct timer_node *timer)
       break;
     }
 
-  pthread_mutex_lock (&__timer_mutex);
+  __pthread_mutex_lock (&__timer_mutex);
 
   self->current_timer = 0;
 
-  pthread_cond_broadcast (&self->cond);
+  __pthread_cond_broadcast (&self->cond);
 }
 
 
@@ -359,7 +358,7 @@ thread_func (void *arg)
 
   pthread_cleanup_push (thread_cleanup, self);
 
-  pthread_mutex_lock (&__timer_mutex);
+  __pthread_mutex_lock (&__timer_mutex);
 
   while (1)
     {
@@ -419,10 +418,10 @@ thread_func (void *arg)
 	 head of the queue must wake up the thread by broadcasting
 	 this condition variable.  */
       if (timer != NULL)
-	pthread_cond_timedwait (&self->cond, &__timer_mutex,
+	__pthread_cond_timedwait (&self->cond, &__timer_mutex,
 				&timer->expirytime);
       else
-	pthread_cond_wait (&self->cond, &__timer_mutex);
+	__pthread_cond_wait (&self->cond, &__timer_mutex);
     }
   /* This macro will never be executed since the while loop loops
      forever - but we have to add it for proper nesting.  */
@@ -469,7 +468,7 @@ __timer_thread_start (struct thread_node *thread)
   thread->exists = 1;
 
   sigfillset (&set);
-  pthread_sigmask (SIG_SETMASK, &set, &oset);
+  __pthread_sigmask (SIG_SETMASK, &set, &oset);
 
   if (pthread_create (&thread->id, &thread->attr,
 		      (void *(*) (void *)) thread_func, thread) != 0)
@@ -478,7 +477,7 @@ __timer_thread_start (struct thread_node *thread)
       retval = -1;
     }
 
-  pthread_sigmask (SIG_SETMASK, &oset, NULL);
+  __pthread_sigmask (SIG_SETMASK, &oset, NULL);
 
   return retval;
 }
@@ -487,7 +486,7 @@ __timer_thread_start (struct thread_node *thread)
 void
 __timer_thread_wakeup (struct thread_node *thread)
 {
-  pthread_cond_broadcast (&thread->cond);
+  __pthread_cond_broadcast (&thread->cond);
 }
 
 
@@ -551,5 +550,5 @@ __timer_dealloc (struct timer_node *timer)
 void
 __timer_mutex_cancel_handler (void *arg)
 {
-  pthread_mutex_unlock (arg);
+  __pthread_mutex_unlock (arg);
 }

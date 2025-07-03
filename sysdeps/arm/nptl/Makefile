@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2021 Free Software Foundation, Inc.
+# Copyright (C) 2005-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -15,15 +15,11 @@
 # License along with the GNU C Library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-ifeq ($(subdir),csu)
-gen-as-const-headers += tcb-offsets.sym
-endif
-
 ifeq ($(subdir),nptl)
 # This test relies on compiling part of the binary with EH information,
 # part without, and unwinding through.  The .ARM.exidx tables have
 # start addresses for EH regions, but no end addresses.  Every
-# region an exception needs to propogate through must have unwind
+# region an exception needs to propagate through must have unwind
 # information, or a previous function's unwind table may be used
 # by mistake.
 tests := $(filter-out tst-cleanupx4,$(tests))

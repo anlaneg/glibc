@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 1996.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -33,11 +32,13 @@
 #include <limits.h>
 #include <nl_types.h>
 #include <obstack.h>
+#include <scratch_buffer.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <unistd_ext.h>
 #include <wchar.h>
 
 #include "version.h"
@@ -246,7 +247,7 @@ print_version (FILE *stream, struct argp_state *state)
 Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
-"), "2021");
+"), "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Ulrich Drepper");
 }
 
@@ -428,7 +429,7 @@ read_input_file (struct catalog *current, const char *fname)
 
 		      /* Test whether the identifier was already used.  */
 		      runp = current->all_sets;
-		      while (runp != 0)
+		      while (runp != NULL)
 			if (runp->symbol != NULL
 			    && strcmp (runp->symbol, symbol) == 0)
 			  break;
@@ -839,7 +840,6 @@ invalid character: message ignored"));
   return current;
 }
 
-
 static void
 write_out (struct catalog *catalog, const char *output_name,
 	   const char *header_name)
@@ -855,6 +855,10 @@ write_out (struct catalog *catalog, const char *output_name,
   uint32_t *array1, *array2;
   size_t cnt;
   int fd;
+  struct scratch_buffer buf1;
+  scratch_buffer_init (&buf1);
+  struct scratch_buffer buf2;
+  scratch_buffer_init (&buf2);
 
   /* If not otherwise told try to read file with existing
      translations.  */
@@ -928,12 +932,21 @@ write_out (struct catalog *catalog, const char *output_name,
   obj.plane_size = best_size;
   obj.plane_depth = best_depth;
 
+  uint32_t array_size = best_size * best_depth * sizeof (uint32_t) * 3;
   /* Allocate room for all needed arrays.  */
-  array1 =
-    (uint32_t *) alloca (best_size * best_depth * sizeof (uint32_t) * 3);
-  memset (array1, '\0', best_size * best_depth * sizeof (uint32_t) * 3);
-  array2
-    = (uint32_t *) alloca (best_size * best_depth * sizeof (uint32_t) * 3);
+  if (!scratch_buffer_set_array_size (&buf1, best_size * best_depth * 3,
+			              sizeof (uint32_t)))
+    error (EXIT_FAILURE, ENOMEM, gettext ("cannot allocate memory"));
+  array1 = buf1.data;
+  memset (array1, '\0', array_size);
+
+  if (!scratch_buffer_set_array_size (&buf2, best_size * best_depth * 3,
+			              sizeof (uint32_t)))
+    {
+      scratch_buffer_free (&buf1);
+      error (EXIT_FAILURE, ENOMEM, gettext ("cannot allocate memory"));
+    }
+  array2 = buf2.data;
   obstack_init (&string_pool);
 
   set_run = catalog->all_sets;
@@ -981,27 +994,31 @@ write_out (struct catalog *catalog, const char *output_name,
     {
       fd = creat (output_name, 0666);
       if (fd < 0)
-	error (EXIT_FAILURE, errno, gettext ("cannot open output file `%s'"),
-	       output_name);
+	{
+	  scratch_buffer_free (&buf1);
+	  scratch_buffer_free (&buf2);
+	  error (EXIT_FAILURE, errno, gettext ("cannot open output file `%s'"),
+	         output_name);
+	}
     }
 
   /* Write out header.  */
-  write (fd, &obj, sizeof (obj));
+  write_all(fd, &obj, sizeof (obj));
 
   /* We always write out the little endian version of the index
      arrays.  */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-  write (fd, array1, best_size * best_depth * sizeof (uint32_t) * 3);
-  write (fd, array2, best_size * best_depth * sizeof (uint32_t) * 3);
+  write_all(fd, array1, array_size);
+  write_all(fd, array2, array_size);
 #elif __BYTE_ORDER == __BIG_ENDIAN
-  write (fd, array2, best_size * best_depth * sizeof (uint32_t) * 3);
-  write (fd, array1, best_size * best_depth * sizeof (uint32_t) * 3);
+  write_all(fd, array2, array_size);
+  write_all(fd, array1, array_size);
 #else
 # error Cannot handle __BYTE_ORDER byte order
 #endif
 
   /* Finally write the strings.  */
-  write (fd, strings, strings_size);
+  write_all(fd, strings, strings_size);
 
   if (fd != STDOUT_FILENO)
     close (fd);
@@ -1021,8 +1038,12 @@ write_out (struct catalog *catalog, const char *output_name,
 	{
 	  fp = fopen (header_name, "w");
 	  if (fp == NULL)
-	    error (EXIT_FAILURE, errno,
-		   gettext ("cannot open output file `%s'"), header_name);
+	    {
+	      scratch_buffer_free (&buf1);
+	      scratch_buffer_free (&buf2);
+	      error (EXIT_FAILURE, errno,
+		     gettext ("cannot open output file `%s'"), header_name);
+	    }
 	}
 
       /* Iterate over all sets and all messages.  */
@@ -1034,7 +1055,7 @@ write_out (struct catalog *catalog, const char *output_name,
 	  /* If the current message set has a symbolic name write this
 	     out first.  */
 	  if (set_run->symbol != NULL)
-	    fprintf (fp, "%s#define %sSet %#x\t/* %s:%Zu */\n",
+	    fprintf (fp, "%s#define %sSet %#x\t/* %s:%zu */\n",
 		     first ? "" : "\n", set_run->symbol, set_run->number - 1,
 		     set_run->fname, set_run->line);
 	  first = 0;
@@ -1048,12 +1069,12 @@ write_out (struct catalog *catalog, const char *output_name,
 	      if (message_run->symbol != NULL)
 		{
 		  if (set_run->symbol == NULL)
-		    fprintf (fp, "#define AutomaticSet%d%s %#x\t/* %s:%Zu */\n",
+		    fprintf (fp, "#define AutomaticSet%d%s %#x\t/* %s:%zu */\n",
 			     set_run->number, message_run->symbol,
 			     message_run->number, message_run->fname,
 			     message_run->line);
 		  else
-		    fprintf (fp, "#define %s%s %#x\t/* %s:%Zu */\n",
+		    fprintf (fp, "#define %s%s %#x\t/* %s:%zu */\n",
 			     set_run->symbol, message_run->symbol,
 			     message_run->number, message_run->fname,
 			     message_run->line);
@@ -1068,6 +1089,8 @@ write_out (struct catalog *catalog, const char *output_name,
       if (fp != stdout)
 	fclose (fp);
     }
+  scratch_buffer_free (&buf1);
+  scratch_buffer_free (&buf2);
 }
 
 

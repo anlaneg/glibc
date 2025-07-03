@@ -1,5 +1,5 @@
 /* longjmp cleanup function for unwinding past signal handlers.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,11 +18,10 @@
 
 #include <hurd.h>
 #include <thread_state.h>
-#include <hurd/threadvar.h>
 #include <jmpbuf-unwind.h>
 #include <assert.h>
 #include <stdint.h>
-
+#include <pointer_guard.h>
 
 /* _hurd_setup_sighandler puts a link on the `active resources' chain so that
    _longjmp_unwind will call this function with the `struct sigcontext *'
@@ -39,19 +38,18 @@ _hurdsig_longjmp_from_handler (void *data, jmp_buf env, int val)
     {
       /* Destroy the MiG reply port used by the signal handler, and restore
 	 the reply port in use by the thread when interrupted.  */
-      mach_port_t *reply_port = &__hurd_local_reply_port;
-      if (*reply_port)
-	{
-	  mach_port_t port = *reply_port;
-	  /* Assigning MACH_PORT_DEAD here tells libc's mig_get_reply_port
-	     not to get another reply port, but avoids mig_dealloc_reply_port
-	     trying to deallocate it after the receive fails (which it will,
-	     because the reply port will be bogus, regardless).  */
-	  *reply_port = MACH_PORT_DEAD;
-	  __mach_port_destroy (__mach_task_self (), port);
-	}
+      mach_port_t reply_port = THREAD_GETMEM (THREAD_SELF, reply_port);
+      /* Assigning MACH_PORT_DEAD here tells libc's mig_get_reply_port not to
+         get another reply port, but avoids mig_dealloc_reply_port trying to
+         deallocate it after the receive fails (which it will, because the
+         reply port will be bogus, regardless).  */
+      THREAD_SETMEM (THREAD_SELF, reply_port, MACH_PORT_DEAD);
+      if (MACH_PORT_VALID (reply_port))
+        __mach_port_mod_refs (__mach_task_self (), reply_port,
+                              MACH_PORT_RIGHT_RECEIVE, -1);
       if (scp->sc_reply_port)
-	__mach_port_destroy (__mach_task_self (), scp->sc_reply_port);
+        __mach_port_mod_refs (__mach_task_self (), scp->sc_reply_port,
+                              MACH_PORT_RIGHT_RECEIVE, -1);
     }
 
   __spin_lock (&ss->lock);
@@ -73,9 +71,7 @@ _hurdsig_longjmp_from_handler (void *data, jmp_buf env, int val)
 
       inline uintptr_t demangle_ptr (uintptr_t x)
 	{
-# ifdef PTR_DEMANGLE
 	  PTR_DEMANGLE (x);
-# endif
 	  return x;
 	}
 

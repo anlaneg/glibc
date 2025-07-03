@@ -1,5 +1,5 @@
 /* Raise given exceptions.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@ __feraiseexcept (int excepts)
       /* One example of an invalid operation is 0.0 / 0.0.  */
       float f = 0.0;
 
-      __asm__ __volatile__ ("divss %0, %0 " : : "x" (f));
+      __asm__ __volatile__ ("divss %0, %0 " : "+x" (f));
       (void) &f;
     }
 
@@ -43,7 +43,7 @@ __feraiseexcept (int excepts)
       float f = 1.0;
       float g = 0.0;
 
-      __asm__ __volatile__ ("divss %1, %0" : : "x" (f), "x" (g));
+      __asm__ __volatile__ ("divss %1, %0" : "+x" (f) : "x" (g));
       (void) &f;
     }
 

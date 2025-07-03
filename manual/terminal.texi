@@ -771,11 +771,11 @@ If this bit is set, it says to ignore the control modes and line speed
 values entirely.  This is only meaningful in a call to @code{tcsetattr}.
 
 The @code{c_cflag} member and the line speed values returned by
-@code{cfgetispeed} and @code{cfgetospeed} will be unaffected by the
-call.  @code{CIGNORE} is useful if you want to set all the software
-modes in the other members, but leave the hardware details in
-@code{c_cflag} unchanged.  (This is how the @code{TCSASOFT} flag to
-@code{tcsettattr} works.)
+@code{cfgetispeed}, @code{cfgetospeed}, @code{cfgetibaud} and
+@code{cfsetibaud} will be unaffected by the call.  @code{CIGNORE} is
+useful if you want to set all the software modes in the other members,
+but leave the hardware details in @code{c_cflag} unchanged.  (This is
+how the @code{TCSASOFT} flag to @code{tcsettattr} works.)
 
 This bit is never set in the structure filled in by @code{tcgetattr}.
 @end deftypevr
@@ -1047,14 +1047,15 @@ The @code{speed_t} type is an unsigned integer data type used to
 represent line speeds.
 @end deftp
 
-The functions @code{cfsetospeed} and @code{cfsetispeed} report errors
-only for speed values that the system simply cannot handle.  If you
-specify a speed value that is basically acceptable, then those functions
-will succeed.  But they do not check that a particular hardware device
-can actually support the specified speeds---in fact, they don't know
-which device you plan to set the speed for.  If you use @code{tcsetattr}
-to set the speed of a particular device to a value that it cannot
-handle, @code{tcsetattr} returns @math{-1}.
+@deftypefun speed_t cfgetospeed (const struct termios *@var{termios-p})
+@standards{POSIX.1, termios.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c Direct access to a single termios field, except on Linux, where
+@c multiple accesses may take place.  No worries either way, callers
+@c must ensure mutual exclusion on such non-opaque types.
+This function returns the output line speed stored in the structure
+@code{*@var{termios-p}}.
+@end deftypefun
 
 @strong{Portability note:} In @theglibc{}, the functions above
 accept speeds measured in bits per second as input, and return speed
@@ -1106,11 +1107,23 @@ the only speeds that typical serial lines can support.
 @comment POSIX.1
 @vindex B4800
 @comment termios.h
+@comment GNU
+@vindex B7200
+@comment termios.h
 @comment POSIX.1
 @vindex B9600
 @comment termios.h
+@comment GNU
+@vindex B14400
+@comment termios.h
 @comment POSIX.1
 @vindex B19200
+@comment termios.h
+@comment GNU
+@vindex B28800
+@comment termios.h
+@comment GNU
+@vindex B33600
 @comment termios.h
 @comment POSIX.1
 @vindex B38400
@@ -1119,18 +1132,72 @@ the only speeds that typical serial lines can support.
 @vindex B57600
 @comment termios.h
 @comment GNU
+@vindex B76800
+@comment termios.h
+@comment GNU
 @vindex B115200
+@comment termios.h
+@comment GNU
+@vindex B153600
 @comment termios.h
 @comment GNU
 @vindex B230400
 @comment termios.h
 @comment GNU
+@vindex B307200
+@comment termios.h
+@comment GNU
 @vindex B460800
+@comment termios.h
+@comment GNU
+@vindex B500000
+@comment termios.h
+@comment GNU
+@vindex B576000
+@comment termios.h
+@comment GNU
+@vindex B614400
+@comment termios.h
+@comment GNU
+@vindex B921600
+@comment termios.h
+@comment GNU
+@vindex B1000000
+@comment termios.h
+@comment GNU
+@vindex B1152000
+@comment termios.h
+@comment GNU
+@vindex B1500000
+@comment termios.h
+@comment GNU
+@vindex B2000000
+@comment termios.h
+@comment GNU
+@vindex B2500000
+@comment termios.h
+@comment GNU
+@vindex B3000000
+@comment termios.h
+@comment GNU
+@vindex B3500000
+@comment termios.h
+@comment GNU
+@vindex B4000000
+@comment termios.h
+@comment GNU
+@vindex B5000000
+@comment termios.h
+@comment GNU
+@vindex B10000000
 @smallexample
-B0  B50  B75  B110  B134  B150  B200
-B300  B600  B1200  B1800  B2400  B4800
-B9600  B19200  B38400  B57600  B115200
-B230400  B460800
+B0  B50  B75  B110  B134  B150  B200  B300  B600  B1200
+B1800  B2400  B4800  B7200  B9600  B14400  B19200
+B28800  B33600  B38400  B57600  B76800  B115200
+B153600  B230400  B307200  B460800  B500000
+B576000  B614400  B921600  B1000000  B1152000
+B1500000  B2000000  B2500000  B3000000
+B3500000  B4000000  B5000000  B10000000
 @end smallexample
 
 @vindex EXTA
@@ -1138,6 +1205,69 @@ B230400  B460800
 BSD defines two additional speed symbols as aliases: @code{EXTA} is an
 alias for @code{B19200} and @code{EXTB} is an alias for @code{B38400}.
 These aliases are obsolete.
+
+@deftypefun baud_t cfgetibaud (const struct termios *@var{termios-p})
+@standards{GNU, termios.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+This function returns the input line baud rate stored in the structure
+@code{*@var{termios-p}}.
+@end deftypefun
+
+@deftypefun int cfsetobaud (struct termios *@var{termios-p}, baud_t @var{baud})
+@standards{GNU, termios.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+This function stores @var{baud} in @code{*@var{termios-p}} as the output
+baud rate.  The normal return value is @math{0}; a value of @math{-1}
+indicates an error.  If @var{baud} is not a valid baud rate, @code{cfsetobaud}
+returns @math{-1}.
+@end deftypefun
+
+@deftypefun int cfsetibaud (struct termios *@var{termios-p}, baud_t @var{baud})
+@standards{GNU, termios.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+This function stores @var{baud} in @code{*@var{termios-p}} as the input
+baud rate.  The normal return value is @math{0}; a value of @math{-1}
+indicates an error.  If @var{baud} is not a valid baud rate, @code{cfsetobaud}
+returns @math{-1}.
+@end deftypefun
+
+@deftypefun int cfsetbaud (struct termios *@var{termios-p}, baud_t @var{baud})
+@standards{GNU, termios.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c There's no guarantee that the two calls are atomic, but since this is
+@c not an opaque type, callers ought to ensure mutual exclusion to the
+@c termios object.
+
+@c cfsetbaud ok
+@c  cfsetibaud ok
+@c  cfsetobaud ok
+This function stores @var{baud} in @code{*@var{termios-p}} as both the
+input and output baud rates.  The normal return value is @math{0}; a value
+of @math{-1} indicates an error.  If @var{baud} is not a valid baud rate,
+@code{cfsetbaud} returns @math{-1}.
+@end deftypefun
+
+@deftp {Data Type} baud_t
+@standards{GNU}
+The @code{baud_t} type is a numeric data type used to represent line
+baud rates. It will always represent the actual numeric value
+representing the baud rate, unlike @code{speed_t}. In the current
+version of @theglibc{} this is the same type as @code{speed_t}, but this
+may not be the case in future versions, or on other implementations; it
+may not even necessarily be an integer type.
+
+@end deftp
+
+The functions @code{cfsetospeed}, @code{cfsetispeed}, @code{cfsetobaud}
+and @code{cfsetibaud} report errors only for speed values that the
+system simply cannot handle.  If you specify a speed value that is
+basically acceptable, then those functions will succeed.  But they do
+not check that a particular hardware device can actually support the
+specified speeds---in fact, they don't know which device you plan to set
+the speed for.  If you use @code{tcsetattr} to set the speed of a
+particular device to a value that it cannot handle, either @code{tcsetattr}
+returns @math{-1}, or the value is adjusted to the closest supported
+value, depending on the policy of the kernel driver.
 
 @node Special Characters
 @subsection Special Characters
@@ -1947,6 +2077,33 @@ This subsection describes functions for allocating a pseudo-terminal,
 and for making this pseudo-terminal available for actual use.  These
 functions are declared in the header file @file{stdlib.h}.
 
+@deftypefun int posix_openpt (int @var{flags})
+@standards{POSIX.1, stdlib.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{@acsfd{}}}
+
+@code{posix_openpt} returns a new file descriptor for the next
+available master pseudo-terminal.  In the case of an error, it returns
+a value of @math{-1} instead, and sets @code{errno} to indicate
+the error.  @xref{Opening and Closing Files} for possible values
+of @code{errno}.
+
+@var{flags} is a bit mask created from a bitwise OR of zero or more
+of the following flags:
+
+@table @code
+@item O_RDWR
+Open the device for both reading and writing.  It is usual to specify
+this flag.
+@item O_NOCTTY
+Do not make the device the controlling terminal for the process.
+@end table
+
+These flags are defined in @file{fcntl.h}.  @xref{Access Modes}.
+
+For this function to be available, @code{_XOPEN_SOURCE} must be defined
+to a value greater than @samp{600}.  @xref{Feature Test Macros}.
+@end deftypefun
+
 @deftypefun int getpt (void)
 @standards{GNU, stdlib.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{@acsfd{}}}
@@ -1957,6 +2114,10 @@ functions are declared in the header file @file{stdlib.h}.
 @c a devfs, and returns the fd; static variables devpts_mounted and
 @c have_no_dev_ptmx are safely initialized so as to avoid repeated
 @c tests.
+
+@code{getpt} is similar to @code{posix_openpt}.  This function is a
+GNU extension and should not be used in portable programs.
+
 The @code{getpt} function returns a new file descriptor for the next
 available master pseudo-terminal.  The normal return value from
 @code{getpt} is a non-negative integer file descriptor.  In the case of
@@ -1967,8 +2128,6 @@ an error, a value of @math{-1} is returned instead.  The following
 @item ENOENT
 There are no free master pseudo-terminals available.
 @end table
-
-This function is a GNU extension.
 @end deftypefun
 
 @deftypefun int grantpt (int @var{filedes})
@@ -2078,7 +2237,7 @@ might be overwritten by subsequent calls to @code{ptsname}.
 @end deftypefun
 
 @deftypefun int ptsname_r (int @var{filedes}, char *@var{buf}, size_t @var{len})
-@standards{GNU, stdlib.h}
+@standards{POSIX.1-2024, stdlib.h}
 @safety{@prelim{}@mtsafe{}@asunsafe{@ascuheap{/bsd}}@acunsafe{@acsmem{} @acsfd{}}}
 @c ptsname_r @ascuheap/bsd @acsmem @acsfd
 @c /hurd
@@ -2114,10 +2273,12 @@ The @code{ptsname_r} function is similar to the @code{ptsname} function
 except that it places its result into the user-specified buffer starting
 at @var{buf} with length @var{len}.
 
-This function is a GNU extension.
+This function was originally a GNU extension, but was added in
+POSIX.1-2024.
 @end deftypefun
 
 Typical usage of these functions is illustrated by the following example:
+
 @smallexample
 int
 open_pty_pair (int *amaster, int *aslave)
@@ -2125,7 +2286,7 @@ open_pty_pair (int *amaster, int *aslave)
   int master, slave;
   char *name;
 
-  master = getpt ();
+  master = posix_openpt (O_RDWR | O_NOCTTY);
   if (master < 0)
     return 0;
 

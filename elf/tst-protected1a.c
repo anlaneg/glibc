@@ -7,7 +7,7 @@
    4. Symbol, protected2, defined in main, is used in main.
    5. Symbol, protected3, defined in moda, is also used in main.
 
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 /* This file must be compiled as PIE to avoid copy relocation when
-   accessing protected symbols defined in shared libaries since copy
+   accessing protected symbols defined in shared libraries since copy
    relocation doesn't work with protected symbols and linker in
    binutils 2.26 enforces this rule.  */
 

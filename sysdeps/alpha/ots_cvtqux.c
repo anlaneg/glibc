@@ -1,8 +1,6 @@
 /* Software floating-point emulation: unsigned integer to float conversion.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Richard Henderson (rth@cygnus.com) and
-		  Jakub Jelinek (jj@ultra.linux.cz).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -21,7 +19,7 @@
 #include "local-soft-fp.h"
 
 /* Should never actually be used, since we've more bits of precision
-   than the incomming long, but needed for linkage.  */
+   than the incoming long, but needed for linkage.  */
 #undef FP_ROUNDMODE
 #define FP_ROUNDMODE  FP_RND_ZERO
 

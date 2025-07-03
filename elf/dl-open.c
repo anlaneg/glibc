@@ -1,5 +1,5 @@
 /* Load a shared object at runtime, relocate it, and run its initializer.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -36,6 +36,7 @@
 #include <array_length.h>
 #include <libc-early-init.h>
 #include <gnu/lib-names.h>
+#include <dl-find_object.h>
 
 #include <dl-dst.h>
 #include <dl-prop.h>
@@ -48,8 +49,7 @@ struct dl_open_args
 {
   const char *file;
   int mode;
-  /* This is the caller of the dlopen() function.  */
-  const void *caller_dlopen;
+  struct link_map *caller_map; /* Derived from the caller address.  */
   struct link_map *map;
   /* Namespace ID.  */
   Lmid_t nsid;
@@ -65,6 +65,9 @@ struct dl_open_args
      already been done before, and whether to roll back the cached
      libc_map value in the namespace in case of a dlopen failure.  */
   bool libc_already_loaded;
+
+  /* Set to true if the end of dl_open_worker_begin was reached.  */
+  bool worker_continue;
 
   /* Original parameters to the program and the current environment.  */
   int argc;
@@ -359,17 +362,8 @@ resize_tls_slotinfo (struct link_map *new)
 {
   bool any_tls = false;
   for (unsigned int i = 0; i < new->l_searchlist.r_nlist; ++i)
-    {
-      struct link_map *imap = new->l_searchlist.r_list[i];
-
-      /* Only add TLS memory if this object is loaded now and
-	 therefore is not yet initialized.  */
-      if (! imap->l_init_called && imap->l_tls_blocksize > 0)
-	{
-	  _dl_add_to_slotinfo (imap, false);
-	  any_tls = true;
-	}
-    }
+    if (_dl_add_to_slotinfo (new->l_searchlist.r_list[i], false))
+      any_tls = true;
   return any_tls;
 }
 
@@ -379,47 +373,31 @@ resize_tls_slotinfo (struct link_map *new)
 static void
 update_tls_slotinfo (struct link_map *new)
 {
-  unsigned int first_static_tls = new->l_searchlist.r_nlist;
   for (unsigned int i = 0; i < new->l_searchlist.r_nlist; ++i)
-    {
-      struct link_map *imap = new->l_searchlist.r_list[i];
-
-      /* Only add TLS memory if this object is loaded now and
-	 therefore is not yet initialized.  */
-      if (! imap->l_init_called && imap->l_tls_blocksize > 0)
-	{
-	  _dl_add_to_slotinfo (imap, true);
-
-	  if (imap->l_need_tls_init
-	      && first_static_tls == new->l_searchlist.r_nlist)
-	    first_static_tls = i;
-	}
-    }
+    _dl_add_to_slotinfo (new->l_searchlist.r_list[i], true);
 
   size_t newgen = GL(dl_tls_generation) + 1;
   if (__glibc_unlikely (newgen == 0))
     _dl_fatal_printf (N_("\
 TLS generation counter wrapped!  Please report this."));
   /* Can be read concurrently.  */
-  atomic_store_relaxed (&GL(dl_tls_generation), newgen);
+  atomic_store_release (&GL(dl_tls_generation), newgen);
 
   /* We need a second pass for static tls data, because
      _dl_update_slotinfo must not be run while calls to
      _dl_add_to_slotinfo are still pending.  */
-  for (unsigned int i = first_static_tls; i < new->l_searchlist.r_nlist; ++i)
+  for (unsigned int i = 0; i < new->l_searchlist.r_nlist; ++i)
     {
       struct link_map *imap = new->l_searchlist.r_list[i];
 
-      if (imap->l_need_tls_init
-	  && ! imap->l_init_called
-	  && imap->l_tls_blocksize > 0)
+      if (imap->l_need_tls_init && imap->l_tls_blocksize > 0)
 	{
 	  /* For static TLS we have to allocate the memory here and
 	     now, but we can delay updating the DTV.  */
 	  imap->l_need_tls_init = 0;
 #ifdef SHARED
-	  /* Update the slot information data for at least the
-	     generation of the DSO we are allocating data for.  */
+	  /* Update the slot information data for the current
+	     generation.  */
 
 	  /* FIXME: This can terminate the process on memory
 	     allocation failure.  It is not possible to raise
@@ -427,7 +405,7 @@ TLS generation counter wrapped!  Please report this."));
 	     _dl_update_slotinfo would have to be split into two
 	     operations, similar to resize_scopes and update_scopes
 	     above.  This is related to bug 16134.  */
-	  _dl_update_slotinfo (imap->l_tls_modid);
+	  _dl_update_slotinfo (imap->l_tls_modid, newgen);
 #endif
 
 	  dl_init_static_tls (imap);
@@ -464,53 +442,79 @@ activate_nodelete (struct link_map *new)
       }
 }
 
-/* struct dl_init_args and call_dl_init are used to call _dl_init with
-   exception handling disabled.  */
-struct dl_init_args
+/* Relocate the object L.  *RELOCATION_IN_PROGRESS controls whether
+   the debugger is notified of the start of relocation processing.  */
+static void
+_dl_open_relocate_one_object (struct dl_open_args *args, struct r_debug *r,
+			      struct link_map *l, int reloc_mode,
+			      bool *relocation_in_progress)
 {
-  struct link_map *new;
-  int argc;
-  char **argv;
-  char **env;
-};
+  if (l->l_real->l_relocated)
+    return;
+
+  if (!*relocation_in_progress)
+    {
+      /* Notify the debugger that relocations are about to happen.  */
+      LIBC_PROBE (reloc_start, 2, args->nsid, r);
+      *relocation_in_progress = true;
+    }
+
+#ifdef SHARED
+  if (__glibc_unlikely (GLRO(dl_profile) != NULL))
+    {
+      /* If this here is the shared object which we want to profile
+	 make sure the profile is started.  We can find out whether
+	 this is necessary or not by observing the `_dl_profile_map'
+	 variable.  If it was NULL but is not NULL afterwards we must
+	 start the profiling.  */
+      struct link_map *old_profile_map = GL(dl_profile_map);
+
+      _dl_relocate_object (l, l->l_scope, reloc_mode | RTLD_LAZY, 1);
+
+      if (old_profile_map == NULL && GL(dl_profile_map) != NULL)
+	{
+	  /* We must prepare the profiling.  */
+	  _dl_start_profile ();
+
+	  /* Prevent unloading the object.  */
+	  GL(dl_profile_map)->l_nodelete_active = true;
+	}
+    }
+  else
+#endif
+    _dl_relocate_object (l, l->l_scope, reloc_mode, 0);
+}
 
 static void
 call_dl_init (void *closure)
 {
-  struct dl_init_args *args = closure;
-  _dl_init (args->new, args->argc, args->argv, args->env);
+  struct dl_open_args *args = closure;
+  _dl_init (args->map, args->argc, args->argv, args->env);
+}
+
+/* Return true if the object does not need any processing beyond the
+   l_direct_opencount update.  Needs to be kept in sync with the logic
+   in dl_open_worker_begin after the l->l_searchlist.r_list != NULL check.
+   MODE is the dlopen mode argument.  */
+static bool
+is_already_fully_open (struct link_map *map, int mode)
+{
+  return (map != NULL		/* An existing map was found.  */
+	  /* dlopen completed initialization of this map.  Maps with
+	     l_type == lt_library start out as partially initialized.  */
+	  && map->l_searchlist.r_list != NULL
+	  /* The object is already in the global scope if requested.  */
+	  && (!(mode & RTLD_GLOBAL) || map->l_global)
+	  /* The object is already NODELETE if requested.  */
+	  && (!(mode & RTLD_NODELETE) || map->l_nodelete_active));
 }
 
 static void
-dl_open_worker (void *a)
+dl_open_worker_begin (void *a)
 {
   struct dl_open_args *args = a;
   const char *file = args->file;
   int mode = args->mode;
-  struct link_map *call_map = NULL;
-
-  /* Determine the caller's map if necessary.  This is needed in case
-     we have a DST, when we don't know the namespace ID we have to put
-     the new object in, or when the file name has no path in which
-     case we need to look along the RUNPATH/RPATH of the caller.  */
-  const char *dst = strchr (file, '$');
-  if (dst != NULL || args->nsid == __LM_ID_CALLER
-      || strchr (file, '/') == NULL)
-    {
-      const void *caller_dlopen = args->caller_dlopen;
-
-      /* We have to find out from which object the caller is calling.
-	 By default we assume this is the main application.  */
-      call_map = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
-
-      struct link_map *l = _dl_find_dso_for_object ((ElfW(Addr)) caller_dlopen);
-
-      if (l)
-	call_map = l;
-
-      if (args->nsid == __LM_ID_CALLER)
-	args->nsid = call_map->l_ns;
-    }
 
   /* The namespace ID is now known.  Keep track of whether libc.so was
      already loaded, to determine whether it is necessary to call the
@@ -526,9 +530,10 @@ dl_open_worker (void *a)
   _dl_debug_initialize (0, args->nsid);
 
   /* Load the named object.  */
-  struct link_map *new;
-  args->map = new = _dl_map_object (call_map, file, lt_loaded, 0,
-				    mode | __RTLD_CALLMAP, args->nsid);
+  struct link_map *new = args->map;
+  if (new == NULL)
+    args->map = new = _dl_map_new_object (args->caller_map, file, lt_loaded, 0,
+					  mode | __RTLD_CALLMAP, args->nsid);
 
   /* If the pointer returned is NULL this means the RTLD_NOLOAD flag is
      set and the object is not already loaded.  */
@@ -545,13 +550,21 @@ dl_open_worker (void *a)
   /* This object is directly loaded.  */
   ++new->l_direct_opencount;
 
-  /* It was already open.  */
+  /* It was already open.  See is_already_fully_open above.  */
   if (__glibc_unlikely (new->l_searchlist.r_list != NULL))
     {
       /* Let the user know about the opencount.  */
       if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_FILES))
 	_dl_debug_printf ("opening file=%s [%lu]; direct_opencount=%u\n\n",
 			  new->l_name, new->l_ns, new->l_direct_opencount);
+
+#ifdef SHARED
+      /* No relocation processing on this execution path.  But
+	 relocation has not been performed for static
+	 position-dependent executables, so disable the assert for
+	 static linking.  */
+      assert (new->l_relocated);
+#endif
 
       /* If the user requested the object to be in the global
 	 namespace but it is not so far, prepare to add it now.  This
@@ -574,7 +587,15 @@ dl_open_worker (void *a)
       if ((mode & RTLD_GLOBAL) && new->l_global == 0)
 	add_to_global_update (new);
 
-      assert (_dl_debug_initialize (0, args->nsid)->r_state == RT_CONSISTENT);
+      /* It is not possible to run the ELF constructor for the new
+	 link map if it has not executed yet: If this dlopen call came
+	 from an ELF constructor that has not put that object into a
+	 consistent state, completing initialization for the entire
+	 scope will expose objects that have this partially
+	 constructed object among its dependencies to this
+	 inconsistent state.  This could happen even with a benign
+	 dlopen (NULL, RTLD_LAZY) call from a constructor of an
+	 initially loaded shared object.  */
 
       return;
     }
@@ -599,41 +620,10 @@ dl_open_worker (void *a)
 	   Perform partial initialization in this case.  This must
 	   come after the symbol versioning initialization in
 	   _dl_check_map_versions.  */
-	if (map->l_info[DT_SONAME] != NULL
-	    && strcmp (((const char *) D_PTR (map, l_info[DT_STRTAB])
-			+ map->l_info[DT_SONAME]->d_un.d_val), LD_SO) == 0)
+	if (l_soname (map) != NULL && strcmp (l_soname (map), LD_SO) == 0)
 	  __rtld_static_init (map);
 #endif
       }
-
-#ifdef SHARED
-  /* Auditing checkpoint: we have added all objects.  */
-  if (__glibc_unlikely (GLRO(dl_naudit) > 0))
-    {
-      struct link_map *head = GL(dl_ns)[new->l_ns]._ns_loaded;
-      /* Do not call the functions for any auditing object.  */
-      if (head->l_auditing == 0)
-	{
-	  struct audit_ifaces *afct = GLRO(dl_audit);
-	  for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-	    {
-	      if (afct->activity != NULL)
-		{
-		  struct auditstate *state = link_map_audit_state (head, cnt);
-		  afct->activity (&state->cookie, LA_ACT_CONSISTENT);
-		}
-
-	      afct = afct->next;
-	    }
-	}
-    }
-#endif
-
-  /* Notify the debugger all new objects are now ready to go.  */
-  struct r_debug *r = _dl_debug_initialize (0, args->nsid);
-  r->r_state = RT_CONSISTENT;
-  _dl_debug_state ();
-  LIBC_PROBE (map_complete, 3, args->nsid, r, new);
 
   _dl_open_check (new);
 
@@ -666,7 +656,7 @@ dl_open_worker (void *a)
     }
   while (l != NULL);
 
-  int relocation_in_progress = 0;
+  bool relocation_in_progress = false;
 
   /* Perform relocation.  This can trigger lazy binding in IFUNC
      resolvers.  For NODELETE mappings, these dependencies are not
@@ -676,45 +666,21 @@ dl_open_worker (void *a)
      them.  However, such relocation dependencies in IFUNC resolvers
      are undefined anyway, so this is not a problem.  */
 
-  for (unsigned int i = last; i-- > first; )
-    {
-      l = new->l_initfini[i];
-
-      if (l->l_real->l_relocated)
-	continue;
-
-      if (! relocation_in_progress)
-	{
-	  /* Notify the debugger that relocations are about to happen.  */
-	  LIBC_PROBE (reloc_start, 2, args->nsid, r);
-	  relocation_in_progress = 1;
-	}
-
+  /* Ensure that libc is relocated first.  This helps with the
+     execution of IFUNC resolvers in libc, and matters only to newly
+     created dlmopen namespaces.  Do not do this for static dlopen
+     because libc has relocations against ld.so, which may not have
+     been relocated at this point.  */
+  struct r_debug *r = _dl_debug_update (args->nsid);
 #ifdef SHARED
-      if (__glibc_unlikely (GLRO(dl_profile) != NULL))
-	{
-	  /* If this here is the shared object which we want to profile
-	     make sure the profile is started.  We can find out whether
-	     this is necessary or not by observing the `_dl_profile_map'
-	     variable.  If it was NULL but is not NULL afterwards we must
-	     start the profiling.  */
-	  struct link_map *old_profile_map = GL(dl_profile_map);
-
-	  _dl_relocate_object (l, l->l_scope, reloc_mode | RTLD_LAZY, 1);
-
-	  if (old_profile_map == NULL && GL(dl_profile_map) != NULL)
-	    {
-	      /* We must prepare the profiling.  */
-	      _dl_start_profile ();
-
-	      /* Prevent unloading the object.  */
-	      GL(dl_profile_map)->l_nodelete_active = true;
-	    }
-	}
-      else
+  if (GL(dl_ns)[args->nsid].libc_map != NULL)
+    _dl_open_relocate_one_object (args, r, GL(dl_ns)[args->nsid].libc_map,
+				  reloc_mode, &relocation_in_progress);
 #endif
-	_dl_relocate_object (l, l->l_scope, reloc_mode, 0);
-    }
+
+  for (unsigned int i = last; i-- > first; )
+    _dl_open_relocate_one_object (args, r, new->l_initfini[i], reloc_mode,
+				  &relocation_in_progress);
 
   /* This only performs the memory allocations.  The actual update of
      the scopes happens below, after failure is impossible.  */
@@ -746,6 +712,10 @@ dl_open_worker (void *a)
      objects.  */
   update_scopes (new);
 
+  if (!_dl_find_object_update (new))
+    _dl_signal_error (ENOMEM, new->l_libname->name, NULL,
+		      N_ ("cannot allocate address lookup data"));
+
   /* FIXME: It is unclear whether the order here is correct.
      Shouldn't new objects be made available for binding (and thus
      execution) only after there TLS data has been set up fully?
@@ -774,19 +744,60 @@ dl_open_worker (void *a)
       _dl_call_libc_early_init (libc_map, false);
     }
 
+  args->worker_continue = true;
+}
+
+static void
+dl_open_worker (void *a)
+{
+  struct dl_open_args *args = a;
+
+  args->worker_continue = false;
+
+  {
+    /* Protects global and module specific TLS state.  */
+    __rtld_lock_lock_recursive (GL(dl_load_tls_lock));
+
+    struct dl_exception ex;
+    int err = _dl_catch_exception (&ex, dl_open_worker_begin, args);
+
+    __rtld_lock_unlock_recursive (GL(dl_load_tls_lock));
+
+    /* Auditing checkpoint and debugger signalling.  Do this even on
+       error, so that dlopen exists with consistent state.  */
+    if (args->nsid >= 0 || args->map != NULL)
+      {
+	Lmid_t nsid = args->map != NULL ? args->map->l_ns : args->nsid;
+	struct r_debug *r = _dl_debug_update (nsid);
+#ifdef SHARED
+	bool was_not_consistent  = r->r_state != RT_CONSISTENT;
+#endif
+	r->r_state = RT_CONSISTENT;
+	_dl_debug_state ();
+	LIBC_PROBE (map_complete, 3, nsid, r, args->map);
+
+#ifdef SHARED
+	if (was_not_consistent)
+	  /* Avoid redudant/recursive signalling.  */
+	  _dl_audit_activity_nsid (nsid, LA_ACT_CONSISTENT);
+#endif
+      }
+
+    if (__glibc_unlikely (ex.errstring != NULL))
+      /* Reraise the error.  */
+      _dl_signal_exception (err, &ex, NULL);
+  }
+
+  if (!args->worker_continue)
+    return;
+
+  int mode = args->mode;
+  struct link_map *new = args->map;
+
   /* Run the initializer functions of new objects.  Temporarily
      disable the exception handler, so that lazy binding failures are
      fatal.  */
-  {
-    struct dl_init_args init_args =
-      {
-        .new = new,
-        .argc = args->argc,
-        .argv = args->argv,
-        .env = args->env
-      };
-    _dl_catch_exception (NULL, call_dl_init, &init_args);
-  }
+  _dl_catch_exception (NULL, call_dl_init, args);
 
   /* Now we can make the new map available in the global scope.  */
   if (mode & RTLD_GLOBAL)
@@ -830,7 +841,8 @@ no more namespaces available for dlmopen()"));
 	  ++GL(dl_nns);
 	}
 
-      _dl_debug_initialize (0, nsid)->r_state = RT_CONSISTENT;
+      GL(dl_ns)[nsid].libc_map = NULL;
+      _dl_debug_update (nsid)->r_state = RT_CONSISTENT;
     }
   /* Never allow loading a DSO in a namespace which is empty.  Such
      direct placements is only causing problems.  Also don't allow
@@ -850,14 +862,40 @@ no more namespaces available for dlmopen()"));
   struct dl_open_args args;
   args.file = file;
   args.mode = mode;
-  args.caller_dlopen = caller_dlopen;
-  args.map = NULL;
   args.nsid = nsid;
   /* args.libc_already_loaded is always assigned by dl_open_worker
      (before any explicit/non-local returns).  */
   args.argc = argc;
   args.argv = argv;
   args.env = env;
+
+  /* Determine the caller's map if necessary.  This is needed when we
+     don't know the namespace ID in which we have to put the new object,
+     in case we have a DST, or when the file name has no path in
+     which case we need to look along the RUNPATH/RPATH of the caller.  */
+  if (nsid == __LM_ID_CALLER || strchr (file, '$') != NULL
+      || strchr (file, '/') == NULL)
+    {
+      struct dl_find_object dlfo;
+      if (_dl_find_object ((void *) caller_dlopen, &dlfo) == 0)
+	args.caller_map = dlfo.dlfo_link_map;
+      else
+	/* By default we assume this is the main application.  */
+	args.caller_map = GL(dl_ns)[LM_ID_BASE]._ns_loaded;
+      if (args.nsid == __LM_ID_CALLER)
+	args.nsid = args.caller_map->l_ns;
+    }
+  else
+    args.caller_map = NULL;
+
+  args.map = _dl_lookup_map (args.nsid, file);
+  if (is_already_fully_open (args.map, mode))
+    {
+      /* We can use the fast path.  */
+      ++args.map->l_direct_opencount;
+      __rtld_lock_unlock_recursive (GL(dl_load_lock));
+      return args.map;
+    }
 
   struct dl_exception exception;
   int errcode = _dl_catch_exception (&exception, dl_open_worker, &args);
@@ -886,7 +924,7 @@ no more namespaces available for dlmopen()"));
       /* Avoid keeping around a dangling reference to the libc.so link
 	 map in case it has been cached in libc_map.  */
       if (!args.libc_already_loaded)
-	GL(dl_ns)[nsid].libc_map = NULL;
+	GL(dl_ns)[args.nsid].libc_map = NULL;
 
       /* Remove the object from memory.  It may be in an inconsistent
 	 state if relocation failed, for example.  */
@@ -899,8 +937,6 @@ no more namespaces available for dlmopen()"));
 	     the flag here.  */
 	}
 
-      assert (_dl_debug_initialize (0, args.nsid)->r_state == RT_CONSISTENT);
-
       /* Release the lock.  */
       __rtld_lock_unlock_recursive (GL(dl_load_lock));
 
@@ -908,7 +944,9 @@ no more namespaces available for dlmopen()"));
       _dl_signal_exception (errcode, &exception, NULL);
     }
 
-  assert (_dl_debug_initialize (0, args.nsid)->r_state == RT_CONSISTENT);
+  const int r_state __attribute__ ((unused))
+    = _dl_debug_update (args.nsid)->r_state;
+  assert (r_state == RT_CONSISTENT);
 
   /* Release the lock.  */
   __rtld_lock_unlock_recursive (GL(dl_load_lock));

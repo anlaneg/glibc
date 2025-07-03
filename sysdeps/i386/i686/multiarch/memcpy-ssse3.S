@@ -1,6 +1,5 @@
 /* memcpy with SSSE3
-   Copyright (C) 2010-2021 Free Software Foundation, Inc.
-   Contributed by Intel Corporation.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,15 +29,9 @@
 #  define MEMCPY_CHK	__memcpy_chk_ssse3
 # endif
 
-# ifdef USE_AS_BCOPY
-#  define SRC		PARMS
-#  define DEST		SRC+4
-#  define LEN		DEST+4
-# else
-#  define DEST		PARMS
-#  define SRC		DEST+4
-#  define LEN		SRC+4
-# endif
+# define DEST		PARMS
+# define SRC		DEST+4
+# define LEN		SRC+4
 
 # define CFI_PUSH(REG)		\
   cfi_adjust_cfa_offset (4);		\
@@ -71,7 +64,7 @@
 	absolute	address.  */		\
 	addl	(%ebx, INDEX, SCALE), %ebx;		\
     /* We loaded the jump table.  Go.  */		\
-	_CET_NOTRACK jmp *%ebx
+	jmp *%ebx
 # else
 
 #  define PARMS		4
@@ -85,11 +78,11 @@
 	jump table.  SCALE is the scale of INDEX. */
 
 #  define BRANCH_TO_JMPTBL_ENTRY(TABLE, INDEX, SCALE)		\
-	_CET_NOTRACK jmp *TABLE(, INDEX, SCALE)
+	jmp *TABLE(, INDEX, SCALE)
 # endif
 
 	.section .text.ssse3,"ax",@progbits
-# if !defined USE_AS_BCOPY && defined SHARED
+# ifdef SHARED
 ENTRY (MEMCPY_CHK)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
@@ -1980,12 +1973,10 @@ L(fwd_write_12bytes):
 L(fwd_write_4bytes):
 	movl	-4(%eax), %ecx
 	movl	%ecx, -4(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2006,12 +1997,10 @@ L(fwd_write_8bytes):
 	movq	-8(%eax), %xmm0
 	movq	%xmm0, -8(%edx)
 L(fwd_write_0bytes):
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2021,12 +2010,10 @@ L(fwd_write_5bytes):
 	movl	-4(%eax), %eax
 	movl	%ecx, -5(%edx)
 	movl	%eax, -4(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2050,12 +2037,10 @@ L(fwd_write_13bytes):
 	movl	%ecx, -5(%edx)
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2078,12 +2063,10 @@ L(fwd_write_9bytes):
 L(fwd_write_1bytes):
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2108,12 +2091,10 @@ L(fwd_write_6bytes):
 	movl	%ecx, -6(%edx)
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2136,12 +2117,10 @@ L(fwd_write_10bytes):
 L(fwd_write_2bytes):
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2168,12 +2147,10 @@ L(fwd_write_7bytes):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2198,12 +2175,10 @@ L(fwd_write_3bytes):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2218,12 +2193,10 @@ L(fwd_write_8bytes_align):
 	movq	-8(%eax), %xmm0
 	movq	%xmm0, -8(%edx)
 L(fwd_write_0bytes_align):
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2234,12 +2207,10 @@ L(fwd_write_32bytes_align):
 L(fwd_write_16bytes_align):
 	movdqa	-16(%eax), %xmm0
 	movdqa	%xmm0, -16(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2249,12 +2220,10 @@ L(fwd_write_5bytes_align):
 	movl	-4(%eax), %eax
 	movl	%ecx, -5(%edx)
 	movl	%eax, -4(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2272,12 +2241,10 @@ L(fwd_write_13bytes_align):
 	movl	%ecx, -5(%edx)
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2292,12 +2259,10 @@ L(fwd_write_21bytes_align):
 	movl	%ecx, -5(%edx)
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2314,12 +2279,10 @@ L(fwd_write_9bytes_align):
 L(fwd_write_1bytes_align):
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2332,12 +2295,10 @@ L(fwd_write_17bytes_align):
 	movdqa	%xmm0, -17(%edx)
 	movzbl	-1(%eax), %ecx
 	movb	%cl, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2356,12 +2317,10 @@ L(fwd_write_6bytes_align):
 	movl	%ecx, -6(%edx)
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2376,12 +2335,10 @@ L(fwd_write_22bytes_align):
 	movl	%ecx, -6(%edx)
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2398,12 +2355,10 @@ L(fwd_write_10bytes_align):
 L(fwd_write_2bytes_align):
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2416,12 +2371,10 @@ L(fwd_write_18bytes_align):
 	movdqa	%xmm0, -18(%edx)
 	movzwl	-2(%eax), %ecx
 	movw	%cx, -2(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2442,12 +2395,10 @@ L(fwd_write_7bytes_align):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2464,12 +2415,10 @@ L(fwd_write_23bytes_align):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2488,12 +2437,10 @@ L(fwd_write_3bytes_align):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2508,12 +2455,10 @@ L(fwd_write_19bytes_align):
 	movzbl	-1(%eax), %eax
 	movw	%cx, -3(%edx)
 	movb	%al, -1(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2530,12 +2475,10 @@ L(fwd_write_12bytes_align):
 L(fwd_write_4bytes_align):
 	movl	-4(%eax), %ecx
 	movl	%ecx, -4(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN
 
@@ -2548,12 +2491,10 @@ L(fwd_write_20bytes_align):
 	movdqa	%xmm0, -20(%edx)
 	movl	-4(%eax), %ecx
 	movl	%ecx, -4(%edx)
-# ifndef USE_AS_BCOPY
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	%edx, %eax
-#  else
+# else
 	movl	DEST(%esp), %eax
-#  endif
 # endif
 	RETURN_END
 
@@ -2647,12 +2588,10 @@ L(bk_write_4bytes):
 	movl	(%eax), %ecx
 	movl	%ecx, (%edx)
 L(bk_write_0bytes):
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2672,12 +2611,10 @@ L(bk_write_16bytes):
 L(bk_write_8bytes):
 	movq	(%eax), %xmm0
 	movq	%xmm0, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2703,12 +2640,10 @@ L(bk_write_5bytes):
 L(bk_write_1bytes):
 	movzbl	(%eax), %ecx
 	movb	%cl, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2730,12 +2665,10 @@ L(bk_write_9bytes):
 	movq	%xmm0, 1(%edx)
 	movzbl	(%eax), %ecx
 	movb	%cl, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2760,12 +2693,10 @@ L(bk_write_6bytes):
 	movl	%ecx, 2(%edx)
 	movzwl	(%eax), %ecx
 	movw	%cx, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2788,12 +2719,10 @@ L(bk_write_10bytes):
 L(bk_write_2bytes):
 	movzwl	(%eax), %ecx
 	movw	%cx, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2820,12 +2749,10 @@ L(bk_write_7bytes):
 	movw	%cx, 1(%edx)
 	movzbl	(%eax), %eax
 	movb	%al, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN
 
@@ -2850,12 +2777,10 @@ L(bk_write_3bytes):
 	movw	%cx, 1(%edx)
 	movzbl	(%eax), %eax
 	movb	%al, (%edx)
-# ifndef USE_AS_BCOPY
 	movl	DEST(%esp), %eax
-#  ifdef USE_AS_MEMPCPY
+# ifdef USE_AS_MEMPCPY
 	movl	LEN(%esp), %ecx
 	add	%ecx, %eax
-#  endif
 # endif
 	RETURN_END
 

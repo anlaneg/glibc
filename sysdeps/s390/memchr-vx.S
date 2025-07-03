@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of memchr.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -96,7 +96,7 @@ ENTRY(MEMCHR_Z13)
 	aghi	%r5,16
 
 .Llastcmp:
-	/* Use comparision result only if located within first n characters.
+	/* Use comparison result only if located within first n characters.
 	   %r5: current_len;
 	   %r4: n;
 	   (current_len - n): [0...16[

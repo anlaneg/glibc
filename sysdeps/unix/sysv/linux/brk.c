@@ -1,5 +1,5 @@
 /* Change data segment.  Linux generic version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,9 +19,10 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sysdep.h>
+#include <brk_call.h>
 
 /* This must be initialized data because commons can't have aliases.  */
-void *__curbrk = 0;
+void *__curbrk = NULL;
 
 #if HAVE_INTERNAL_BRK_ADDR_SYMBOL
 /* Old braindamage in GCC's crtstuff.c requires this symbol in an attempt
@@ -33,7 +34,7 @@ weak_alias (__curbrk, ___brk_addr)
 int
 __brk (void *addr)
 {
-  __curbrk = (void *) INTERNAL_SYSCALL_CALL (brk, addr);
+  __curbrk = __brk_call (addr);
   if (__curbrk < addr)
     {
       __set_errno (ENOMEM);

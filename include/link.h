@@ -1,6 +1,6 @@
 /* Data structure for communication from the run-time dynamic linker for
    loaded ELF shared objects.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -177,10 +177,17 @@ struct link_map
 	lt_library,		/* Library needed by main executable.  */
 	lt_loaded		/* Extra run-time loaded shared object.  */
       } l_type:2;
+    unsigned int l_dt_relr_ref:1; /* Nonzero if GLIBC_ABI_DT_RELR is
+				     referenced.  */
     unsigned int l_relocated:1;	/* Nonzero if object's relocations done.  */
     unsigned int l_init_called:1; /* Nonzero if DT_INIT function called.  */
     unsigned int l_global:1;	/* Nonzero if object in _dl_global_scope.  */
     unsigned int l_reserved:2;	/* Reserved for internal use.  */
+    unsigned int l_main_map:1;  /* Nonzero for the map of the main program.  */
+    unsigned int l_visited:1;   /* Used internally for map dependency
+				   graph traversal.  */
+    unsigned int l_map_used:1;  /* These two bits are used during traversal */
+    unsigned int l_map_done:1;  /* of maps in _dl_close_worker. */
     unsigned int l_phdr_allocated:1; /* Nonzero if the data structure pointed
 					to by `l_phdr' is allocated.  */
     unsigned int l_soname_added:1; /* Nonzero if the SONAME is for sure in
@@ -198,13 +205,14 @@ struct link_map
     unsigned int l_contiguous:1; /* Nonzero if inter-segment holes are
 				    mprotected or if no holes are present at
 				    all.  */
-    unsigned int l_symbolic_in_local_scope:1; /* Nonzero if l_local_scope
-						 during LD_TRACE_PRELINKING=1
-						 contains any DT_SYMBOLIC
-						 libraries.  */
     unsigned int l_free_initfini:1; /* Nonzero if l_initfini can be
 				       freed, ie. not allocated with
 				       the dummy malloc in ld.so.  */
+    unsigned int l_ld_readonly:1; /* Nonzero if dynamic section is readonly.  */
+    unsigned int l_find_object_processed:1; /* Zero if _dl_find_object_update
+					       needs to process this
+					       lt_library map.  */
+    unsigned int l_tls_in_slotinfo:1; /* TLS slotinfo updated in dlopen.  */
 
     /* NODELETE status of the map.  Only valid for maps of type
        lt_loaded.  Lazy binding sets l_nodelete_active directly,
@@ -246,8 +254,6 @@ struct link_map
     /* Start and finish of memory map for this object.  l_map_start
        need not be the same as l_addr.  */
     ElfW(Addr) l_map_start, l_map_end;
-    /* End of the executable part of the mapping.  */
-    ElfW(Addr) l_text_end;
 
     /* Default array for 'l_scope'.  */
     struct r_scope_elem *l_scope_mem[4];
@@ -342,6 +348,8 @@ struct link_map
     unsigned long long int l_serial;
   };
 
+#include <dl-relocate-ld.h>
+
 /* Information used by audit modules.  For most link maps, this data
    immediate follows the link map in memory.  For the dynamic linker,
    it is allocated separately.  See link_map_audit_state in
@@ -353,10 +361,16 @@ struct auditstate
 };
 
 
+/* This is the hidden instance of struct r_debug_extended used by the
+   dynamic linker.  */
+extern struct r_debug_extended _r_debug_extended attribute_hidden;
+
 #if __ELF_NATIVE_CLASS == 32
 # define symbind symbind32
+# define LA_SYMBIND "la_symbind32"
 #elif __ELF_NATIVE_CLASS == 64
 # define symbind symbind64
+# define LA_SYMBIND "la_symbind64"
 #else
 # error "__ELF_NATIVE_CLASS must be defined"
 #endif

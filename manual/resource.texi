@@ -192,8 +192,8 @@ If the sources are compiled with @code{_FILE_OFFSET_BITS == 64} on a
 @standards{BSD, sys/resource.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 @c Direct syscall on most systems; lock-taking critical section on HURD.
-Store the current and maximum limits for the resource @var{resource}
-in @code{*@var{rlp}}.
+Change the current and maximum limits of the process for the resource
+@var{resource} to the values provided in @code{*@var{rlp}}.
 
 The return value is @code{0} on success and @code{-1} on failure.  The
 following @code{errno} error condition is possible:
@@ -478,6 +478,7 @@ POSIX syntax had in mind.
 * Absolute Priority::               The first tier of priority.  Posix
 * Realtime Scheduling::             Scheduling among the process nobility
 * Basic Scheduling Functions::      Get/set scheduling policy, priority
+* Extensible Scheduling::           Parameterized scheduling policies.
 * Traditional Scheduling::          Scheduling among the vulgar masses
 * CPU Affinity::                    Limiting execution to certain CPUs
 @end menu
@@ -928,18 +929,31 @@ function, so there are no specific @code{errno} values.
 @c Direct syscall on Linux; alias to swtch on HURD.
 
 This function voluntarily gives up the task's claim on the CPU.
+Depending on the scheduling policy in effect and the tasks ready to run
+on the system, another task may be scheduled to run instead.
 
-Technically, @code{sched_yield} causes the calling task to be made
-immediately ready to run (as opposed to running, which is what it was
-before).  This means that if it has absolute priority higher than 0, it
-gets pushed onto the tail of the queue of tasks that share its
+A call to @code{sched_yield} does not guarantee that a different task
+from the calling task is scheduled as a result; it depends on the
+scheduling policy used on the target system.  It is possible that the
+call may not result in any visible effect, i.e., the same task gets
+scheduled again.
+
+For example on Linux systems, when a simple priority-based FIFO
+scheduling policy (@code{SCHED_FIFO}) is in effect, the calling task is
+made immediately ready to run (as opposed to running, which is what it
+was before).  This means that if it has absolute priority higher than 0,
+it gets pushed onto the tail of the queue of tasks that share its
 absolute priority and are ready to run, and it will run again when its
 turn next arrives.  If its absolute priority is 0, it is more
 complicated, but still has the effect of yielding the CPU to other
-tasks.
+tasks.  If there are no other tasks that share the calling task's
+absolute priority, it will be scheduled again as if @code{sched_yield}
+was never called.
 
-If there are no other tasks that share the calling task's absolute
-priority, this function doesn't have any effect.
+Another example could be a time slice based preemptive round-robin
+policy, such as the @code{SCHED_RR} policy on Linux.  It is possible
+with this policy that the calling task is scheduled again because it
+still has time left in its slice.
 
 To the extent that the containing program is oblivious to what other
 processes in the system are doing and how fast it executes, this
@@ -950,6 +964,119 @@ that it fails, the return value is @code{-1} and @code{errno} is set
 accordingly.  There is nothing specific that can go wrong with this
 function, so there are no specific @code{errno} values.
 
+@end deftypefun
+
+@node Extensible Scheduling
+@subsection Extensible Scheduling
+@cindex scheduling, extensible
+
+The type @code{struct sched_attr} and the functions @code{sched_setattr}
+and @code{sched_getattr} are used to implement scheduling policies with
+multiple parameters (not just priority and niceness).
+
+It is expected that these interfaces will be compatible with all future
+scheduling policies.
+
+For additional information about scheduling policies, consult
+the manual pages @manpageurl{sched,7} and @manpageurl{sched_setattr,2}.
+
+@strong{Note:} Calling the @code{sched_setattr} function is incompatible
+with support for @code{PTHREAD_PRIO_PROTECT} mutexes.
+
+@deftp {Data Type} {struct sched_attr}
+@standards{Linux, sched.h}
+The @code{sched_attr} structure describes a parameterized scheduling policy.
+
+@strong{Portability note:} In the future, additional fields can be added
+to @code{struct sched_attr} at the end, so that the size of this data
+type changes.  Do not use it in places where this matters, such as
+structure fields in installed header files, where such a change could
+impact the application binary interface (ABI).
+
+The following generic fields are available.
+
+@table @code
+@item size
+The actually used size of the data structure.  See the description of
+the functions @code{sched_setattr} and @code{sched_getattr} below how this
+field is used to support extension of @code{struct sched_attr} with
+more fields.
+
+@item sched_policy
+The scheduling policy.  This field determines which fields in the
+structure are used, and how the @code{sched_flags} field is interpreted.
+
+@item sched_flags
+Scheduling flags associated with the scheduling policy.
+@end table
+
+In addition to the generic fields, policy-specific fields are available.
+For additional information, consult the manual page
+@manpageurl{sched_setattr,2}.
+@end deftp
+
+@deftypefun int sched_setattr (pid_t @var{tid}, struct sched_attr *@var{attr}, unsigned int flags)
+@standards{Linux, sched.h}
+@safety{@mtsafe{}@assafe{}@acsafe{}}
+This functions applies the scheduling policy described by
+@code{*@var{attr}} to the thread @var{tid} (the value zero denotes the
+current thread).
+
+It is recommended to initialize unused fields to zero, either using
+@code{memset}, or using a structure initializer.  The
+@code{@var{attr->size}} field should be set to @code{sizeof (struct
+sched_attr)}, to inform the kernel of the structure version in use.
+
+The @var{flags} argument must be zero.  Other values may become
+available in the future.
+
+On failure, @code{sched_setattr} returns @math{-1} and sets
+@code{errno}.  The following errors are related the way
+extensibility is handled.
+@table @code
+@item E2BIG
+A field in @code{*@var{attr}} has a non-zero value, but is unknown to
+the kernel.  The application could try to apply a modified policy, where
+more fields are zero.
+
+@item EINVAL
+The policy in @code{@var{attr}->sched_policy} is unknown to the kernel,
+or flags are set in @code{@var{attr}->sched_flags} that the kernel does
+not know how to interpret.  The application could try with fewer flags
+set, or a different scheduling policy.
+
+This error also occurs if @var{attr} is @code{NULL} or @var{flags} is
+not zero.
+
+@item EPERM
+The current thread is not sufficiently privileged to assign the policy,
+either because access to the policy is restricted in general, or because
+the current thread does not have the rights to change the scheduling
+policy of the thread @var{tid}.
+@end table
+
+Other error codes depend on the scheduling policy.
+@end deftypefun
+
+@deftypefun int sched_getattr (pid_t @var{tid}, struct sched_attr *@var{attr}, unsigned int size, unsigned int flags)
+@standards{Linux, sched.h}
+@safety{@mtsafe{}@assafe{}@acsafe{}}
+This function obtains the scheduling policy of the thread @var{tid}
+(zero denotes the current thread) and store it in @code{*@var{attr}},
+which must have space for at least @var{size} bytes.
+
+The @var{flags} argument must be zero.  Other values may become
+available in the future.
+
+Upon success, @code{@var{attr}->size} contains the size of the structure
+version used by the kernel.  Fields with offsets greater or equal to
+@code{@var{attr}->size} may not be overwritten by the kernel.  To obtain
+predictable values for unknown fields, use @code{memset} to set all
+@var{size} bytes to zero prior to calling @code{sched_getattr}.
+
+On failure, @code{sched_getattr} returns @math{-1} and sets @code{errno}.
+If @code{errno} is @code{E2BIG}, this means that the buffer is not large
+large enough, and the application could retry with a larger buffer.
 @end deftypefun
 
 @node Traditional Scheduling
@@ -1193,7 +1320,7 @@ nice (int increment)
 On a multi-processor system the operating system usually distributes
 the different processes which are runnable on all available CPUs in a
 way which allows the system to work most efficiently.  Which processes
-and threads run can be to some extend be control with the scheduling
+and threads run can to some extend be controlled with the scheduling
 functionality described in the last sections.  But which CPU finally
 executes which process or thread is not covered.
 
@@ -1235,26 +1362,73 @@ extent the Linux kernel interface.
 @standards{GNU, sched.h}
 This data set is a bitset where each bit represents a CPU.  How the
 system's CPUs are mapped to bits in the bitset is system dependent.
-The data type has a fixed size; in the unlikely case that the number
-of bits are not sufficient to describe the CPUs of the system a
-different interface has to be used.
+The data type has a fixed size; it is strongly recommended to allocate
+a dynamically sized set based on the actual number of CPUs detected,
+such as via @code{get_nprocs_conf()}, and use the @code{CPU_*_S}
+variants instead of the fixed-size ones.
 
 This type is a GNU extension and is defined in @file{sched.h}.
 @end deftp
 
-To manipulate the bitset, to set and reset bits, a number of macros are
-defined.  Some of the macros take a CPU number as a parameter.  Here
-it is important to never exceed the size of the bitset.  The following
-macro specifies the number of bits in the @code{cpu_set_t} bitset.
+To manipulate the bitset, to set and reset bits, and thus add and
+remove CPUs from the sets, a number of macros are defined.  Some of
+the macros take a CPU number as a parameter.  Here it is important to
+never exceed the size of the bitset, either @code{CPU_SETSIZE} for
+fixed sets or the allocated size for dynamic sets.  For each macro
+there is a fixed-size version (documented below) and a dynamic-sized
+version (with a @code{_S} suffix).
 
 @deftypevr Macro int CPU_SETSIZE
 @standards{GNU, sched.h}
 The value of this macro is the maximum number of CPUs which can be
-handled with a @code{cpu_set_t} object.
+handled with a fixed @code{cpu_set_t} object.
 @end deftypevr
 
+For applications that require CPU sets larger than the built-in size,
+a set of macros that support dynamically-sized sets are defined.
+
+@deftypefn Macro size_t CPU_ALLOC_SIZE (size_t @var{count})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_ALLOC_SIZE ok
+@c  __CPU_ALLOC_SIZE ok
+Given a count of CPUs to hold, returns the size of the set to
+allocate.  This return value is appropriate to be used in the *_S macros.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro {cpu_set_t *} CPU_ALLOC (size_t @var{count})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@asunsafe{@asulock{}}@acunsafe{@aculock{} @acsfd{} @acsmem{}}}
+@c CPU_ALLOC
+@c  __CPU_ALLOC
+@c   __sched_cpualloc
+@c    malloc
+Given the count of CPUs to hold, returns a set large enough to hold
+them; that is, the resulting set will be valid for CPUs numbered 0
+through @var{count}-1, inclusive.  This set must be freed via
+@code{CPU_FREE} to avoid memory leaks.  Warning: the argument is the
+CPU @emph{count} and not the size returned by @code{CPU_ALLOC_SIZE}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro void CPU_FREE (cpu_set_t *@var{set})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@asunsafe{@asulock{}}@acunsafe{@aculock{} @acsfd{} @acsmem{}}}
+@c CPU_FREE
+@c  __CPU_FREE
+@c   __sched_cpufree
+@c    free
+Frees a CPU set previously allocated by @code{CPU_ALLOC}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
 The type @code{cpu_set_t} should be considered opaque; all
-manipulation should happen via the next four macros.
+manipulation should happen via the @code{CPU_*} macros described
+below.
 
 @deftypefn Macro void CPU_ZERO (cpu_set_t *@var{set})
 @standards{GNU, sched.h}
@@ -1297,6 +1471,39 @@ evaluated more than once.
 This macro is a GNU extension and is defined in @file{sched.h}.
 @end deftypefn
 
+@deftypefn Macro {cpu_set_t *} CPU_AND (cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_AND ok
+@c  __CPU_OP_S ok
+This macro populates @var{dest} with only those CPUs included in both
+@var{src1} and @var{src2}.  Its value is @var{dest}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro {cpu_set_t *} CPU_OR (cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_OR ok
+@c  __CPU_OP_S ok
+This macro populates @var{dest} with those CPUs included in either
+@var{src1} or @var{src2}.  Its value is @var{dest}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro {cpu_set_t *} CPU_XOR (cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_XOR ok
+@c  __CPU_OP_S ok
+This macro populates @var{dest} with those CPUs included in either
+@var{src1} or @var{src2}, but not both.  Its value is @var{dest}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
 @deftypefn Macro int CPU_ISSET (int @var{cpu}, const cpu_set_t *@var{set})
 @standards{GNU, sched.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
@@ -1313,6 +1520,54 @@ evaluated more than once.
 This macro is a GNU extension and is defined in @file{sched.h}.
 @end deftypefn
 
+@deftypefn Macro int CPU_COUNT (const cpu_set_t *@var{set})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_COUNT ok
+@c  __CPU_COUNT_S ok
+@c   __sched_cpucount ok
+@c    countbits ok
+This macro returns the count of CPUs (bits) set in @var{set}.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro int CPU_EQUAL (cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@standards{GNU, sched.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+@c CPU_EQUAL ok
+@c  __CPU_EQUAL_S ok
+@c   memcmp ok
+This macro returns nonzero if the two sets @var{set1} and @var{set2}
+have the same contents; that is, the set of CPUs represented by both
+sets is identical.
+
+This macro is a GNU extension and is defined in @file{sched.h}.
+@end deftypefn
+
+@deftypefn Macro void CPU_ZERO_S (size_t @var{size}, cpu_set_t *@var{set})
+@end deftypefn
+@deftypefn Macro void CPU_SET_S (int @var{cpu}, size_t @var{size}, cpu_set_t *@var{set})
+@end deftypefn
+@deftypefn Macro void CPU_CLR_S (int @var{cpu}, size_t @var{size}, cpu_set_t *@var{set})
+@end deftypefn
+@deftypefn Macro {cpu_set_t *} CPU_AND_S (size_t @var{size}, cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@end deftypefn
+@deftypefn Macro {cpu_set_t *} CPU_OR_S (size_t @var{size}, cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@end deftypefn
+@deftypefn Macro {cpu_set_t *} CPU_XOR_S (size_t @var{size}, cpu_set_t *@var{dest}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@end deftypefn
+@deftypefn Macro int CPU_ISSET_S (int @var{cpu}, size_t @var{size}, const cpu_set_t *@var{set})
+@end deftypefn
+@deftypefn Macro int CPU_COUNT_S (size_t @var{size}, const cpu_set_t *@var{set})
+@end deftypefn
+@deftypefn Macro int CPU_EQUAL_S (size_t @var{size}, cpu_set_t *@var{src1}, cpu_set_t *@var{src2})
+@end deftypefn
+
+Each of these macros performs the same action as its non-@code{_S} variant,
+but takes a @var{size} argument to specify the set size.  This
+@var{size} argument is as returned by the @code{CPU_ALLOC_SIZE} macro,
+defined above.
 
 CPU bitsets can be constructed from scratch or the currently installed
 affinity mask can be retrieved from the system.
@@ -1397,6 +1652,53 @@ The operating system does not support this function.
 
 This function is Linux-specific and is declared in @file{sched.h}.
 @end deftypefun
+
+@deftypefun int sched_getcpu (void)
+@standards{Linux, <sched.h>}
+
+Similar to @code{getcpu} but with a simpler interface.  On success,
+returns a nonnegative number identifying the CPU on which the current
+thread is running.  Returns @code{-1} on failure.  The following
+@code{errno} error condition is defined for this function:
+
+@table @code
+@item ENOSYS
+The operating system does not support this function.
+@end table
+
+This function is Linux-specific and is declared in @file{sched.h}.
+@end deftypefun
+
+Here's an example of how to use most of the above to limit the number
+of CPUs a process runs on, not including error handling or good logic
+on CPU choices:
+
+@example
+#define _GNU_SOURCE
+#include <sched.h>
+#include <sys/sysinfo.h>
+#include <unistd.h>
+void
+limit_cpus (void)
+@{
+  unsigned int mycpu;
+  size_t nproc, cssz, cpu;
+  cpu_set_t *cs;
+  getcpu (&mycpu, NULL);
+  nproc = get_nprocs_conf ();
+  cssz = CPU_ALLOC_SIZE (nproc);
+  cs = CPU_ALLOC (nproc);
+  sched_getaffinity (0, cssz, cs);
+  if (CPU_COUNT_S (cssz, cs) > nproc / 2)
+    @{
+      for (cpu = nproc / 2; cpu < nproc; cpu ++)
+        if (cpu != mycpu)
+          CPU_CLR_S (cpu, cssz, cs);
+      sched_setaffinity (0, cssz, cs);
+    @}
+  CPU_FREE (cs);
+@}
+@end example
 
 @node Memory Resources
 @section Querying memory available resources

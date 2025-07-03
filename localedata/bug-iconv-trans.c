@@ -7,7 +7,7 @@ int
 main (void)
 {
   iconv_t cd;
-  const char str[] = "ƒд÷ц№ья";
+  const char str[] = "\xc4\xe4\xd6\xf6\xdc\xfc\xdf";
   const char expected[] = "AEaeOEoeUEuess";
   char *inptr = (char *) str;
   size_t inlen = strlen (str) + 1;
@@ -36,7 +36,7 @@ main (void)
       if (n == (size_t) -1)
 	printf ("iconv() returned error: %m\n");
       else
-	printf ("iconv() returned %Zd, expected 7\n", n);
+	printf ("iconv() returned %zd, expected 7\n", n);
       result = 1;
     }
   if (inlen != 0)
@@ -57,7 +57,7 @@ main (void)
     }
   else if (outlen != sizeof (outbuf) - sizeof (expected))
     {
-      printf ("outlen wrong: %Zd, expected %Zd\n", outlen,
+      printf ("outlen wrong: %zd, expected %zd\n", outlen,
 	      sizeof (outbuf) - 15);
       result = 1;
     }

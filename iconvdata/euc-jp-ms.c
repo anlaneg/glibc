@@ -1,7 +1,6 @@
 /* Mapping tables for EUCJP-MS handling.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by MORIYAMA Masayuki <msyk@mtg.biglobe.ne.jp>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -4660,7 +4659,7 @@ static const unsigned char from_ucs4_extra[229][2] =
 	/* This is illegal.  */						      \
 	if (! ignore_errors_p ())					      \
 	  {								      \
-	    result = __GCONV_ILLEGAL_INPUT;				      \
+	    result = __gconv_mark_illegal_input (step_data);		      \
 	    break;							      \
 	  }								      \
 									      \
@@ -4690,7 +4689,7 @@ static const unsigned char from_ucs4_extra[229][2] =
 	    /* This is an illegal character.  */			      \
 	    if (! ignore_errors_p ())					      \
 	      {								      \
-		result = __GCONV_ILLEGAL_INPUT;				      \
+		result = __gconv_mark_illegal_input (step_data);	      \
 		break;							      \
 	      }								      \
 									      \
@@ -4710,7 +4709,7 @@ static const unsigned char from_ucs4_extra[229][2] =
 		if (! ignore_errors_p ())				      \
 		  {							      \
 		    /* This is an illegal character.  */		      \
-		    result = __GCONV_ILLEGAL_INPUT;			      \
+		    result = __gconv_mark_illegal_input (step_data);	      \
 		    break;						      \
 		  }							      \
 	      }								      \
@@ -4821,7 +4820,7 @@ static const unsigned char from_ucs4_extra[229][2] =
 		if (! ignore_errors_p ())				      \
 		  {							      \
 		    /* This is an illegal character.  */		      \
-		    result = __GCONV_ILLEGAL_INPUT;			      \
+		    result = __gconv_mark_illegal_input (step_data);	      \
 		    break;						      \
 		  }							      \
 									      \

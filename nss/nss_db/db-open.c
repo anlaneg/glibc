@@ -1,5 +1,5 @@
 /* Common database routines for nss_db.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 
 #include "nss_db.h"
 
-/* Open the database stored in FILE.  If succesful, store either a
+/* Open the database stored in FILE.  If successful, store either a
    pointer to the mapped file or a file handle for the file in H and
    return NSS_STATUS_SUCCESS.  On failure, return the appropriate
    lookup status.  */

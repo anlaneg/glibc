@@ -1,8 +1,7 @@
 /* Convert characters in input buffer using conversion descriptor to
    output buffer.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -24,7 +23,7 @@
 #include <sys/param.h>
 
 #include <gconv_int.h>
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 
 int
@@ -47,10 +46,8 @@ __gconv (__gconv_t cd, const unsigned char **inbuf,
   cd->__data[last_step].__outbufend = outbufend;
 
   __gconv_fct fct = cd->__steps->__fct;
-#ifdef PTR_DEMANGLE
   if (cd->__steps->__shlib_handle != NULL)
     PTR_DEMANGLE (fct);
-#endif
 
   if (inbuf == NULL || *inbuf == NULL)
     {

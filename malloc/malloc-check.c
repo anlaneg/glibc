@@ -1,7 +1,6 @@
 /* glibc.malloc.check implementation.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Wolfram Gloger <wg@malloc.de>, 2001.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -112,7 +111,7 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
 
-  if (!aligned_OK (mem))
+  if (misaligned_mem (mem))
     return NULL;
 
   p = mem2chunk (mem);
@@ -236,7 +235,7 @@ free_check (void *mem)
     {
       /* Mark the chunk as belonging to the library again.  */
       (void)tag_region (chunk2mem (p), memsize (p));
-      _int_free (&main_arena, p, 1);
+      _int_free_chunk (&main_arena, p, chunksize (p), 1);
       __libc_lock_unlock (main_arena.mutex);
     }
   __set_errno (err);
@@ -246,7 +245,7 @@ static void *
 realloc_check (void *oldmem, size_t bytes)
 {
   INTERNAL_SIZE_T chnb;
-  void *newmem = 0;
+  void *newmem = NULL;
   unsigned char *magic_p;
   size_t rb;
 
@@ -255,7 +254,7 @@ realloc_check (void *oldmem, size_t bytes)
       __set_errno (ENOMEM);
       return NULL;
     }
-  if (oldmem == 0)
+  if (oldmem == NULL)
     return malloc_check (bytes);
 
   if (bytes == 0)
@@ -276,7 +275,8 @@ realloc_check (void *oldmem, size_t bytes)
     malloc_printerr ("realloc(): invalid pointer");
   const INTERNAL_SIZE_T oldsize = chunksize (oldp);
 
-  if (!checked_request2size (rb, &chnb))
+  chnb = checked_request2size (rb);
+  if (chnb == 0)
     {
       __set_errno (ENOMEM);
       goto invert;
@@ -376,7 +376,6 @@ memalign_check (size_t alignment, size_t bytes)
   return mem2mem_check (tag_new_usable (mem), bytes);
 }
 
-#if HAVE_TUNABLES
 static void
 TUNABLE_CALLBACK (set_mallopt_check) (tunable_val_t *valp)
 {
@@ -384,20 +383,13 @@ TUNABLE_CALLBACK (set_mallopt_check) (tunable_val_t *valp)
   if (value != 0)
     __malloc_debug_enable (MALLOC_CHECK_HOOK);
 }
-#endif
 
 static bool
 initialize_malloc_check (void)
 {
   /* This is the copy of the malloc initializer that we pulled in along with
      malloc-check.  This does not affect any of the libc malloc structures.  */
-  ptmalloc_init ();
-#if HAVE_TUNABLES
+  __ptmalloc_init ();
   TUNABLE_GET (check, int32_t, TUNABLE_CALLBACK (set_mallopt_check));
-#else
-  const char *s = secure_getenv ("MALLOC_CHECK_");
-  if (s && s[0] != '\0' && s[0] != '0')
-    __malloc_debug_enable (MALLOC_CHECK_HOOK);
-#endif
   return __is_malloc_debug_enabled (MALLOC_CHECK_HOOK);
 }

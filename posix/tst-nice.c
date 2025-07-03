@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -58,8 +58,7 @@ do_test (void)
 
   /* BZ #18086. Make sure we don't reset errno.  */
   errno = EBADF;
-  nice (0);
-  if (errno != EBADF)
+  if (nice (0) == -1 || errno != EBADF)
     {
       printf ("FAIL: errno = %i, but wanted EBADF (%i)\n", errno, EBADF);
       return 1;

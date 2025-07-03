@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper, <drepper@gnu.org>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -40,7 +39,7 @@ __open_catalog (const char *cat_name, const char *nlspath, const char *env_var,
 		__nl_catd catalog)
 {
   int fd = -1;
-  struct stat64 st;
+  struct __stat64_t64 st;
   int swapping;
   size_t cnt;
   size_t max_offset;
@@ -50,7 +49,7 @@ __open_catalog (const char *cat_name, const char *nlspath, const char *env_var,
   char *buf = NULL;
 
   if (strchr (cat_name, '/') != NULL || nlspath == NULL)
-    fd = __open_nocancel (cat_name, O_RDONLY);
+    fd = __open_nocancel (cat_name, O_RDONLY | O_CLOEXEC);
   else
     {
       const char *run_nlspath = nlspath;
@@ -178,7 +177,7 @@ __open_catalog (const char *cat_name, const char *nlspath, const char *env_var,
 
 	  if (bufact != 0)
 	    {
-	      fd = __open_nocancel (buf, O_RDONLY);
+	      fd = __open_nocancel (buf, O_RDONLY | O_CLOEXEC);
 	      if (fd >= 0)
 		break;
 	    }
@@ -194,7 +193,7 @@ __open_catalog (const char *cat_name, const char *nlspath, const char *env_var,
       return -1;
     }
 
-  if (__builtin_expect (__fstat64 (fd, &st), 0) < 0)
+  if (__glibc_unlikely (__fstat64_time64 (fd, &st) < 0))
     goto close_unlock_return;
 
   if (__builtin_expect (!S_ISREG (st.st_mode), 0)

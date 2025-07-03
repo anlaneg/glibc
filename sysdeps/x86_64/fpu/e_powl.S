@@ -1,7 +1,6 @@
 /* ix87 specific implementation of pow function.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -81,7 +80,7 @@ ENTRY(__ieee754_powl)
 	cmpb	$0x40, %ah	// is y == 0 ?
 	je	11f
 
-	cmpb	$0x05, %ah	// is y == ±inf ?
+	cmpb	$0x05, %ah	// is y == Â±inf ?
 	je	12f
 
 	cmpb	$0x01, %ah	// is y == NaN ?
@@ -94,10 +93,10 @@ ENTRY(__ieee754_powl)
 	movb	%ah, %dh
 	andb	$0x45, %ah
 	cmpb	$0x40, %ah
-	je	20f		// x is ±0
+	je	20f		// x is Â±0
 
 	cmpb	$0x05, %ah
-	je	15f		// x is ±inf
+	je	15f		// x is Â±inf
 
 	cmpb	$0x01, %ah
 	je	31f		// x is NaN
@@ -181,7 +180,7 @@ ENTRY(__ieee754_powl)
 	LDBL_CHECK_FORCE_UFLOW_NONNAN
 	ret
 
-	/* y is ±NAN */
+	/* y is Â±NAN */
 30:	fldt	8(%rsp)		// x : y
 	fldl	MO(one)		// 1.0 : x : y
 	fucomip	%st(1),%st	// x : y
@@ -224,7 +223,7 @@ ENTRY(__ieee754_powl)
 	cfi_adjust_cfa_offset (-40)
 	ret
 
-	// pow(x,±0) = 1, unless x is sNaN
+	// pow(x,Â±0) = 1, unless x is sNaN
 	.align ALIGNARG(4)
 11:	fstp	%st(0)		// pop y
 	fldt	8(%rsp)		// x
@@ -242,7 +241,7 @@ ENTRY(__ieee754_powl)
 	fadd	%st(0)
 	ret
 
-	// y == ±inf
+	// y == Â±inf
 	.align ALIGNARG(4)
 12:	fstp	%st(0)		// pop y
 	fldl	MO(one)		// 1
@@ -278,7 +277,7 @@ ENTRY(__ieee754_powl)
 	ret
 
 	.align ALIGNARG(4)
-	// x is ±inf
+	// x is Â±inf
 15:	fstp	%st(0)		// y
 	testb	$2, %dh
 	jz	16f		// jump if x == +inf
@@ -344,12 +343,12 @@ ENTRY(__ieee754_powl)
 	ret
 
 	.align ALIGNARG(4)
-	// x is ±0
+	// x is Â±0
 20:	fstp	%st(0)		// y
 	testb	$2, %dl
 	jz	21f		// y > 0
 
-	// x is ±0 and y is < 0.  We must find out whether y is an odd integer.
+	// x is Â±0 and y is < 0.  We must find out whether y is an odd integer.
 	testb	$2, %dh
 	jz	25f
 
@@ -393,7 +392,7 @@ ENTRY(__ieee754_powl)
 	ret
 
 	.align ALIGNARG(4)
-	// x is ±0 and y is > 0.  We must find out whether y is an odd integer.
+	// x is Â±0 and y is > 0.  We must find out whether y is an odd integer.
 21:	testb	$2, %dh
 	jz	22f
 

@@ -1,6 +1,5 @@
-/* Copyright (C) 2011-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gmail.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,6 +21,8 @@
 #define EW(type) EW_(Elf, CLASS, type)
 #define EW_(e, w, t) EW__(e, w, _##t)
 #define EW__(e, w, t) e##w##t
+
+#include <dl-r_debug.h>
 
 struct E(link_map)
 {
@@ -127,21 +128,25 @@ E(find_maps) (const char *exe, int memfd, pid_t pid, void *auxv,
 	    != p[i].p_filesz)
 	  error (EXIT_FAILURE, 0, gettext ("cannot read dynamic section"));
 
-	/* Search for the DT_DEBUG entry.  */
+	/* Search for the struct r_debug.  */
 	for (unsigned int j = 0; j < p[i].p_filesz / sizeof (EW(Dyn)); ++j)
-	  if (dyn[j].d_tag == DT_DEBUG && dyn[j].d_un.d_ptr != 0)
-	    {
-	      struct E(r_debug) r;
-	      if (pread (memfd, &r, sizeof (r), dyn[j].d_un.d_ptr)
-		  != sizeof (r))
-		error (EXIT_FAILURE, 0, gettext ("cannot read r_debug"));
+	  {
+	    EW(Addr) off = offset + p[i].p_vaddr + sizeof (EW(Dyn)) * j;
+	    off = E(r_debug_offset) (&dyn[j], memfd, off);
+	    if (off != 0)
+	      {
+		struct E(r_debug) r;
+		if (pread (memfd, &r, sizeof (r), off)
+		    != sizeof (r))
+		  error (EXIT_FAILURE, 0, gettext ("cannot read r_debug"));
 
-	      if (r.r_map != 0)
-		{
-		  list = r.r_map;
-		  break;
-		}
-	    }
+		if (r.r_map != 0)
+		  {
+		    list = r.r_map;
+		    break;
+		  }
+	      }
+	  }
 
 	free (dyn);
 	break;

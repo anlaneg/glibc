@@ -1,7 +1,6 @@
 /* File tree walker functions.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -204,6 +203,20 @@ struct ftw_data
   void *known_objects;
 };
 
+static bool
+ftw_allocate (struct ftw_data *data, size_t newsize)
+{
+  void *newp = realloc (data->dirstreams, data->maxdir
+					  * sizeof (struct dir_data *)
+					  + newsize);
+  if (newp == NULL)
+    return false;
+  data->dirstreams = newp;
+  data->dirbufsize = newsize;
+  data->dirbuf = (char *) data->dirstreams
+		 + data->maxdir * sizeof (struct dir_data *);
+  return true;
+}
 
 /* Internally we use the FTW_* constants used for `nftw'.  When invoked
    as `ftw', map each flag to the subset of values used by `ftw'.  */
@@ -310,8 +323,9 @@ open_dir_stream (int *dfdp, struct ftw_data *data, struct dir_data *dirp)
 	  buf[actsize++] = '\0';
 
 	  /* Shrink the buffer to what we actually need.  */
-	  data->dirstreams[data->actdir]->content = realloc (buf, actsize);
-	  if (data->dirstreams[data->actdir]->content == NULL)
+	  void *content = realloc (buf, actsize);
+	  data->dirstreams[data->actdir]->content = content;
+	  if (content == NULL)
 	    {
 	      int save_err = errno;
 	      free (buf);
@@ -389,17 +403,9 @@ process_entry (struct ftw_data *data, struct dir_data *dir, const char *name,
     return 0;
 
   new_buflen = data->ftw.base + namlen + 2;
-  if (data->dirbufsize < new_buflen)
-    {
-      /* Enlarge the buffer.  */
-      char *newp;
-
-      data->dirbufsize = 2 * new_buflen;
-      newp = (char *) realloc (data->dirbuf, data->dirbufsize);
-      if (newp == NULL)
-	return -1;
-      data->dirbuf = newp;
-    }
+  if (data->dirbufsize < new_buflen
+      && !ftw_allocate (data, 2 * new_buflen))
+    return -1;
 
   *((char *) __mempcpy (data->dirbuf + data->ftw.base, name, namlen)) = '\0';
 
@@ -529,7 +535,7 @@ fail:
 
   /* Next, update the `struct FTW' information.  */
   ++data->ftw.level;
-  startp = __rawmemchr (data->dirbuf, '\0');
+  startp = strchr (data->dirbuf, '\0');
   /* There always must be a directory name.  */
   assert (startp != data->dirbuf);
   if (startp[-1] != '/')
@@ -629,7 +635,7 @@ __attribute ((noinline))
 ftw_startup (const char *dir, int is_nftw, void *func, int descriptors,
 	     int flags)
 {
-  struct ftw_data data;
+  struct ftw_data data = { .dirstreams = NULL };
   struct STRUCT_STAT st;
   int result = 0;
   int save_err;
@@ -647,16 +653,9 @@ ftw_startup (const char *dir, int is_nftw, void *func, int descriptors,
   data.maxdir = descriptors < 1 ? 1 : descriptors;
   data.actdir = 0;
   /* PATH_MAX is always defined when we get here.  */
-  data.dirbufsize = MAX (2 * strlen (dir), PATH_MAX);
-  data.dirstreams = malloc (data.maxdir * sizeof (struct dir_data *)
-                            + data.dirbufsize);
-  if (data.dirstreams == NULL)
+  if (!ftw_allocate (&data, MAX (2 * strlen (dir), PATH_MAX)))
     return -1;
-
   memset (data.dirstreams, '\0', data.maxdir * sizeof (struct dir_data *));
-
-  data.dirbuf = (char *) data.dirstreams
-                + data.maxdir * sizeof (struct dir_data *);
   cp = __stpcpy (data.dirbuf, dir);
   /* Strip trailing slashes.  */
   while (cp > data.dirbuf + 1 && cp[-1] == '/')

@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public License as
@@ -42,7 +41,7 @@ struct thread_start_data
 static void *
 timer_sigev_thread (void *arg)
 {
-  __libc_signal_unblock_sigtimer (NULL);
+  signal_unblock_sigtimer ();
 
   struct thread_start_data *td = (struct thread_start_data *) arg;
   void (*thrfunc) (sigval_t) = td->thrfunc;

@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -40,7 +39,7 @@ tf (void *arg)
   pthread_key_t key = (pthread_key_t) (long int) arg;
   int err;
 
-  /* Use an arbirary but valid pointer to avoid GCC warnings.  */
+  /* Use an arbitrary but valid pointer to avoid GCC warnings.  */
   err = pthread_setspecific (key, &result);
   if (err != 0)
     result = 3;

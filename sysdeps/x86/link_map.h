@@ -1,5 +1,5 @@
 /* Additional fields in struct link_map.  Linux/x86 version.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,3 +29,5 @@ unsigned int l_x86_feature_1_and;
 
 /* GNU_PROPERTY_X86_ISA_1_NEEDED of this object.  */
 unsigned int l_x86_isa_1_needed;
+
+#include <sysdeps/generic/link_map.h>

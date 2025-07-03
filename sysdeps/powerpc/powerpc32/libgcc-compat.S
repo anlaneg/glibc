@@ -1,5 +1,5 @@
 /* pre-.hidden libgcc compatibility
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -36,20 +36,18 @@
 	.symver __floatdisf_v_glibc20,__floatdisf@GLIBC_2.0
 #endif
 
-#ifdef HAVE_DOT_HIDDEN
 	.hidden __ashldi3
 	.hidden __ashrdi3
 	.hidden __lshrdi3
 	.hidden __cmpdi2
 	.hidden __ucmpdi2
-# if !defined _SOFT_FLOAT && !defined __NO_FPRS__
+#if !defined _SOFT_FLOAT && !defined __NO_FPRS__
 	.hidden __fixdfdi
 	.hidden __fixsfdi
 	.hidden __fixunsdfdi
 	.hidden __fixunssfdi
 	.hidden __floatdidf
 	.hidden __floatdisf
-# endif
 #endif
 
 	.section	".text"

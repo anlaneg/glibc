@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -40,6 +40,7 @@ __posix_spawn_file_actions_destroy (posix_spawn_file_actions_t *file_actions)
 	case spawn_do_dup2:
 	case spawn_do_fchdir:
 	case spawn_do_closefrom:
+	case spawn_do_tcsetpgrp:
 	  /* No cleanup required.  */
 	  break;
 	}

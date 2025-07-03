@@ -1,5 +1,5 @@
 /* NSS actions, elements in a nsswitch.conf configuration line.
-   Copyright (c) 2020-2021 Free Software Foundation, Inc.
+   Copyright (c) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -100,9 +100,6 @@ nss_action_list __nss_action_allocate (struct nss_action *actions,
    NULL on error.  ENOMEM means a (temporary) memory allocation error,
    EINVAL means that LINE is syntactically invalid.  */
 nss_action_list __nss_action_parse (const char *line);
-
-/* Called from __libc_freeres.  */
-void __nss_action_freeres (void) attribute_hidden;
 
 
 #endif /* _NSS_ACTION_H */

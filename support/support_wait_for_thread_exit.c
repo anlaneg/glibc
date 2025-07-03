@@ -1,5 +1,5 @@
 /* Wait until all threads except the current thread has exited.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,6 +18,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <support/check.h>
 #include <support/support.h>
@@ -43,7 +44,10 @@ support_wait_for_thread_exit (void)
           return;
         }
 
-      if (strcmp (e->d_name, ".") == 0 || strcmp (e->d_name, "..") == 0)
+      /* In some kernels, "0" entries denote a thread that has just
+         exited.  */
+      if (strcmp (e->d_name, ".") == 0 || strcmp (e->d_name, "..") == 0
+          || strcmp (e->d_name, "0") == 0)
         continue;
 
       int task_tid = atoi (e->d_name);

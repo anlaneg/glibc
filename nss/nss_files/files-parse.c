@@ -1,5 +1,5 @@
 /* Common code for file-based database parsers in nss_files module.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -239,7 +239,7 @@ parse_list (char **linep, char *eol, char *buf_end, int terminator_c,
 
   /* Adjust the pointer so it is aligned for storing pointers.  */
   eol += __alignof__ (char *) - 1;
-  eol -= (eol - (char *) 0) % __alignof__ (char *);
+  eol -= ((uintptr_t) eol) % __alignof__ (char *);
   /* We will start the storage here for the vector of pointers.  */
   list = (char **) eol;
 

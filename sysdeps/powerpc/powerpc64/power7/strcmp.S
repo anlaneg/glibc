@@ -1,5 +1,5 @@
 /* Optimized strcmp implementation for Power7 using 'cmpb' instruction
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,7 +17,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 /* The optimization is achieved here through cmpb instruction.
-   8byte aligned strings are processed with double word comparision
+   8byte aligned strings are processed with double word comparison
    and unaligned strings are handled effectively with loop unrolling
    technique  */
 

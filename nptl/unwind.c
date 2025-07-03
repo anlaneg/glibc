@@ -1,7 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>
-   and Richard Henderson <rth@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,7 +25,7 @@
 #include <jmpbuf-unwind.h>
 #include <shlib-compat.h>
 
-#ifdef _STACK_GROWS_DOWN
+#if _STACK_GROWS_DOWN
 # define FRAME_LEFT(frame, other, adj) \
   ((uintptr_t) frame - adj >= (uintptr_t) other - adj)
 #elif _STACK_GROWS_UP

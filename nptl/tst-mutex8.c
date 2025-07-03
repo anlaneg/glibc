@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -99,7 +98,6 @@ check_type (const char *mas, pthread_mutexattr_t *ma)
   /* Check if a mutex will be elided.  Lock elision can only be activated via
      the tunables framework.  By default, lock elision is disabled.  */
   bool assume_elided_mutex = false;
-#if HAVE_TUNABLES
   int ma_type = PTHREAD_MUTEX_TIMED_NP;
   if (ma != NULL)
     {
@@ -118,7 +116,6 @@ check_type (const char *mas, pthread_mutexattr_t *ma)
       if (TUNABLE_GET_FULL (glibc, elision, enable, int32_t, NULL) == 1)
 	assume_elided_mutex = true;
     }
-#endif
 
   e = pthread_mutex_init (m, ma);
   if (e != 0)

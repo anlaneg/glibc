@@ -1,5 +1,5 @@
 /* The clone3 syscall wrapper.  Linux/x86-64 version.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -73,9 +73,6 @@ L(thread_start):
 	   the outermost frame obviously.  */
 	xorl	%ebp, %ebp
 
-	/* Align stack to 16 bytes per the x86-64 psABI.  */
-	and	$-16, %RSP_LP
-
 	/* Set up arguments for the function call.  */
 	mov	%R8_LP, %RDI_LP	/* Argument.  */
 	call	*%rdx		/* Call function.  */
@@ -89,4 +86,3 @@ L(thread_start):
 PSEUDO_END (__clone3)
 
 libc_hidden_def (__clone3)
-weak_alias (__clone3, clone3)

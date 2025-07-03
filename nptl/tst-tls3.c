@@ -1,6 +1,5 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,9 +26,11 @@
 #include <unistd.h>
 #include <pthreaddef.h>
 
+#include <support/xunistd.h>
+
 #define THE_SIG SIGUSR1
 
-/* The stack size can be overriden.  With a sufficiently large stack
+/* The stack size can be overridden.  With a sufficiently large stack
    size, thread stacks for terminated threads are freed, but this does
    not happen with the default size of 1 MiB.  */
 enum { default_stack_size_in_mb = 1 };

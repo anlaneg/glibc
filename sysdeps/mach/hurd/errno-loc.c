@@ -1,5 +1,5 @@
 /* __errno_location -- helper function for locating per-thread errno value
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 /* rtld can not access TLS too early, thus rtld_errno.
 
    Instead of making __open/__close pass errno from TLS to rtld_errno, simply
-   use a weak __errno_location using rtld_errno, which will be overriden by the
+   use a weak __errno_location using rtld_errno, which will be overridden by the
    libc definition.  */
 static int rtld_errno;
 int * weak_function

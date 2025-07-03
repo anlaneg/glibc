@@ -1,5 +1,5 @@
 /* Perform a `longjmp' on a Mach thread_state.  Stub version.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,5 +27,5 @@ _hurd_longjmp_thread_state (void *state, jmp_buf env, int val)
   /* Set all the registers in *STATE to the values described by ENV and
      RETVAL.  After this, setting that thread's state to STATE should be
      just like calling `longjmp (ENV, RETVAL)'.  */
-  #error "Need to write sysdeps/mach/hurd/MACHINE/longjmp-ctx.c"
+  #error "Need to write sysdeps/mach/hurd/MACHINE/longjmp-ts.c"
 }

@@ -1,5 +1,5 @@
 /* Error-checking wrapper for sysconf.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ xsysconf (int name)
   int old_errno = errno;
   errno = 0;
   long result = sysconf (name);
-  if (errno != 0)
+  if (result == -1 && errno != 0)
     FAIL_EXIT1 ("sysconf (%d): %m", name);
   errno = old_errno;
   return result;

@@ -1,5 +1,5 @@
 /* Test for support_timespec_check_in_range function.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -76,22 +76,22 @@ struct timespec_ns_test_case ns_cases[] = {
   {.time = {.tv_sec = -1, .tv_nsec = 1},
    .time_ns = -TIMESPEC_HZ + 1,
   },
-  /* Overflow bondary by 2  */
+  /* Overflow boundary by 2  */
   {.time = {.tv_sec = TIME_T_MAX / TIMESPEC_HZ,
 	    .tv_nsec = TIME_T_MAX % TIMESPEC_HZ - 1},
    .time_ns = TIME_T_MAX - 1,
   },
-  /* Overflow bondary  */
+  /* Overflow boundary  */
   {.time = {.tv_sec = TIME_T_MAX / TIMESPEC_HZ,
 	    .tv_nsec = TIME_T_MAX % TIMESPEC_HZ},
    .time_ns = TIME_T_MAX,
   },
-  /* Underflow bondary by 1  */
+  /* Underflow boundary by 1  */
   {.time = {.tv_sec = TIME_T_MIN / TIMESPEC_HZ,
 	    .tv_nsec = TIME_T_MIN % TIMESPEC_HZ + 1},
    .time_ns = TIME_T_MIN + 1,
   },
-  /* Underflow bondary  */
+  /* Underflow boundary  */
   {.time = {.tv_sec = TIME_T_MIN / TIMESPEC_HZ,
 	    .tv_nsec = TIME_T_MIN % TIMESPEC_HZ},
    .time_ns = TIME_T_MIN,
@@ -153,19 +153,19 @@ struct timespec_norm_test_case norm_cases[] = {
   {.time = {.tv_sec = -1, .tv_nsec = -TIMESPEC_HZ - 1},
    .norm = {.tv_sec = -2, .tv_nsec = -1}
   },
-  /* Overflow bondary by 2  */
+  /* Overflow boundary by 2  */
   {.time = {.tv_sec = TIME_T_MAX - 2, .tv_nsec = TIMESPEC_HZ + 1},
    .norm = {.tv_sec = TIME_T_MAX - 1, 1},
   },
-  /* Overflow bondary by 1  */
+  /* Overflow boundary by 1  */
   {.time = {.tv_sec = TIME_T_MAX - 1, .tv_nsec = TIMESPEC_HZ + 1},
    .norm = {.tv_sec = TIME_T_MAX, .tv_nsec = 1},
   },
-  /* Underflow bondary by 2  */
+  /* Underflow boundary by 2  */
   {.time = {.tv_sec = TIME_T_MIN + 2, .tv_nsec = -TIMESPEC_HZ - 1},
    .norm = {.tv_sec = TIME_T_MIN + 1, -1},
   },
-  /* Underflow bondary by 1  */
+  /* Underflow boundary by 1  */
   {.time = {.tv_sec = TIME_T_MIN + 1, .tv_nsec = -TIMESPEC_HZ - 1},
    .norm = {.tv_sec = TIME_T_MIN, .tv_nsec = -1},
   },
@@ -287,7 +287,7 @@ struct timespec_test_case check_cases[] = {
   {.expected = {.tv_sec = 0, .tv_nsec = 1},
    .observed = {.tv_sec = TIME_T_MAX / TIMESPEC_HZ,
 		.tv_nsec = TIMESPEC_HZ - 1},
-   .upper_bound = TIME_T_MAX, .lower_bound = 1, .result = 1,
+   .upper_bound = (double) TIME_T_MAX, .lower_bound = 1, .result = 1,
   },
 };
 

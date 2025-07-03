@@ -1,5 +1,5 @@
 /* Declarations for SVID math error handling compatibility.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -49,6 +49,8 @@ extern int matherr (struct exception *__exc);
 extern int __matherr (struct exception *__exc);
 
 #define X_TLOSS	1.41484755040568800000e+16
+#define AS_FLOAT_CONSTANT_1(x) x##f
+#define AS_FLOAT_CONSTANT(x) AS_FLOAT_CONSTANT_1(x)
 
 /* Types of exceptions in the `type' field.  */
 #define DOMAIN		1

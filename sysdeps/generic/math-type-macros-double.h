@@ -1,5 +1,5 @@
 /* Helper macros for double variants of type generic functions of libm.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,6 +26,9 @@
 #define FLOAT double
 #define CFLOAT _Complex double
 #define M_STRTO_NAN __strtod_nan
+#define M_USE_BUILTIN(c) USE_ ##c ##_BUILTIN
+
+#define M_SET_RESTORE_ROUND(RM) SET_RESTORE_ROUND (RM)
 
 #include <libm-alias-double.h>
 #include <math-nan-payload-double.h>
@@ -36,6 +39,11 @@
 
 #ifndef declare_mgen_alias_r
 # define declare_mgen_alias_r(from, to) libm_alias_double_r (from, to, _r)
+#endif
+
+#ifndef declare_mgen_alias_narrow
+# define declare_mgen_alias_narrow(from, to)	\
+  libm_alias_double_narrow (from, to)
 #endif
 
 /* Supply the generic macros.  */

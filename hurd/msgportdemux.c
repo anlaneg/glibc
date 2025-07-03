@@ -1,5 +1,5 @@
 /* Demux messages sent on the signal port.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,18 +20,6 @@
 #include <hurd/signal.h>
 #include <stddef.h>
 
-struct demux
-  {
-    struct demux *next;
-    boolean_t (*demux) (mach_msg_header_t *inp,
-			mach_msg_header_t *outp);
-  };
-
-struct demux *_hurd_msgport_demuxers = NULL;
-
-extern boolean_t __msg_server (mach_msg_header_t *inp,
-			       mach_msg_header_t *outp);
-
 static boolean_t
 msgport_server (mach_msg_header_t *inp,
 		mach_msg_header_t *outp)
@@ -40,11 +28,6 @@ msgport_server (mach_msg_header_t *inp,
 				  mach_msg_header_t *outp);
   extern boolean_t _S_exc_server (mach_msg_header_t *inp,
 				  mach_msg_header_t *outp);
-  struct demux *d;
-
-  for (d = _hurd_msgport_demuxers; d != NULL; d = d->next)
-    if ((*d->demux) (inp, outp))
-      return 1;
 
   return (_S_exc_server (inp, outp)
 	  || _S_msg_server (inp, outp));

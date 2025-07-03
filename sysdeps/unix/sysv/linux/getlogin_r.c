@@ -1,4 +1,4 @@
-/* Copyright (C) 2010-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -59,10 +59,7 @@ __getlogin_r_loginuid (char *name, size_t namesize)
      value of, (uid_t) -1, so check if that value is set and return early to
      avoid making unneeded nss lookups. */
   if (uid == (uid_t) -1)
-    {
-      __set_errno (ENXIO);
-      return ENXIO;
-    }
+    return -1;
 
   struct passwd pwd;
   struct passwd *tpwd;

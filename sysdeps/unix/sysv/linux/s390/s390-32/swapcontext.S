@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -67,6 +66,12 @@ ENTRY(__swapcontext)
 	/* Store general purpose registers.  */
 	stm     %r0,%r15,SC_GPRS(%r1)
 
+	/* Store psw mask to 0x0 and addr to return address.  Then the address
+	   can be retrieved from the ucontext structure in the same way as if it
+	   is created by kernel and passed to a signal-handler.  */
+	st	%r2,SC_PSW+0(%r1)
+	st	%r14,SC_PSW+4(%r1)
+
 	/* rt_sigprocmask (SIG_SETMASK, &ucp->uc_sigmask, &oucp->uc_sigmask,
 	   sigsetsize).  */
 	la      %r2,SIG_SETMASK
@@ -74,7 +79,8 @@ ENTRY(__swapcontext)
 	la	%r3,SC_MASK(%r5)
 	la	%r4,SC_MASK(%r1)
 	lhi	%r5,_NSIG8
-	svc	SYS_ify(rt_sigprocmask)
+	lhi	%r1,SYS_ify(rt_sigprocmask)
+	svc	0
 
 	/* Load fpu context.  */
 	lr	%r5,%r0

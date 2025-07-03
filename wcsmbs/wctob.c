@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.ai.mit.edu>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -23,7 +22,7 @@
 #include <wchar.h>
 #include <wcsmbsload.h>
 
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 
 int
@@ -64,10 +63,8 @@ wctob (wint_t c)
 
   const unsigned char *argptr = (const unsigned char *) inptr;
   __gconv_fct fct = fcts->tomb->__fct;
-#ifdef PTR_DEMANGLE
   if (fcts->tomb->__shlib_handle != NULL)
     PTR_DEMANGLE (fct);
-#endif
   status = DL_CALL_FCT (fct,
 			(fcts->tomb, &data, &argptr,
 			 argptr + sizeof (inbuf[0]), NULL, &dummy, 0, 1));

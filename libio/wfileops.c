@@ -1,7 +1,6 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
-   Written by Ulrich Drepper <drepper@cygnus.com>.
-   Based on the single byte version by Per Bothner <bothner@cygnus.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -57,7 +56,7 @@ _IO_wdo_write (FILE *fp, const wchar_t *data, size_t to_do)
 	  char mb_buf[MB_LEN_MAX];
 	  char *write_base, *write_ptr, *buf_end;
 
-	  if (fp->_IO_write_ptr - fp->_IO_write_base < sizeof (mb_buf))
+	  if (fp->_IO_buf_end - fp->_IO_write_ptr < sizeof (mb_buf))
 	    {
 	      /* Make sure we have room for at least one multibyte
 		 character.  */
@@ -177,7 +176,7 @@ _IO_wfile_underflow (FILE *fp)
       /* Maybe we already have a push back pointer.  */
       if (fp->_IO_save_base != NULL)
 	{
-	  free (fp->_IO_save_base);
+	  _IO_free_backup_buf (fp, fp->_IO_save_base);
 	  fp->_flags &= ~_IO_IN_BACKUP;
 	}
       _IO_doallocbuf (fp);
@@ -330,7 +329,7 @@ _IO_wfile_underflow (FILE *fp)
 libc_hidden_def (_IO_wfile_underflow)
 
 
-static wint_t
+wint_t
 _IO_wfile_underflow_mmap (FILE *fp)
 {
   struct _IO_codecvt *cd;
@@ -391,7 +390,7 @@ _IO_wfile_underflow_mmap (FILE *fp)
   return WEOF;
 }
 
-static wint_t
+wint_t
 _IO_wfile_underflow_maybe_mmap (FILE *fp)
 {
   /* This is the first read attempt.  Doing the underflow will choose mmap
@@ -414,21 +413,22 @@ _IO_wfile_overflow (FILE *f, wint_t wch)
       return WEOF;
     }
   /* If currently reading or no buffer allocated. */
-  if ((f->_flags & _IO_CURRENTLY_PUTTING) == 0)
+  if ((f->_flags & _IO_CURRENTLY_PUTTING) == 0
+      || f->_wide_data->_IO_write_base == NULL)
     {
       /* Allocate a buffer if needed. */
-      if (f->_wide_data->_IO_write_base == 0)
+      if (f->_wide_data->_IO_write_base == NULL)
 	{
 	  _IO_wdoallocbuf (f);
 	  _IO_free_wbackup_area (f);
-	  _IO_wsetg (f, f->_wide_data->_IO_buf_base,
-		     f->_wide_data->_IO_buf_base, f->_wide_data->_IO_buf_base);
 
 	  if (f->_IO_write_base == NULL)
 	    {
 	      _IO_doallocbuf (f);
 	      _IO_setg (f, f->_IO_buf_base, f->_IO_buf_base, f->_IO_buf_base);
 	    }
+	  _IO_wsetg (f, f->_wide_data->_IO_buf_base,
+		     f->_wide_data->_IO_buf_base, f->_wide_data->_IO_buf_base);
 	}
       else
 	{
@@ -959,7 +959,7 @@ _IO_wfile_xsputn (FILE *f, const void *data, size_t n)
   const wchar_t *s = (const wchar_t *) data;
   size_t to_do = n;
   int must_flush = 0;
-  size_t count;
+  size_t count = 0;
 
   if (n <= 0)
     return 0;
@@ -968,7 +968,6 @@ _IO_wfile_xsputn (FILE *f, const void *data, size_t n)
      (or the filebuf is unbuffered), use sys_write directly. */
 
   /* First figure out how much space is available in the buffer. */
-  count = f->_wide_data->_IO_write_end - f->_wide_data->_IO_write_ptr;
   if ((f->_flags & _IO_LINE_BUF) && (f->_flags & _IO_CURRENTLY_PUTTING))
     {
       count = f->_wide_data->_IO_buf_end - f->_wide_data->_IO_write_ptr;
@@ -986,6 +985,10 @@ _IO_wfile_xsputn (FILE *f, const void *data, size_t n)
 	    }
 	}
     }
+  else if (f->_wide_data->_IO_write_end > f->_wide_data->_IO_write_ptr)
+    count = f->_wide_data->_IO_write_end
+      - f->_wide_data->_IO_write_ptr; /* Space available.  */
+
   /* Then fill the buffer. */
   if (count > 0)
     {
@@ -1018,78 +1021,3 @@ _IO_wfile_xsputn (FILE *f, const void *data, size_t n)
   return n - to_do;
 }
 libc_hidden_def (_IO_wfile_xsputn)
-
-
-const struct _IO_jump_t _IO_wfile_jumps libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_new_file_finish),
-  JUMP_INIT(overflow, (_IO_overflow_t) _IO_wfile_overflow),
-  JUMP_INIT(underflow, (_IO_underflow_t) _IO_wfile_underflow),
-  JUMP_INIT(uflow, (_IO_underflow_t) _IO_wdefault_uflow),
-  JUMP_INIT(pbackfail, (_IO_pbackfail_t) _IO_wdefault_pbackfail),
-  JUMP_INIT(xsputn, _IO_wfile_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn),
-  JUMP_INIT(seekoff, _IO_wfile_seekoff),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, _IO_new_file_setbuf),
-  JUMP_INIT(sync, (_IO_sync_t) _IO_wfile_sync),
-  JUMP_INIT(doallocate, _IO_wfile_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};
-libc_hidden_data_def (_IO_wfile_jumps)
-
-
-const struct _IO_jump_t _IO_wfile_jumps_mmap libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_new_file_finish),
-  JUMP_INIT(overflow, (_IO_overflow_t) _IO_wfile_overflow),
-  JUMP_INIT(underflow, (_IO_underflow_t) _IO_wfile_underflow_mmap),
-  JUMP_INIT(uflow, (_IO_underflow_t) _IO_wdefault_uflow),
-  JUMP_INIT(pbackfail, (_IO_pbackfail_t) _IO_wdefault_pbackfail),
-  JUMP_INIT(xsputn, _IO_wfile_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn),
-  JUMP_INIT(seekoff, _IO_wfile_seekoff),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, _IO_file_setbuf_mmap),
-  JUMP_INIT(sync, (_IO_sync_t) _IO_wfile_sync),
-  JUMP_INIT(doallocate, _IO_wfile_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close_mmap),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};
-
-const struct _IO_jump_t _IO_wfile_jumps_maybe_mmap libio_vtable =
-{
-  JUMP_INIT_DUMMY,
-  JUMP_INIT(finish, _IO_new_file_finish),
-  JUMP_INIT(overflow, (_IO_overflow_t) _IO_wfile_overflow),
-  JUMP_INIT(underflow, (_IO_underflow_t) _IO_wfile_underflow_maybe_mmap),
-  JUMP_INIT(uflow, (_IO_underflow_t) _IO_wdefault_uflow),
-  JUMP_INIT(pbackfail, (_IO_pbackfail_t) _IO_wdefault_pbackfail),
-  JUMP_INIT(xsputn, _IO_wfile_xsputn),
-  JUMP_INIT(xsgetn, _IO_file_xsgetn),
-  JUMP_INIT(seekoff, _IO_wfile_seekoff),
-  JUMP_INIT(seekpos, _IO_default_seekpos),
-  JUMP_INIT(setbuf, _IO_file_setbuf_mmap),
-  JUMP_INIT(sync, (_IO_sync_t) _IO_wfile_sync),
-  JUMP_INIT(doallocate, _IO_wfile_doallocate),
-  JUMP_INIT(read, _IO_file_read),
-  JUMP_INIT(write, _IO_new_file_write),
-  JUMP_INIT(seek, _IO_file_seek),
-  JUMP_INIT(close, _IO_file_close),
-  JUMP_INIT(stat, _IO_file_stat),
-  JUMP_INIT(showmanyc, _IO_default_showmanyc),
-  JUMP_INIT(imbue, _IO_default_imbue)
-};

@@ -1,5 +1,5 @@
 /* Close a shared object opened by `_dl_open'.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -32,13 +32,9 @@
 #include <sysdep-cancel.h>
 #include <tls.h>
 #include <stap-probe.h>
+#include <dl-find_object.h>
 
 #include <dl-unmap-segments.h>
-
-
-/* Type of the constructor functions.  */
-typedef void (*fini_t) (void);
-
 
 /* Special l_idx value used to indicate which objects remain loaded.  */
 #define IDX_STILL_USED -1
@@ -109,31 +105,6 @@ remove_slotinfo (size_t idx, struct dtv_slotinfo_list *listp, size_t disp,
   return false;
 }
 
-/* Invoke dstructors for CLOSURE (a struct link_map *).  Called with
-   exception handling temporarily disabled, to make errors fatal.  */
-static void
-call_destructors (void *closure)
-{
-  struct link_map *map = closure;
-
-  if (map->l_info[DT_FINI_ARRAY] != NULL)
-    {
-      ElfW(Addr) *array =
-	(ElfW(Addr) *) (map->l_addr
-			+ map->l_info[DT_FINI_ARRAY]->d_un.d_ptr);
-      unsigned int sz = (map->l_info[DT_FINI_ARRAYSZ]->d_un.d_val
-			 / sizeof (ElfW(Addr)));
-
-      while (sz-- > 0)
-	((fini_t) array[sz]) ();
-    }
-
-  /* Next try the old-style destructor.  */
-  if (map->l_info[DT_FINI] != NULL)
-    DL_CALL_DT_FINI (map, ((void *) map->l_addr
-			   + map->l_info[DT_FINI]->d_un.d_ptr));
-}
-
 void
 _dl_close_worker (struct link_map *map, bool force)
 {
@@ -167,8 +138,6 @@ _dl_close_worker (struct link_map *map, bool force)
 
   bool any_tls = false;
   const unsigned int nloaded = ns->_ns_nloaded;
-  char used[nloaded];
-  char done[nloaded];
   struct link_map *maps[nloaded];
 
   /* Run over the list and assign indexes to the link maps and enter
@@ -176,16 +145,23 @@ _dl_close_worker (struct link_map *map, bool force)
   int idx = 0;
   for (struct link_map *l = ns->_ns_loaded; l != NULL; l = l->l_next)
     {
+      l->l_map_used = 0;
+      l->l_map_done = 0;
       l->l_idx = idx;
       maps[idx] = l;
       ++idx;
-
     }
   assert (idx == nloaded);
 
-  /* Prepare the bitmaps.  */
-  memset (used, '\0', sizeof (used));
-  memset (done, '\0', sizeof (done));
+  /* Put the dlclose'd map first, so that its destructor runs first.
+     The map variable is NULL after a retry.  */
+  if (map != NULL)
+    {
+      maps[map->l_idx] = maps[0];
+      maps[map->l_idx]->l_idx = map->l_idx;
+      maps[0] = map;
+      maps[0]->l_idx = 0;
+    }
 
   /* Keep track of the lowest index link map we have covered already.  */
   int done_index = -1;
@@ -193,7 +169,7 @@ _dl_close_worker (struct link_map *map, bool force)
     {
       struct link_map *l = maps[done_index];
 
-      if (done[done_index])
+      if (l->l_map_done)
 	/* Already handled.  */
 	continue;
 
@@ -204,12 +180,12 @@ _dl_close_worker (struct link_map *map, bool force)
 	  /* See CONCURRENCY NOTES in cxa_thread_atexit_impl.c to know why
 	     acquire is sufficient and correct.  */
 	  && atomic_load_acquire (&l->l_tls_dtor_count) == 0
-	  && !used[done_index])
+	  && !l->l_map_used)
 	continue;
 
       /* We need this object and we handle it now.  */
-      done[done_index] = 1;
-      used[done_index] = 1;
+      l->l_map_used = 1;
+      l->l_map_done = 1;
       /* Signal the object is still needed.  */
       l->l_idx = IDX_STILL_USED;
 
@@ -225,9 +201,9 @@ _dl_close_worker (struct link_map *map, bool force)
 		{
 		  assert ((*lp)->l_idx >= 0 && (*lp)->l_idx < nloaded);
 
-		  if (!used[(*lp)->l_idx])
+		  if (!(*lp)->l_map_used)
 		    {
-		      used[(*lp)->l_idx] = 1;
+		      (*lp)->l_map_used = 1;
 		      /* If we marked a new object as used, and we've
 			 already processed it, then we need to go back
 			 and process again from that point forward to
@@ -250,9 +226,9 @@ _dl_close_worker (struct link_map *map, bool force)
 	      {
 		assert (jmap->l_idx >= 0 && jmap->l_idx < nloaded);
 
-		if (!used[jmap->l_idx])
+		if (!jmap->l_map_used)
 		  {
-		    used[jmap->l_idx] = 1;
+		    jmap->l_map_used = 1;
 		    if (jmap->l_idx - 1 < done_index)
 		      done_index = jmap->l_idx - 1;
 		  }
@@ -260,15 +236,12 @@ _dl_close_worker (struct link_map *map, bool force)
 	  }
     }
 
-  /* Sort the entries.  We can skip looking for the binary itself which is
-     at the front of the search list for the main namespace.  */
-  _dl_sort_maps (maps + (nsid == LM_ID_BASE), nloaded - (nsid == LM_ID_BASE),
-		 used + (nsid == LM_ID_BASE), true);
+  /* Sort the entries.  Unless retrying, the maps[0] object (the
+     original argument to dlclose) needs to remain first, so that its
+     destructor runs first.  */
+  _dl_sort_maps (maps, nloaded, /* force_first */ map != NULL, true);
 
   /* Call all termination functions at once.  */
-#ifdef SHARED
-  bool do_audit = GLRO(dl_naudit) > 0 && !ns->_ns_loaded->l_auditing;
-#endif
   bool unload_any = false;
   bool scope_mem_left = false;
   unsigned int unload_global = 0;
@@ -280,7 +253,7 @@ _dl_close_worker (struct link_map *map, bool force)
       /* All elements must be in the same namespace.  */
       assert (imap->l_ns == nsid);
 
-      if (!used[i])
+      if (!imap->l_map_used)
 	{
 	  assert (imap->l_type == lt_loaded && !imap->l_nodelete_active);
 
@@ -288,36 +261,17 @@ _dl_close_worker (struct link_map *map, bool force)
 	     half-cooked objects.  Temporarily disable exception
 	     handling, so that errors are fatal.  */
 	  if (imap->l_init_called)
-	    {
-	      /* When debugging print a message first.  */
-	      if (__builtin_expect (GLRO(dl_debug_mask) & DL_DEBUG_IMPCALLS,
-				    0))
-		_dl_debug_printf ("\ncalling fini: %s [%lu]\n\n",
-				  imap->l_name, nsid);
-
-	      if (imap->l_info[DT_FINI_ARRAY] != NULL
-		  || imap->l_info[DT_FINI] != NULL)
-		_dl_catch_exception (NULL, call_destructors, imap);
-	    }
+	    _dl_catch_exception (NULL, _dl_call_fini, imap);
 
 #ifdef SHARED
-	  /* Auditing checkpoint: we remove an object.  */
-	  if (__glibc_unlikely (do_audit))
-	    {
-	      struct audit_ifaces *afct = GLRO(dl_audit);
-	      for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-		{
-		  if (afct->objclose != NULL)
-		    {
-		      struct auditstate *state
-			= link_map_audit_state (imap, cnt);
-		      /* Return value is ignored.  */
-		      (void) afct->objclose (&state->cookie);
-		    }
+	  /* Auditing checkpoint: we will start deleting objects.
+	     This is supposed to happen before la_objclose (see _dl_fini),
+	     but only once per non-recursive dlclose call.  */
+	  if (!unload_any)
+	    _dl_audit_activity_nsid (nsid, LA_ACT_DELETE);
 
-		  afct = afct->next;
-		}
-	    }
+	  /* Auditing checkpoint: we remove an object.  */
+	  _dl_audit_objclose (imap);
 #endif
 
 	  /* This object must not be used anymore.  */
@@ -333,7 +287,7 @@ _dl_close_worker (struct link_map *map, bool force)
 	  if (i < first_loaded)
 	    first_loaded = i;
 	}
-      /* Else used[i].  */
+      /* Else imap->l_map_used.  */
       else if (imap->l_type == lt_loaded)
 	{
 	  struct r_scope_elem *new_list = NULL;
@@ -476,31 +430,9 @@ _dl_close_worker (struct link_map *map, bool force)
   if (!unload_any)
     goto out;
 
-#ifdef SHARED
-  /* Auditing checkpoint: we will start deleting objects.  */
-  if (__glibc_unlikely (do_audit))
-    {
-      struct link_map *head = ns->_ns_loaded;
-      struct audit_ifaces *afct = GLRO(dl_audit);
-      /* Do not call the functions for any auditing object.  */
-      if (head->l_auditing == 0)
-	{
-	  for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-	    {
-	      if (afct->activity != NULL)
-		{
-		  struct auditstate *state = link_map_audit_state (head, cnt);
-		  afct->activity (&state->cookie, LA_ACT_DELETE);
-		}
-
-	      afct = afct->next;
-	    }
-	}
-    }
-#endif
-
-  /* Notify the debugger we are about to remove some loaded objects.  */
-  struct r_debug *r = _dl_debug_initialize (0, nsid);
+  /* Notify the debugger we are about to remove some loaded objects.
+     LA_ACT_DELETE has already been signalled above for !unload_any.  */
+  struct r_debug *r = _dl_debug_update (nsid);
   r->r_state = RT_DELETE;
   _dl_debug_state ();
   LIBC_PROBE (unmap_start, 2, nsid, r);
@@ -549,6 +481,9 @@ _dl_close_worker (struct link_map *map, bool force)
   size_t tls_free_end;
   tls_free_start = tls_free_end = NO_TLS_OFFSET;
 
+  /* Protects global and module specitic TLS state.  */
+  __rtld_lock_lock_recursive (GL(dl_load_tls_lock));
+
   /* We modify the list of loaded objects.  */
   __rtld_lock_lock_recursive (GL(dl_load_write_lock));
 
@@ -557,7 +492,7 @@ _dl_close_worker (struct link_map *map, bool force)
   for (unsigned int i = first_loaded; i < nloaded; ++i)
     {
       struct link_map *imap = maps[i];
-      if (!used[i])
+      if (!imap->l_map_used)
 	{
 	  assert (imap->l_type == lt_loaded);
 
@@ -721,6 +656,9 @@ _dl_close_worker (struct link_map *map, bool force)
 	  if (imap->l_next != NULL)
 	    imap->l_next->l_prev = imap->l_prev;
 
+	  /* Update the data used by _dl_find_object.  */
+	  _dl_find_object_dlclose (imap);
+
 	  free (imap->l_versions);
 	  if (imap->l_origin != (char *) -1)
 	    free ((char *) imap->l_origin);
@@ -778,39 +716,24 @@ _dl_close_worker (struct link_map *map, bool force)
       if (__glibc_unlikely (newgen == 0))
 	_dl_fatal_printf ("TLS generation counter wrapped!  Please report as described in "REPORT_BUGS_TO".\n");
       /* Can be read concurrently.  */
-      atomic_store_relaxed (&GL(dl_tls_generation), newgen);
+      atomic_store_release (&GL(dl_tls_generation), newgen);
 
       if (tls_free_end == GL(dl_tls_static_used))
 	GL(dl_tls_static_used) = tls_free_start;
     }
 
+  /* TLS is cleaned up for the unloaded modules.  */
+  __rtld_lock_unlock_recursive (GL(dl_load_tls_lock));
+
+  /* Notify the debugger those objects are finalized and gone.  */
+  r->r_state = RT_CONSISTENT;
+  _dl_debug_state ();
+  LIBC_PROBE (unmap_complete, 2, nsid, r);
+
 #ifdef SHARED
-  /* Auditing checkpoint: we have deleted all objects.  */
-  if (__glibc_unlikely (do_audit))
-    {
-      struct link_map *head = ns->_ns_loaded;
-      /* If head is NULL, the namespace has become empty, and the
-	 audit interface does not give us a way to signal
-	 LA_ACT_CONSISTENT for it because the first loaded module is
-	 used to identify the namespace.
-
-	 Furthermore, do not notify auditors of the cleanup of a
-	 failed audit module loading attempt.  */
-      if (head != NULL && head->l_auditing == 0)
-	{
-	  struct audit_ifaces *afct = GLRO(dl_audit);
-	  for (unsigned int cnt = 0; cnt < GLRO(dl_naudit); ++cnt)
-	    {
-	      if (afct->activity != NULL)
-		{
-		  struct auditstate *state = link_map_audit_state (head, cnt);
-		  afct->activity (&state->cookie, LA_ACT_CONSISTENT);
-		}
-
-	      afct = afct->next;
-	    }
-	}
-    }
+  /* Auditing checkpoint: we have deleted all objects.  Also, do not notify
+     auditors of the cleanup of a failed audit module loading attempt.  */
+  _dl_audit_activity_nsid (nsid, LA_ACT_CONSISTENT);
 #endif
 
   if (__builtin_expect (ns->_ns_loaded == NULL, 0)
@@ -819,15 +742,14 @@ _dl_close_worker (struct link_map *map, bool force)
       --GL(dl_nns);
     while (GL(dl_ns)[GL(dl_nns) - 1]._ns_loaded == NULL);
 
-  /* Notify the debugger those objects are finalized and gone.  */
-  r->r_state = RT_CONSISTENT;
-  _dl_debug_state ();
-  LIBC_PROBE (unmap_complete, 2, nsid, r);
-
   /* Recheck if we need to retry, release the lock.  */
  out:
   if (dl_close_state == rerun)
-    goto retry;
+    {
+      /* The map may have been deallocated.  */
+      map = NULL;
+      goto retry;
+    }
 
   dl_close_state = not_pending;
 }

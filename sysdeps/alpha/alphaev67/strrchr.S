@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
    EV67 optimized by Rick Gorton <rick.gorton@alpha-processor.com>.
    This file is part of the GNU C Library.
 
@@ -79,7 +79,7 @@ $loop:
 
 	cmpbge	zero, t0, t1	# E : bits set iff byte == zero
 	cmpbge	zero, t2, t3	# E : bits set iff byte == c
-	beq	t1, $loop	# U : if we havnt seen a null, loop
+	beq	t1, $loop	# U : if we haven't seen a null, loop
 	nop
 
 	/* Mask out character matches after terminator */

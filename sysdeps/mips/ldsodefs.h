@@ -1,5 +1,5 @@
 /* Run-time dynamic linker data structures for loaded ELF shared objects.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,6 +25,10 @@ struct La_mips_32_regs;
 struct La_mips_32_retval;
 struct La_mips_64_regs;
 struct La_mips_64_retval;
+
+/* Translate a processor specific dynamic tag to the index
+   in l_info array.  */
+#define DT_MIPS(x) (DT_MIPS_##x - DT_LOPROC + DT_NUM)
 
 #define ELF_MACHINE_GNU_HASH_ADDRIDX (DT_MIPS_XHASH - DT_LOPROC + DT_NUM)
 
@@ -74,10 +78,6 @@ struct La_mips_64_retval;
 					  const struct La_mips_64_regs *,   \
 					  struct La_mips_64_retval *,	    \
 					  const char *);
-
-/* The MIPS ABI specifies that the dynamic section has to be read-only.  */
-
-#define DL_RO_DYN_SECTION 1
 
 #include_next <ldsodefs.h>
 

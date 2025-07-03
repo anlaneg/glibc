@@ -1,5 +1,5 @@
 /* PowerPC32 default implementation of memchr.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,17 +18,11 @@
 
 #include <string.h>
 
-#define MEMCHR  __memchr_ppc
-
-#undef weak_alias
-#define weak_alias(a, b)
-
-#ifdef SHARED
-# undef libc_hidden_builtin_def
-# define libc_hidden_builtin_def(name) \
-  __hidden_ver1(__memchr_ppc, __GI_memchr, __memchr_ppc);
-#endif
-
 extern __typeof (memchr) __memchr_ppc attribute_hidden;
 
+#define MEMCHR  __memchr_ppc
 #include <string/memchr.c>
+
+#ifdef SHARED
+__hidden_ver1(__memchr_ppc, __GI_memchr, __memchr_ppc);
+#endif

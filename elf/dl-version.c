@@ -1,7 +1,6 @@
 /* Handle symbol and library versioning.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -161,7 +160,7 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
   /* Pointer to dynamic section with definitions.  */
   ElfW(Dyn) *def;
   /* We need to find out which is the highest version index used
-    in a dependecy.  */
+    in a dependency.  */
   unsigned int ndx_high = 0;
   struct dl_exception exception;
   /* Initialize to make the compiler happy.  */
@@ -215,11 +214,18 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 	      while (1)
 		{
 		  /* Match the symbol.  */
+		  const char *string = strtab + aux->vna_name;
 		  result |= match_symbol (DSO_FILENAME (map->l_name),
 					  map->l_ns, aux->vna_hash,
-					  strtab + aux->vna_name,
-					  needed->l_real, verbose,
+					  string, needed->l_real, verbose,
 					  aux->vna_flags & VER_FLG_WEAK);
+
+		  /* 0xfd0e42: _dl_elf_hash ("GLIBC_ABI_DT_RELR").  */
+		  if (aux->vna_hash == 0xfd0e42
+		      && __glibc_likely (strcmp (string,
+						 "GLIBC_ABI_DT_RELR")
+					 == 0))
+		    map->l_dt_relr_ref = 1;
 
 		  /* Compare the version index.  */
 		  if ((unsigned int) (aux->vna_other & 0x7fff) > ndx_high)
@@ -351,6 +357,37 @@ _dl_check_map_versions (struct link_map *map, int verbose, int trace_mode)
 	      ent = (ElfW(Verdef) *) ((char *) ent + ent->vd_next);
 	    }
 	}
+
+      /* The empty string has ELF hash zero.  This avoids a NULL check
+	 before the version string comparison in check_match in
+	 dl-lookup.c.  */
+      for (unsigned int i = 0; i < map->l_nversions; ++i)
+	if (map->l_versions[i].name == NULL)
+	  map->l_versions[i].name = "";
+    }
+
+  /* When there is a DT_VERNEED entry with libc.so on DT_NEEDED, issue
+     an error if there is a DT_RELR entry without GLIBC_ABI_DT_RELR
+     dependency.  */
+  if (dyn != NULL
+      && map->l_info[DT_NEEDED] != NULL
+      && map->l_info[DT_RELR] != NULL
+      && __glibc_unlikely (!map->l_dt_relr_ref))
+    {
+      const char *strtab = (const void *) D_PTR (map, l_info[DT_STRTAB]);
+      const ElfW(Dyn) *d;
+      for (d = map->l_ld; d->d_tag != DT_NULL; ++d)
+	if (d->d_tag == DT_NEEDED)
+	  {
+	    const char *name = strtab + d->d_un.d_val;
+	    if (strncmp (name, "libc.so.", 8) == 0)
+	      {
+		_dl_exception_create
+		  (&exception, DSO_FILENAME (map->l_name),
+		   N_("DT_RELR without GLIBC_ABI_DT_RELR dependency"));
+		goto call_error;
+	      }
+	  }
     }
 
   return result;

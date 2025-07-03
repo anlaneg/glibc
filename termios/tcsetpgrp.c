@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 
 /* Set the foreground process group ID of FD set PGRP_ID.  */
 int
-tcsetpgrp (int fd, pid_t pgrp_id)
+__tcsetpgrp (int fd, pid_t pgrp_id)
 {
   if (fd < 0)
     {
@@ -32,6 +32,7 @@ tcsetpgrp (int fd, pid_t pgrp_id)
   __set_errno (ENOSYS);
   return -1;
 }
-
+weak_alias (__tcsetpgrp, tcsetpgrp);
+libc_hidden_def (__tcsetpgrp)
 
 stub_warning (tcsetpgrp)

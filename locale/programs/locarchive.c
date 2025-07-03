@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -42,7 +41,7 @@
 
 #include <libc-mmap.h>
 #include <libc-pointer-arith.h>
-#include "../../crypt/md5.h"
+#include "md5.h"
 #include "../localeinfo.h"
 #include "../locarchive.h"
 #include "localedef.h"
@@ -639,7 +638,8 @@ open_archive (struct locarhandle *ah, bool readonly)
 	  || st.st_dev != st2.st_dev
 	  || st.st_ino != st2.st_ino)
 	{
-	  (void) lockf64 (fd, F_ULOCK, sizeof (struct locarhead));
+	  if (lockf64 (fd, F_ULOCK, sizeof (struct locarhead)) != 0)
+	    error (EXIT_FAILURE, errno, _("cannot unlock archive header"));
 	  close (fd);
 	  continue;
 	}
@@ -651,8 +651,18 @@ open_archive (struct locarhandle *ah, bool readonly)
   /* Read the header.  */
   if (TEMP_FAILURE_RETRY (read (fd, &head, sizeof (head))) != sizeof (head))
     {
-      (void) lockf64 (fd, F_ULOCK, sizeof (struct locarhead));
-      error (EXIT_FAILURE, errno, _("cannot read archive header"));
+      int errval = errno;
+      if (lockf64 (fd, F_ULOCK, sizeof (struct locarhead)) != 0)
+	error (EXIT_FAILURE, errno, _("cannot unlock archive header"));
+      error (EXIT_FAILURE, errval, _("cannot read archive header"));
+    }
+
+  /* Check the magic value */
+  if (GET (head.magic) != AR_MAGIC)
+    {
+      if (lockf64 (fd, F_ULOCK, sizeof (struct locarhead)) != 0)
+	error (EXIT_FAILURE, errno, _("cannot unlock archive header"));
+      error (EXIT_FAILURE, 0, _("bad magic value in archive header"));
     }
 
   ah->fd = fd;
@@ -670,8 +680,10 @@ open_archive (struct locarhandle *ah, bool readonly)
 		     MAP_SHARED | xflags, fd, 0);
   if (ah->addr == MAP_FAILED)
     {
-      (void) lockf64 (fd, F_ULOCK, sizeof (struct locarhead));
-      error (EXIT_FAILURE, errno, _("cannot map archive header"));
+      int errval = errno;
+      if (lockf64 (fd, F_ULOCK, sizeof (struct locarhead)) != 0)
+	error (EXIT_FAILURE, errno, _("cannot unlock archive header"));
+      error (EXIT_FAILURE, errval, _("cannot map archive header"));
     }
   ah->reserved = reserved;
   ah->mmap_base = mmap_base;
@@ -1148,10 +1160,14 @@ add_locale_to_archive (struct locarhandle *ah, const char *name,
   if (mask & XPG_NORM_CODESET)
     /* This name contains a codeset in unnormalized form.
        We will store it in the archive with a normalized name.  */
-    asprintf (&normalized_name, "%s%s%s.%s%s%s",
-	      language, territory == NULL ? "" : "_", territory ?: "",
-	      (mask & XPG_NORM_CODESET) ? normalized_codeset : codeset,
-	      modifier == NULL ? "" : "@", modifier ?: "");
+    if (asprintf (&normalized_name, "%s%s%s.%s%s%s",
+		  language, territory == NULL ? "" : "_", territory ?: "",
+		  normalized_codeset,
+		  modifier == NULL ? "" : "@", modifier ?: "") < 0)
+      {
+	free ((char *) normalized_codeset);
+	return -1;
+      }
 
   /* This call does the main work.  */
   locrec_offset = add_locale (ah, normalized_name ?: name, data, replace);
@@ -1182,10 +1198,14 @@ add_locale_to_archive (struct locarhandle *ah, const char *name,
       normalized_codeset = _nl_normalize_codeset (codeset, strlen (codeset));
       mask |= XPG_NORM_CODESET;
 
-      asprintf (&normalized_codeset_name, "%s%s%s.%s%s%s",
-		language, territory == NULL ? "" : "_", territory ?: "",
-		normalized_codeset,
-		modifier == NULL ? "" : "@", modifier ?: "");
+      if (asprintf (&normalized_codeset_name, "%s%s%s.%s%s%s",
+		    language, territory == NULL ? "" : "_", territory ?: "",
+		    normalized_codeset,
+		    modifier == NULL ? "" : "@", modifier ?: "") < 0)
+	{
+	  free ((char *) normalized_codeset);
+	  return -1;
+	}
 
       add_alias (ah, normalized_codeset_name, replace,
 		 normalized_name ?: name, &locrec_offset);
@@ -1391,7 +1411,7 @@ add_locales_to_archive (size_t nlist, char *list[], bool replace)
 		    {
 		      char fullname[fnamelen + 2 * strlen (d->d_name) + 7];
 
-		      if (d_type == DT_UNKNOWN)
+		      if (d_type == DT_UNKNOWN || d_type == DT_LNK)
 			{
 			  strcpy (stpcpy (stpcpy (fullname, fname), "/"),
 				  d->d_name);

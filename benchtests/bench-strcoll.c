@@ -1,5 +1,5 @@
 /* Measure strcoll execution time in different locales.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -254,7 +254,11 @@ main (void)
 	}
 
       char *filename;
-      asprintf (&filename, INPUT_PREFIX "%s", input_files[i]);
+      if (asprintf (&filename, INPUT_PREFIX "%s", input_files[i]) < 0)
+	{
+	  printf ("asprintf failed, aborting!\n");
+	  return ERROR_FILENAME;
+	}
       result = bench_file (json_ctx, input_files[i], filename, locale + 1);
 
       if (result != OK)

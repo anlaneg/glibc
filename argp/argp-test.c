@@ -1,7 +1,6 @@
 /* Test program for argp argument parser
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Miles Bader <miles@gnu.ai.mit.edu>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -25,6 +24,8 @@
 #include <time.h>
 #include <string.h>
 #include <argp.h>
+
+#include <support/support.h>
 
 const char *argp_program_version = "argp-test 1.0";
 
@@ -179,12 +180,12 @@ help_filter (int key, const char *text, void *input)
   if (key == ARGP_KEY_HELP_POST_DOC && text)
     {
       time_t now = time (0);
-      asprintf (&new_text, text, ctime (&now));
+      new_text = xasprintf (text, ctime (&now));
     }
   else if (key == 'f')
     /* Show the default for the --foonly option.  */
-    asprintf (&new_text, "%s (ZOT defaults to %x)",
-	      text, params->foonly_default);
+    new_text = xasprintf ("%s (ZOT defaults to %x)",
+		          text, params->foonly_default);
   else
     new_text = (char *)text;
 

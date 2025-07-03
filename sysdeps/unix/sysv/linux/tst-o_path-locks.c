@@ -1,5 +1,5 @@
 /* Test that closing O_PATH descriptors does not release POSIX advisory locks.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -55,7 +55,7 @@ probe_lock (void)
   *shared_errno = -1;
   support_isolate_in_subprocess (subprocess, NULL);
   if (*shared_errno == 0)
-    /* Lock was aquired by the subprocess, so this process has not
+    /* Lock was acquired by the subprocess, so this process has not
        locked it.  */
     return false;
   else

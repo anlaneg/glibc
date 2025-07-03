@@ -1,6 +1,6 @@
 /* Make sure blank lines does not cause memory corruption BZ #18887.
 
-   Copyright (C) 2009-2021 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@ do_test (void)
 
   /* The corruption happens here ...  */
   getmntent (fp);
-  /* ... but trigers here.  */
+  /* ... but triggers here.  */
   endmntent (fp);
 
   /* If the test failed, we would crash, and not hit this point.  */

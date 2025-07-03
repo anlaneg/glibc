@@ -1,5 +1,5 @@
 /* PLT trampolines.  m68k version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -60,6 +60,7 @@ _dl_runtime_resolve:
 	cfi_endproc
 	.size _dl_runtime_resolve, . - _dl_runtime_resolve
 
+#ifdef SHARED
 	.text
 	.globl _dl_runtime_profile
 	.type _dl_runtime_profile, @function
@@ -202,7 +203,7 @@ _dl_runtime_profile:
 	cfi_adjust_cfa_offset (4)
 	move.l (32+FPSPACE)(%sp), -(%sp)
 	cfi_adjust_cfa_offset (4)
-	jbsr _dl_call_pltexit
+	jbsr _dl_audit_pltexit
 	lea 16(%sp), %sp
 	cfi_adjust_cfa_offset (-16)
 	move.l (%sp)+, %d0
@@ -220,3 +221,4 @@ _dl_runtime_profile:
 	rts
 	cfi_endproc
 	.size _dl_runtime_profile, . - _dl_runtime_profile
+#endif /* SHARED */

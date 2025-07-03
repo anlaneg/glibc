@@ -6,12 +6,13 @@ if test "x$MIG" = xMISSING; then
 fi
 LIBC_CONFIG_VAR([MIG], [$MIG])
 
+OLD_CPPFLAGS=$CPPFLAGS
 if test -n "$sysheaders"; then
-  OLD_CPPFLAGS=$CPPFLAGS
   CPPFLAGS="$CPPFLAGS $SYSINCLUDES"
 fi
 
 ### Sanity checks for Mach header installation
+CPPFLAGS="$CPPFLAGS -ffreestanding"
 AC_CHECK_HEADER(mach/mach_types.h,,
                 [AC_MSG_ERROR([cannot find Mach headers])], -)
 AC_CHECK_HEADER(mach/mach_types.defs,, [dnl
@@ -63,7 +64,7 @@ for ifc in mach mach4 gnumach \
 	   clock clock_priv host_priv host_security ledger lock_set \
 	   processor processor_set task task_notify thread_act vm_map \
 	   memory_object memory_object_default default_pager \
-	   i386/mach_i386 \
+	   i386/mach_i386 x86_64/mach_i386 \
 	   ; do
   AC_CHECK_HEADER(mach/${ifc}.defs, [dnl
   mach_interface_list="$mach_interface_list $ifc"],, -)
@@ -72,14 +73,33 @@ if test "x$mach_interface_list" = x; then
   AC_MSG_ERROR([what manner of Mach is this?])
 fi
 
-AC_CACHE_CHECK(for host_page_size in mach_host.defs,
-	       libc_cv_mach_host_page_size, [dnl
-AC_EGREP_HEADER(host_page_size, mach/mach_host.defs,
-		libc_cv_mach_host_page_size=yes,
-		libc_cv_mach_host_page_size=no)])
-if test $libc_cv_mach_host_page_size = yes; then
-  AC_DEFINE([HAVE_HOST_PAGE_SIZE])
+dnl
+dnl mach_RPC_CHECK(interface.defs, rpc_method, define)
+dnl
+dnl Check if rpc_method RPC is defined by interface.defs
+dnl and define `define`.
+dnl
+AC_DEFUN([mach_RPC_CHECK], [dnl
+AC_CACHE_CHECK(for $2 in $1, libc_cv_mach_rpc_$2, [dnl
+AC_EGREP_HEADER($2, mach/$1,
+		libc_cv_mach_rpc_$2=yes,
+		libc_cv_mach_rpc_$2=no)])
+if test $libc_cv_mach_rpc_$2 = yes; then
+  AC_DEFINE([$3])
 fi
+])
+
+
+mach_RPC_CHECK(mach_host.defs, host_page_size,
+	       HAVE_HOST_PAGE_SIZE)
+mach_RPC_CHECK(mach_host.defs, host_get_uptime64,
+	       HAVE_HOST_GET_UPTIME64)
+mach_RPC_CHECK(mach_host.defs, host_get_time64,
+	       HAVE_HOST_GET_TIME64)
+mach_RPC_CHECK(gnumach.defs, thread_set_name,
+	       HAVE_MACH_THREAD_SET_NAME)
+mach_RPC_CHECK(gnumach.defs, thread_get_name,
+	       HAVE_MACH_THREAD_GET_NAME)
 
 AC_CHECK_HEADER(mach/machine/ndr_def.h, [dnl
   DEFINES="$DEFINES -DNDR_DEF_HEADER='<mach/machine/ndr_def.h>'"], [dnl
@@ -88,7 +108,7 @@ AC_CHECK_HEADER(machine/ndr_def.h, [dnl
 
 AC_CACHE_CHECK(for i386_io_perm_modify in mach_i386.defs,
 	       libc_cv_mach_i386_ioports, [dnl
-AC_EGREP_HEADER(i386_io_perm_modify, mach/i386/mach_i386.defs,
+AC_EGREP_HEADER(i386_io_perm_modify, mach/machine/mach_i386.defs,
 		libc_cv_mach_i386_ioports=yes,
 		libc_cv_mach_i386_ioports=no)])
 if test $libc_cv_mach_i386_ioports = yes; then
@@ -97,39 +117,11 @@ fi
 
 AC_CACHE_CHECK(for i386_set_gdt in mach_i386.defs,
 	       libc_cv_mach_i386_gdt, [dnl
-AC_EGREP_HEADER(i386_set_gdt, mach/i386/mach_i386.defs,
+AC_EGREP_HEADER(i386_set_gdt, mach/machine/mach_i386.defs,
 		libc_cv_mach_i386_gdt=yes,
 		libc_cv_mach_i386_gdt=no)])
 if test $libc_cv_mach_i386_gdt = yes; then
   AC_DEFINE([HAVE_I386_SET_GDT])
 fi
 
-dnl Swiped from hurd/aclocal.m4
-AC_DEFUN([hurd_MIG_RETCODE], [dnl
-# See if mig groks `retcode'.
-AC_CACHE_CHECK(whether $MIG supports the retcode keyword, hurd_cv_mig_retcode,
-[cat > conftest.defs <<\EOF
-#include <mach/std_types.defs>
-#include <mach/mach_types.defs>
-subsystem foobar 1000;
-type reply_port_t = polymorphic | MACH_MSG_TYPE_PORT_SEND_ONCE
-	ctype: mach_port_t;
-simpleroutine foobar_reply (
-	reply_port: reply_port_t;
-	err: kern_return_t, RetCode);
-EOF
-if AC_TRY_COMMAND([CC="${CC}" ${MIG-false} -n conftest.defs 1>&AS_MESSAGE_LOG_FD]); then
-  hurd_cv_mig_retcode=yes
-else
-  hurd_cv_mig_retcode=no
-fi
-rm -f conftest*])
-if test $hurd_cv_mig_retcode = yes; then
-  AC_DEFINE(HAVE_MIG_RETCODE)
-fi])
-
-hurd_MIG_RETCODE
-
-if test -n "$sysheaders"; then
-  CPPFLAGS=$OLD_CPPFLAGS
-fi
+CPPFLAGS=$OLD_CPPFLAGS

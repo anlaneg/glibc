@@ -1,5 +1,5 @@
 /* Copy a file from one path to another.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 void
 support_copy_file (const char *from, const char *to)
 {
-  struct stat64 st;
+  struct stat st;
   xstat (from, &st);
   int fd_from = xopen (from, O_RDONLY, 0);
   mode_t mode = st.st_mode & 0777;

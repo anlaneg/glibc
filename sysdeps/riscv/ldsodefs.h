@@ -1,5 +1,5 @@
 /* Run-time dynamic linker data structures for loaded ELF shared objects.
-   Copyright (C) 2011-2021 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -37,11 +37,6 @@ struct La_riscv_retval;
 				       const struct La_riscv_regs *,	\
 				       struct La_riscv_retval *,	\
 				       const char *);
-
-/* Although the RISC-V ABI does not specify that the dynamic section has
-   to be read-only, it needs to be kept for ABI compatibility.  */
-
-#define DL_RO_DYN_SECTION 1
 
 #include_next <ldsodefs.h>
 

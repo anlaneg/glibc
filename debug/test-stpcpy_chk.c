@@ -1,7 +1,6 @@
 /* Test and measure stpcpy checking functions.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -20,7 +19,7 @@
 #define STRCPY_RESULT(dst, len) ((dst) + (len))
 #define TEST_MAIN
 #define TEST_NAME "stpcpy_chk"
-#include "../string/test-string.h"
+#include <string/test-string.h>
 
 extern void __attribute__ ((noreturn)) __chk_fail (void);
 char *simple_stpcpy_chk (char *, const char *, size_t);

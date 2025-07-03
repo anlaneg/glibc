@@ -1,5 +1,5 @@
 /* The internal wrapper of clone and clone3.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -44,14 +44,60 @@ _Static_assert (sizeof (struct clone_args) == CLONE_ARGS_SIZE_VER2,
 		"sizeof (struct clone_args) != CLONE_ARGS_SIZE_VER2");
 
 int
+__clone_internal_fallback (struct clone_args *cl_args,
+			   int (*func) (void *arg), void *arg)
+{
+  /* Map clone3 arguments to clone arguments.  NB: No need to check
+     invalid clone3 specific bits in flags nor exit_signal since this
+     is an internal function.  */
+  int flags = cl_args->flags | cl_args->exit_signal;
+  void *stack = cast_to_pointer (cl_args->stack);
+  int ret;
+
+#if !_STACK_GROWS_DOWN && !_STACK_GROWS_UP
+# error "Define either _STACK_GROWS_DOWN or _STACK_GROWS_UP"
+#endif
+
+#if _STACK_GROWS_DOWN
+  stack += cl_args->stack_size;
+#endif
+  ret = __clone (func, stack, flags, arg,
+		 cast_to_pointer (cl_args->parent_tid),
+		 cast_to_pointer (cl_args->tls),
+		 cast_to_pointer (cl_args->child_tid));
+  return ret;
+}
+
+int
+__clone3_internal (struct clone_args *cl_args, int (*func) (void *args),
+		   void *arg)
+{
+#ifdef HAVE_CLONE3_WRAPPER
+# if __ASSUME_CLONE3
+  return __clone3 (cl_args, sizeof (*cl_args), func, arg);
+# else
+  static int clone3_supported = 1;
+  if (atomic_load_relaxed (&clone3_supported) == 1)
+    {
+      int ret = __clone3 (cl_args, sizeof (*cl_args), func, arg);
+      if (ret != -1 || errno != ENOSYS)
+	return ret;
+
+      atomic_store_relaxed (&clone3_supported, 0);
+    }
+# endif
+#endif
+  __set_errno (ENOSYS);
+  return -1;
+}
+
+int
 __clone_internal (struct clone_args *cl_args,
 		  int (*func) (void *arg), void *arg)
 {
-  int ret;
 #ifdef HAVE_CLONE3_WRAPPER
-  /* Try clone3 first.  */
   int saved_errno = errno;
-  ret = __clone3 (cl_args, sizeof (*cl_args), func, arg);
+  int ret = __clone3_internal (cl_args, func, arg);
   if (ret != -1 || errno != ENOSYS)
     return ret;
 
@@ -60,32 +106,7 @@ __clone_internal (struct clone_args *cl_args,
   __set_errno (saved_errno);
 #endif
 
-  /* Map clone3 arguments to clone arguments.  NB: No need to check
-     invalid clone3 specific bits in flags nor exit_signal since this
-     is an internal function.  */
-  int flags = cl_args->flags | cl_args->exit_signal;
-  void *stack = cast_to_pointer (cl_args->stack);
-
-#ifdef __ia64__
-  ret = __clone2 (func, stack, cl_args->stack_size,
-		  flags, arg,
-		  cast_to_pointer (cl_args->parent_tid),
-		  cast_to_pointer (cl_args->tls),
-		  cast_to_pointer (cl_args->child_tid));
-#else
-# if !_STACK_GROWS_DOWN && !_STACK_GROWS_UP
-#  error "Define either _STACK_GROWS_DOWN or _STACK_GROWS_UP"
-# endif
-
-# if _STACK_GROWS_DOWN
-  stack += cl_args->stack_size;
-# endif
-  ret = __clone (func, stack, flags, arg,
-		 cast_to_pointer (cl_args->parent_tid),
-		 cast_to_pointer (cl_args->tls),
-		 cast_to_pointer (cl_args->child_tid));
-#endif
-  return ret;
+  return __clone_internal_fallback (cl_args, func, arg);
 }
 
 libc_hidden_def (__clone_internal)

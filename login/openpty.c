@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Zack Weinberg <zack@rabi.phys.columbia.edu>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -125,7 +124,7 @@ __openpty (int *pptmx, int *pterminal, char *name,
 
   /* XXX Should we ignore errors here?  */
   if (termp)
-    tcsetattr (terminal, TCSAFLUSH, termp);
+    __tcsetattr (terminal, TCSAFLUSH, termp);
 #ifdef TIOCSWINSZ
   if (winp)
     __ioctl (terminal, TIOCSWINSZ, winp);

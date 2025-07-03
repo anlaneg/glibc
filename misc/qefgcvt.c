@@ -1,5 +1,5 @@
 /* Compatibility functions for floating point formatting, long double version.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #define __GCVT __qgcvt
 #define __ECVT_R __qecvt_r
 #define __FCVT_R __qfcvt_r
+#define __EFGCVT_FREEMEM_PTR __libc_qefgcvt_freemem_ptr
 #include <efgcvt-ldbl-macros.h>
 #include <efgcvt-template.c>
 

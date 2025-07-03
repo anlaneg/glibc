@@ -1,5 +1,5 @@
 /* Simple test for some fts functions.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -201,7 +201,7 @@ do_test (void)
 	}
     }
   /* fts_read returns NULL when done (and clears errno)
-     or when an error occured (with errno set).  */
+     or when an error occurred (with errno set).  */
   if (errno != 0)
     {
       printf ("FAIL: fts_read: %m\n");

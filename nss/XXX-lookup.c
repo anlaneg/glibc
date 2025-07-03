@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -16,6 +15,7 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
+#include <assert.h>
 #include "nsswitch.h"
 
 /*******************************************************************\
@@ -29,7 +29,7 @@
 |* ALTERNATE_NAME - name of another service which is examined in   *|
 |*                  case DATABASE_NAME is not found                *|
 |* 								   *|
-|* DEFAULT_CONFIG - string for default conf (e.g. "dns files")	   *|
+|* DEFAULT_CONFIG - string for default conf (e.g. "files dns")	   *|
 |* 								   *|
 \*******************************************************************/
 
@@ -54,6 +54,10 @@ DB_LOOKUP_FCT (nss_action_list *ni, const char *fct_name, const char *fct2_name,
     return -1;
 
   *ni = DATABASE_NAME_SYMBOL;
+
+  /* We want to know about it if we've somehow got a NULL action list;
+   in the past, we had bad state if seccomp interfered with setup. */
+  assert(*ni != NULL);
 
   return __nss_lookup (ni, fct_name, fct2_name, fctp);
 }

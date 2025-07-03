@@ -1,5 +1,5 @@
 /* Helper code for POSIX timer implementation on Hurd.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -32,8 +32,8 @@ thread_attr_compare (const pthread_attr_t * left, const pthread_attr_t * right)
   struct __pthread_attr *ileft = (struct __pthread_attr *) left;
   struct __pthread_attr *iright = (struct __pthread_attr *) right;
 
-  return ileft->__schedparam.sched_priority
-	   == iright->__schedparam.sched_priority
+  return ileft->__schedparam.__sched_priority
+	   == iright->__schedparam.__sched_priority
 	 && ileft->__stackaddr == iright->__stackaddr
 	 && ileft->__stacksize == iright->__stacksize
 	 && ileft->__guardsize == iright->__guardsize

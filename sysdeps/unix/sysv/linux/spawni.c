@@ -1,5 +1,5 @@
 /* POSIX spawn interface.  Linux version.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@
 
 struct posix_spawn_args
 {
-  sigset_t oldmask;
+  internal_sigset_t oldmask;
   const char *file;
   int (*exec) (const char *, char *const *, char *const *);
   const posix_spawn_file_actions_t *fa;
@@ -66,7 +66,9 @@ struct posix_spawn_args
   ptrdiff_t argc;
   char *const *envp;
   int xflags;
+  bool use_clone3;
   int err;
+  int pidfd;
 };
 
 /* Older version requires that shell script without shebang definition
@@ -104,17 +106,16 @@ __spawni_child (void *arguments)
   const posix_spawnattr_t *restrict attr = args->attr;
   const posix_spawn_file_actions_t *file_actions = args->fa;
 
-  /* The child must ensure that no signal handler are enabled because it shared
-     memory with parent, so the signal disposition must be either SIG_DFL or
-     SIG_IGN.  It does by iterating over all signals and although it could
-     possibly be more optimized (by tracking which signal potentially have a
-     signal handler), it might requires system specific solutions (since the
-     sigset_t data type can be very different on different architectures).  */
+  /* The child must ensure that no signal handler is enabled because it
+     shares memory with parent, so all signal dispositions must be either
+     SIG_DFL or SIG_IGN.  If clone3/CLONE_CLEAR_SIGHAND is used, there is
+     only the need to set the defined signals POSIX_SPAWN_SETSIGDEF to
+     SIG_DFL; otherwise, the code iterates over all signals.  */
   struct sigaction sa;
   memset (&sa, '\0', sizeof (sa));
 
   sigset_t hset;
-  __sigprocmask (SIG_BLOCK, 0, &hset);
+  __sigprocmask (SIG_BLOCK, NULL, &hset);
   for (int sig = 1; sig < _NSIG; ++sig)
     {
       if ((attr->__flags & POSIX_SPAWN_SETSIGDEF)
@@ -122,14 +123,14 @@ __spawni_child (void *arguments)
 	{
 	  sa.sa_handler = SIG_DFL;
 	}
-      else if (__sigismember (&hset, sig))
+      else if (!args->use_clone3 && __sigismember (&hset, sig))
 	{
-	  if (__is_internal_signal (sig))
+	  if (is_internal_signal (sig))
 	    sa.sa_handler = SIG_IGN;
 	  else
 	    {
-	      __libc_sigaction (sig, 0, &sa);
-	      if (sa.sa_handler == SIG_IGN)
+	      __libc_sigaction (sig, NULL, &sa);
+	      if (sa.sa_handler == SIG_IGN || sa.sa_handler == SIG_DFL)
 		continue;
 	      sa.sa_handler = SIG_DFL;
 	    }
@@ -137,7 +138,7 @@ __spawni_child (void *arguments)
       else
 	continue;
 
-      __libc_sigaction (sig, &sa, 0);
+      __libc_sigaction (sig, &sa, NULL);
     }
 
 #ifdef _POSIX_PRIORITY_SCHEDULING
@@ -171,7 +172,7 @@ __spawni_child (void *arguments)
     goto fail;
 
   /* Execute the file actions.  */
-  if (file_actions != 0)
+  if (file_actions != NULL)
     {
       int cnt;
       struct rlimit64 fdlimit;
@@ -203,7 +204,7 @@ __spawni_child (void *arguments)
 	      {
 		/* POSIX states that if fildes was already an open file descriptor,
 		   it shall be closed before the new file is opened.  This avoid
-		   pontential issues when posix_spawn plus addopen action is called
+		   potential issues when posix_spawn plus addopen action is called
 		   with the process already at maximum number of file descriptor
 		   opened and also for multiple actions on single-open special
 		   paths (like /dev/watchdog).  */
@@ -268,14 +269,26 @@ __spawni_child (void *arguments)
 		if (r != 0 && !__closefrom_fallback (lowfd, false))
 		  goto fail;
 	      } break;
+
+	    case spawn_do_tcsetpgrp:
+	      {
+		/* Check if it is possible to avoid an extra syscall.  */
+		pid_t pgrp = (attr->__flags & POSIX_SPAWN_SETPGROUP) != 0
+			       && attr->__pgrp != 0
+			     ? attr->__pgrp : __getpgid (0);
+		if (__tcsetpgrp (action->action.setpgrp_action.fd, pgrp) != 0)
+		  goto fail;
+	      }
 	    }
 	}
     }
 
   /* Set the initial signal mask of the child if POSIX_SPAWN_SETSIGMASK
      is set, otherwise restore the previous one.  */
-  __sigprocmask (SIG_SETMASK, (attr->__flags & POSIX_SPAWN_SETSIGMASK)
-		 ? &attr->__ss : &args->oldmask, 0);
+  if (attr->__flags & POSIX_SPAWN_SETSIGMASK)
+    __sigprocmask (SIG_SETMASK, &attr->__ss, NULL);
+  else
+    internal_sigprocmask (SIG_SETMASK, &args->oldmask, NULL);
 
   args->exec (args->file, args->argv, args->envp);
 
@@ -297,7 +310,7 @@ fail:
 /* Spawn a new process executing PATH with the attributes describes in *ATTRP.
    Before running the process perform the actions described in FILE-ACTIONS. */
 static int
-__spawnix (pid_t * pid, const char *file,
+__spawnix (int *pid, const char *file,
 	   const posix_spawn_file_actions_t * file_actions,
 	   const posix_spawnattr_t * attrp, char *const argv[],
 	   char *const envp[], int xflags,
@@ -307,13 +320,24 @@ __spawnix (pid_t * pid, const char *file,
   struct posix_spawn_args args;
   int ec;
 
+  bool use_pidfd = xflags & SPAWN_XFLAGS_RET_PIDFD;
+
+  /* For CLONE_PIDFD, older kernels might not fail with unsupported flags or
+     some versions might not support waitid (P_PIDFD).  So to avoid the need
+     to handle the error on the helper process, check for full pidfd
+     support.
+     ENOSYS is returned because without proper waitid support, pidfd_spawn
+     can not be used proporly independently of its arguments.  */
+  if (use_pidfd && !__clone_pidfd_supported ())
+    return ENOSYS;
+
   /* To avoid imposing hard limits on posix_spawn{p} the total number of
      arguments is first calculated to allocate a mmap to hold all possible
      values.  */
   ptrdiff_t argc = 0;
   /* Linux allows at most max (0x7FFFFFFF, 1/4 stack size) arguments
      to be used in a execve call.  We limit to INT_MAX minus one due the
-     compatiblity code that may execute a shell script (maybe_script_execute)
+     compatibility code that may execute a shell script (maybe_script_execute)
      where it will construct another argument list with an additional
      argument.  */
   ptrdiff_t limit = INT_MAX - 1;
@@ -356,9 +380,14 @@ __spawnix (pid_t * pid, const char *file,
   args.argv = argv;
   args.argc = argc;
   args.envp = envp;
+  args.pidfd = 0;
   args.xflags = xflags;
 
-  __libc_signal_block_all (&args.oldmask);
+  /* Avoid the potential issues if caller sets a SIG_IGN for SIGABRT, calls
+     abort, and another thread issues posix_spawn just after the sigaction
+     returns.  With default options (not setting POSIX_SPAWN_SETSIGDEF), the
+     process can still see SIG_DFL for SIGABRT, where it should be SIG_IGN.  */
+  __abort_lock_rdlock (&args.oldmask);
 
   /* The clone flags used will create a new child that will run in the same
      memory space (CLONE_VM) and the execution of calling thread will be
@@ -368,14 +397,48 @@ __spawnix (pid_t * pid, const char *file,
      need for CLONE_SETTLS.  Although parent and child share the same TLS
      namespace, there will be no concurrent access for TLS variables (errno
      for instance).  */
+  bool set_cgroup = attrp ? (attrp->__flags & POSIX_SPAWN_SETCGROUP) : false;
   struct clone_args clone_args =
     {
-      .flags = CLONE_VM | CLONE_VFORK,
+      /* Unsupported flags like CLONE_CLEAR_SIGHAND will be cleared up by
+	 __clone_internal_fallback.  */
+      .flags = (set_cgroup ? CLONE_INTO_CGROUP : 0)
+	       | (use_pidfd ? CLONE_PIDFD : 0)
+	       | CLONE_CLEAR_SIGHAND
+	       | CLONE_VM
+	       | CLONE_VFORK,
       .exit_signal = SIGCHLD,
       .stack = (uintptr_t) stack,
       .stack_size = stack_size,
+      .cgroup = (set_cgroup ? attrp->__cgroup : 0),
+      .pidfd = use_pidfd ? (uintptr_t) &args.pidfd : 0,
+      /* This is require for clone fallback, where pidfd is returned
+	 on parent_tid.  */
+      .parent_tid = use_pidfd ? (uintptr_t) &args.pidfd : 0,
     };
-  new_pid = __clone_internal (&clone_args, __spawni_child, &args);
+#ifdef HAVE_CLONE3_WRAPPER
+  args.use_clone3 = true;
+  new_pid = __clone3 (&clone_args, sizeof (clone_args), __spawni_child,
+		      &args);
+  /* clone3 was added in 5.3 and CLONE_CLEAR_SIGHAND in 5.5.  */
+  if (new_pid == -1 && (errno == ENOSYS || errno == EINVAL))
+#endif
+    {
+      args.use_clone3 = false;
+      if (!set_cgroup)
+	new_pid = __clone_internal_fallback (&clone_args, __spawni_child,
+					     &args);
+      else
+	{
+	  /* No fallback for POSIX_SPAWN_SETCGROUP if clone3 is not
+	     supported.  */
+	  new_pid = -1;
+#ifdef HAVE_CLONE3_WRAPPER
+	  if (errno == ENOSYS)
+#endif
+	    errno = ENOTSUP;
+	}
+    }
 
   /* It needs to collect the case where the auxiliary process was created
      but failed to execute the file (due either any preparation step or
@@ -390,23 +453,32 @@ __spawnix (pid_t * pid, const char *file,
 	 caller to actually collect it.  */
       ec = args.err;
       if (ec > 0)
-	/* There still an unlikely case where the child is cancelled after
-	   setting args.err, due to a positive error value.  Also there is
-	   possible pid reuse race (where the kernel allocated the same pid
-	   to an unrelated process).  Unfortunately due synchronization
-	   issues where the kernel might not have the process collected
-	   the waitpid below can not use WNOHANG.  */
-	__waitpid (new_pid, NULL, 0);
+	{
+	  /* There still an unlikely case where the child is cancelled after
+	     setting args.err, due to a positive error value.  Also there is
+	     possible pid reuse race (where the kernel allocated the same pid
+	     to an unrelated process).  Unfortunately due synchronization
+	     issues where the kernel might not have the process collected
+	     the waitpid below can not use WNOHANG.  */
+	  __waitid (use_pidfd ? P_PIDFD : P_PID,
+		    use_pidfd ? args.pidfd : new_pid,
+		    NULL,
+		    WEXITED);
+	  /* For pidfd we need to also close the file descriptor for the case
+	     where execve fails.  */
+	  if (use_pidfd)
+	    __close_nocancel_nostatus (args.pidfd);
+	}
     }
   else
-    ec = -new_pid;
+    ec = errno;
 
   __munmap (stack, stack_size);
 
   if ((ec == 0) && (pid != NULL))
-    *pid = new_pid;
+    *pid = use_pidfd ? args.pidfd : new_pid;
 
-  __libc_signal_restore_set (&args.oldmask);
+  __abort_lock_unlock (&args.oldmask);
 
   __pthread_setcancelstate (state, NULL);
 

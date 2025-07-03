@@ -1,5 +1,5 @@
 /* pthread_hurd_cond_timedwait_np.  Hurd-specific wait on a condition.
-   Copyright (C) 2012-2021 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -73,6 +73,10 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
   if (abstime != NULL && ! valid_nanoseconds (abstime->tv_nsec))
     return EINVAL;
 
+  err = __pthread_mutex_checklocked (mutex);
+  if (err)
+    return err;
+
   /* Atomically enqueue our thread on the condition variable's queue of
      waiters, and mark our sigstate to indicate that `cancel_me' must be
      called to wake us up.  We must hold the sigstate lock while acquiring
@@ -99,6 +103,12 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
   __pthread_spin_unlock (&cond->__lock);
   __spin_unlock (&ss->lock);
 
+  /* Increase the waiter reference count.  Relaxed MO is sufficient because
+     we only need to synchronize when decrementing the reference count.
+     We however need to have the mutex held to prevent concurrency with
+     a pthread_cond_destroy.  */
+  atomic_fetch_add_relaxed (&cond->__wrefs, 2);
+
   if (cancel)
     {
       /* Cancelled on entry.  Just leave the mutex locked.  */
@@ -110,10 +120,6 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
     {
       /* Release MUTEX before blocking.  */
       __pthread_mutex_unlock (mutex);
-
-  /* Increase the waiter reference count.  Relaxed MO is sufficient because
-     we only need to synchronize when decrementing the reference count.  */
-  atomic_fetch_add_relaxed (&cond->__wrefs, 2);
 
       /* Block the thread.  */
       if (abstime != NULL)
@@ -137,7 +143,7 @@ __pthread_hurd_cond_timedwait_internal (pthread_cond_t *cond,
 	drain = err ? 1 : 0;
       else
 	{
-	  /* We're still in the list of waiters.  Noone attempted to wake us
+	  /* We're still in the list of waiters.  No one attempted to wake us
 	     up, i.e. we timed out.  */
 	  __pthread_dequeue (self);
 	  drain = 0;

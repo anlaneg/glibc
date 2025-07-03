@@ -4,17 +4,27 @@
 # It writes "NAME: SYMBOL" for each PLT entry in NAME that refers to a
 # symbol defined in the same object.
 
-BEGIN { result = 0 }
+BEGIN {
+  result = 0;
+  pltrelsize = -1;
+}
 
 FILENAME != lastfile {
-  if (lastfile && jmprel_offset == 0 && rela_offset == 0 && rel_offset == 0) {
+  if (lastfile && jmprel_offset == 0 && rela_offset == 0 && rel_offset == 0 \
+      && relr_offset == 0) {
     print FILENAME ": *** failed to find expected output (readelf -WSdr)";
+    result = 2;
+  }
+  if (pltrelsz > 0 && jmprel_offset == -1) {
+    print FILENAME ": Could not find section for DT_JMPREL";
     result = 2;
   }
   lastfile = FILENAME;
   jmprel_offset = 0;
   rela_offset = 0;
   rel_offset = 0;
+  relr_offset = 0;
+  pltrelsz = -1;
   delete section_offset_by_address;
 }
 
@@ -69,6 +79,8 @@ in_relocs && relocs_offset == rel_offset && NF >= 5 {
   }
 }
 
+# No need to handle DT_RELR (all packed relocations are relative).
+
 in_relocs { next }
 
 $1 == "Relocation" && $2 == "section" && $5 == "offset" {
@@ -82,9 +94,13 @@ $2 == "(JMPREL)" {
   if (jmprel_addr in section_offset_by_address) {
     jmprel_offset = section_offset_by_address[jmprel_addr];
   } else {
-    print FILENAME ": *** DT_JMPREL does not match any section's address";
-    result = 2;
+    jmprel_offset = -1
   }
+  next
+}
+
+$2 == "(PLTRELSZ)" {
+  pltrelsz = strtonum($3);
   next
 }
 
@@ -108,5 +124,15 @@ $2 == "(REL)" {
     result = 2;
   }
   next
+}
+
+$2 == "(RELR)" {
+  relr_addr = strtonum($3);
+  if (relr_addr in section_offset_by_address) {
+    relr_offset = section_offset_by_address[relr_addr];
+  } else {
+    print FILENAME ": *** DT_RELR does not match any section's address";
+    result = 2;
+  }
 }
 END { exit(result) }

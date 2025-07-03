@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,4 +35,5 @@ ___fprintf_chk (FILE *fp, int flag, const char *format, ...)
 
   return ret;
 }
+ldbl_hidden_def (___fprintf_chk, __fprintf_chk)
 ldbl_strong_alias (___fprintf_chk, __fprintf_chk)

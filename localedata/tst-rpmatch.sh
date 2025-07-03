@@ -1,9 +1,8 @@
 #!/bin/sh -f
 #
-# Copyright (C) 1998-2021 Free Software Foundation, Inc.
+# Copyright (C) 1998-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library and contains tests for
 # the rpmatch(3)-implementation.
-# contributed by Jochen Hein <jochen.hein@delphi.central.de>
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

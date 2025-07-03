@@ -1,7 +1,6 @@
 /* Transliteration using the locale's data.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,6 +26,7 @@
 #include <libc-lock.h>
 #include "gconv_int.h"
 #include "../locale/localeinfo.h"
+#include <pointer_guard.h>
 
 
 int
@@ -38,25 +38,23 @@ __gconv_transliterate (struct __gconv_step *step,
 		       unsigned char **outbufstart, size_t *irreversible)
 {
   /* Find out about the locale's transliteration.  */
-  uint_fast32_t size;
+  uint32_t size;
   const uint32_t *from_idx;
   const uint32_t *from_tbl;
   const uint32_t *to_idx;
   const uint32_t *to_tbl;
   const uint32_t *winbuf;
   const uint32_t *winbufend;
-  uint_fast32_t low;
-  uint_fast32_t high;
+  uint32_t low;
+  uint32_t high;
 
   /* The input buffer.  There are actually 4-byte values.  */
   winbuf = (const uint32_t *) *inbufp;
   winbufend = (const uint32_t *) inbufend;
 
   __gconv_fct fct = step->__fct;
-#ifdef PTR_DEMANGLE
   if (step->__shlib_handle != NULL)
     PTR_DEMANGLE (fct);
-#endif
 
   /* If there is no transliteration information in the locale don't do
      anything and return the error.  */
@@ -86,7 +84,7 @@ __gconv_transliterate (struct __gconv_step *step,
   high = size;
   while (low < high)
     {
-      uint_fast32_t med = (low + high) / 2;
+      uint32_t med = (low + high) / 2;
       uint32_t idx;
       int cnt;
 
@@ -112,7 +110,7 @@ __gconv_transliterate (struct __gconv_step *step,
 	  do
 	    {
 	      /* Determine length of replacement.  */
-	      uint_fast32_t len = 0;
+	      unsigned int len = 0;
 	      int res;
 	      const unsigned char *toinptr;
 	      unsigned char *outptr;
@@ -152,7 +150,7 @@ __gconv_transliterate (struct __gconv_step *step,
 
 	  /* Nothing found, continue searching.  */
 	}
-      else if (cnt > 0)
+      else if (cnt > 0 && winbuf + cnt == winbufend)
 	/* This means that the input buffer contents matches a prefix of
 	   an entry.  Since we cannot match it unless we get more input,
 	   we will tell the caller about it.  */
@@ -234,6 +232,6 @@ __gconv_transliterate (struct __gconv_step *step,
     }
 
   /* Haven't found a match.  */
-  return __GCONV_ILLEGAL_INPUT;
+  return __gconv_mark_illegal_input (step_data);
 }
 libc_hidden_def (__gconv_transliterate)

@@ -1,5 +1,5 @@
 /* Resource limits.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <hurd.h>
 #include <lock-intern.h>
 #include <hurd/resource.h>
+#include "set-hooks.h"
 
 /* This must be given an initializer, or the a.out linking rules will
    not include the entire file when this symbol is referenced. */
@@ -29,7 +30,7 @@ struct rlimit _hurd_rlimits[RLIM_NLIMITS] = { { 0, }, };
    mutex_init is still required below just in case of unexec.  */
 struct mutex _hurd_rlimit_lock = { SPIN_LOCK_INITIALIZER, };
 
-static void
+static void attribute_used_retain
 init_rlimit (void)
 {
   int i;
@@ -52,7 +53,5 @@ init_rlimit (void)
 	  }
 #undef	I
     }
-
-  (void) &init_rlimit;
 }
-text_set_element (_hurd_preinit_hook, init_rlimit);
+SET_RELHOOK (_hurd_preinit_hook, init_rlimit);

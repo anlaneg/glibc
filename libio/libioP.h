@@ -1,4 +1,5 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
+   Copyright The GNU Toolchain Authors.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -47,6 +48,7 @@
 #include "iolibio.h"
 
 #include <shlib-compat.h>
+#include <pointer_guard.h>
 
 /* For historical reasons this is the name of the sysdeps header that
    adjusts the libio configuration.  */
@@ -428,6 +430,12 @@ libc_hidden_proto (_IO_list_resetlock)
 extern void _IO_enable_locks (void) __THROW;
 libc_hidden_proto (_IO_enable_locks)
 
+/* Functions for operating popen's proc_file_chain_lock during fork.  */
+
+extern void _IO_proc_file_chain_lock (void) __THROW attribute_hidden;
+extern void _IO_proc_file_chain_unlock (void) __THROW attribute_hidden;
+extern void _IO_proc_file_chain_resetlock (void) __THROW attribute_hidden;
+
 /* Default jumptable functions. */
 
 extern int _IO_default_underflow (FILE *) __THROW;
@@ -468,29 +476,76 @@ extern int _IO_default_sync (FILE *) __THROW;
 extern int _IO_default_showmanyc (FILE *) __THROW;
 extern void _IO_default_imbue (FILE *, void *) __THROW;
 
-extern const struct _IO_jump_t _IO_file_jumps;
-libc_hidden_proto (_IO_file_jumps)
-extern const struct _IO_jump_t _IO_file_jumps_mmap attribute_hidden;
-extern const struct _IO_jump_t _IO_file_jumps_maybe_mmap attribute_hidden;
-extern const struct _IO_jump_t _IO_wfile_jumps;
-libc_hidden_proto (_IO_wfile_jumps)
-extern const struct _IO_jump_t _IO_wfile_jumps_mmap attribute_hidden;
-extern const struct _IO_jump_t _IO_wfile_jumps_maybe_mmap attribute_hidden;
-extern const struct _IO_jump_t _IO_old_file_jumps attribute_hidden;
-extern const struct _IO_jump_t _IO_streambuf_jumps;
-extern const struct _IO_jump_t _IO_old_proc_jumps attribute_hidden;
-extern const struct _IO_jump_t _IO_str_jumps attribute_hidden;
-extern const struct _IO_jump_t _IO_wstr_jumps attribute_hidden;
+extern int __printf_buffer_as_file_overflow (FILE *fp, int ch);
+extern size_t __printf_buffer_as_file_xsputn (FILE *fp, const void *buf,
+					      size_t len);
+extern wint_t __wprintf_buffer_as_file_overflow (FILE *fp, int ch);
+extern size_t __wprintf_buffer_as_file_xsputn (FILE *fp, const void *buf,
+					       size_t len);
+
+enum
+{
+  IO_STR_JUMPS                    = 0,
+  IO_WSTR_JUMPS                   = 1,
+  IO_FILE_JUMPS                   = 2,
+  IO_FILE_JUMPS_MMAP              = 3,
+  IO_FILE_JUMPS_MAYBE_MMAP        = 4,
+  IO_WFILE_JUMPS                  = 5,
+  IO_WFILE_JUMPS_MMAP             = 6,
+  IO_WFILE_JUMPS_MAYBE_MMAP       = 7,
+  IO_COOKIE_JUMPS                 = 8,
+  IO_PROC_JUMPS                   = 9,
+  IO_MEM_JUMPS                    = 10,
+  IO_WMEM_JUMPS                   = 11,
+  IO_PRINTF_BUFFER_AS_FILE_JUMPS  = 12,
+  IO_WPRINTF_BUFFER_AS_FILE_JUMPS = 13,
+#if SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_1)
+  IO_OLD_FILE_JUMPS               = 14,
+  IO_OLD_PROC_JUMPS               = 15,
+  IO_OLD_COOKIED_JUMPS            = 16,
+  IO_VTABLES_NUM		  = IO_OLD_COOKIED_JUMPS + 1,
+#elif SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_2)
+  IO_OLD_COOKIED_JUMPS            = 14,
+  IO_VTABLES_NUM		  = IO_OLD_COOKIED_JUMPS + 1,
+#else
+  IO_VTABLES_NUM		  = IO_WPRINTF_BUFFER_AS_FILE_JUMPS + 1
+#endif
+};
+#define IO_VTABLES_LEN (IO_VTABLES_NUM * sizeof (struct _IO_jump_t))
+
+extern const struct _IO_jump_t __io_vtables[] attribute_hidden;
+#define _IO_str_jumps                    (__io_vtables[IO_STR_JUMPS])
+#define _IO_wstr_jumps                   (__io_vtables[IO_WSTR_JUMPS])
+#define _IO_file_jumps                   (__io_vtables[IO_FILE_JUMPS])
+#define _IO_file_jumps_mmap              (__io_vtables[IO_FILE_JUMPS_MMAP])
+#define _IO_file_jumps_maybe_mmap        (__io_vtables[IO_FILE_JUMPS_MAYBE_MMAP])
+#define _IO_wfile_jumps                  (__io_vtables[IO_WFILE_JUMPS])
+#define _IO_wfile_jumps_mmap             (__io_vtables[IO_WFILE_JUMPS_MMAP])
+#define _IO_wfile_jumps_maybe_mmap       (__io_vtables[IO_WFILE_JUMPS_MAYBE_MMAP])
+#define _IO_cookie_jumps                 (__io_vtables[IO_COOKIE_JUMPS])
+#define _IO_proc_jumps                   (__io_vtables[IO_PROC_JUMPS])
+#define _IO_mem_jumps                    (__io_vtables[IO_MEM_JUMPS])
+#define _IO_wmem_jumps                   (__io_vtables[IO_WMEM_JUMPS])
+#define _IO_printf_buffer_as_file_jumps  (__io_vtables[IO_PRINTF_BUFFER_AS_FILE_JUMPS])
+#define _IO_wprintf_buffer_as_file_jumps (__io_vtables[IO_WPRINTF_BUFFER_AS_FILE_JUMPS])
+#define _IO_old_file_jumps               (__io_vtables[IO_OLD_FILE_JUMPS])
+#define _IO_old_proc_jumps               (__io_vtables[IO_OLD_PROC_JUMPS])
+#define _IO_old_cookie_jumps             (__io_vtables[IO_OLD_COOKIED_JUMPS])
+
+#ifdef SHARED
+# define libio_static_fn_required(name)
+#else
+# define libio_static_fn_required(name) __asm (".globl " #name);
+#endif
+
 extern int _IO_do_write (FILE *, const char *, size_t);
 libc_hidden_proto (_IO_do_write)
 extern int _IO_new_do_write (FILE *, const char *, size_t);
 extern int _IO_old_do_write (FILE *, const char *, size_t);
 extern int _IO_wdo_write (FILE *, const wchar_t *, size_t);
 libc_hidden_proto (_IO_wdo_write)
-extern int _IO_flush_all_lockp (int);
 extern int _IO_flush_all (void);
 libc_hidden_proto (_IO_flush_all)
-extern int _IO_cleanup (void);
 extern void _IO_flush_all_linebuffered (void);
 libc_hidden_proto (_IO_flush_all_linebuffered)
 extern int _IO_new_fgetpos (FILE *, __fpos_t *);
@@ -529,8 +584,8 @@ extern void _IO_old_init (FILE *fp, int flags) __THROW;
        ((__fp)->_wide_data->_IO_write_base \
 	= (__fp)->_wide_data->_IO_write_ptr = __p, \
 	(__fp)->_wide_data->_IO_write_end = (__ep))
-#define _IO_have_backup(fp) ((fp)->_IO_save_base != NULL)
-#define _IO_have_wbackup(fp) ((fp)->_wide_data->_IO_save_base != NULL)
+#define _IO_have_backup(fp) ((fp)->_IO_backup_base != NULL)
+#define _IO_have_wbackup(fp) ((fp)->_wide_data->_IO_backup_base != NULL)
 #define _IO_in_backup(fp) ((fp)->_flags & _IO_IN_BACKUP)
 #define _IO_have_markers(fp) ((fp)->_markers != NULL)
 #define _IO_blen(fp) ((fp)->_IO_buf_end - (fp)->_IO_buf_base)
@@ -593,6 +648,14 @@ extern void _IO_new_file_init_internal (struct _IO_FILE_plus *)
 extern FILE* _IO_new_file_setbuf (FILE *, char *, ssize_t);
 extern FILE* _IO_file_setbuf_mmap (FILE *, char *, ssize_t);
 extern int _IO_new_file_sync (FILE *);
+extern int _IO_file_sync_mmap (FILE *) attribute_hidden;
+extern size_t  _IO_file_xsgetn_maybe_mmap (FILE *fp, void *data, size_t n)
+  attribute_hidden;
+extern size_t _IO_file_xsgetn_mmap (FILE *fp, void *data, size_t n)
+  attribute_hidden;
+extern off64_t _IO_file_seekoff_maybe_mmap (FILE *fp, off64_t offset, int dir,
+					    int mode)
+     attribute_hidden;
 extern int _IO_new_file_underflow (FILE *);
 extern int _IO_new_file_overflow (FILE *, int);
 extern off64_t _IO_new_file_seekoff (FILE *, off64_t, int, int);
@@ -625,6 +688,10 @@ extern wint_t _IO_wfile_overflow (FILE *, wint_t);
 libc_hidden_proto (_IO_wfile_overflow)
 extern off64_t _IO_wfile_seekoff (FILE *, off64_t, int, int);
 libc_hidden_proto (_IO_wfile_seekoff)
+extern wint_t _IO_wfile_underflow_maybe_mmap (FILE *fp)
+     attribute_hidden;
+extern wint_t _IO_wfile_underflow_mmap (FILE *fp)
+     attribute_hidden;
 
 /* Jumptable functions for proc_files. */
 extern FILE* _IO_proc_open (FILE *, const char *, const char *)
@@ -643,13 +710,41 @@ extern int _IO_str_overflow (FILE *, int) __THROW;
 libc_hidden_proto (_IO_str_overflow)
 extern int _IO_str_pbackfail (FILE *, int) __THROW;
 libc_hidden_proto (_IO_str_pbackfail)
-extern off64_t _IO_str_seekoff (FILE *, off64_t, int, int) __THROW;
+extern off64_t _IO_str_seekoff (FILE *, off64_t, int, int) __THROW
+ ;
 libc_hidden_proto (_IO_str_seekoff)
 extern void _IO_str_finish (FILE *, int) __THROW;
+extern int _IO_str_chk_overflow (FILE *fp, int c) __THROW
+  attribute_hidden;
+
+/* Jumptable functions for fopencookie.  */
+extern ssize_t _IO_cookie_read (FILE *fp, void *buf, ssize_t size)
+  attribute_hidden;
+extern ssize_t _IO_cookie_write (FILE *fp, const void *buf, ssize_t size)
+  attribute_hidden;
+extern off64_t _IO_cookie_seek (FILE *fp, off64_t offset, int dir)
+  attribute_hidden;
+extern int _IO_cookie_close (FILE *fp) attribute_hidden;
+extern off64_t _IO_cookie_seekoff (FILE *fp, off64_t offset, int dir, int mode)
+  attribute_hidden;
+extern off64_t _IO_old_cookie_seek (FILE *fp, off64_t offset, int dir)
+  attribute_hidden;
+
+/* Jumptable functions for obstack.  */
+extern int __IO_obstack_overflow (FILE *fp, int c) attribute_hidden;
+extern size_t __IO_obstack_xsputn (FILE *fp, const void *data, size_t n)
+  attribute_hidden;
+
+/* Jumptable functions for open_{w}memstream.  */
+extern int _IO_mem_sync (FILE* fp) __THROW attribute_hidden;
+extern void _IO_mem_finish (FILE* fp, int) __THROW attribute_hidden;
+extern int _IO_wmem_sync (FILE* fp) __THROW attribute_hidden;
+extern void _IO_wmem_finish (FILE* fp, int) __THROW attribute_hidden;
 
 /* Other strfile functions */
 struct _IO_strfile_;
 extern ssize_t _IO_str_count (FILE *) __THROW;
+extern int _IO_strn_overflow (FILE *fp, int c) __THROW attribute_hidden;
 
 /* And the wide character versions.  */
 extern void _IO_wstr_init_static (FILE *, wchar_t *, size_t, wchar_t *)
@@ -661,6 +756,10 @@ extern off64_t _IO_wstr_seekoff (FILE *, off64_t, int, int)
      __THROW;
 extern wint_t _IO_wstr_pbackfail (FILE *, wint_t) __THROW;
 extern void _IO_wstr_finish (FILE *, int) __THROW;
+
+/* Helper functions.  */
+int _IO_helper_overflow (FILE *s, int c);
+int _IO_whelper_overflow (FILE *s, int c);
 
 /* Internal versions of v*printf that take an additional flags
    parameter.  */
@@ -780,6 +879,9 @@ extern off64_t _IO_seekpos_unlocked (FILE *, off64_t, int)
    functions use.  When the flag is set to zero, automatic allocation is
    enabled.
 
+   SCANF_ISOC23_BIN_CST, when set to one, indicates the %i accepts
+   binary constants starting 0b or 0B.
+
    SCANF_LDBL_USES_FLOAT128 is used on platforms where the long double
    format used to be different from the IEC 60559 double format *and*
    also different from the Quadruple 128-bits IEC 60559 format (such as
@@ -792,7 +894,8 @@ extern off64_t _IO_seekpos_unlocked (FILE *, off64_t, int)
    as the previous format on that platform.  */
 #define SCANF_LDBL_IS_DBL		0x0001
 #define SCANF_ISOC99_A			0x0002
-#define SCANF_LDBL_USES_FLOAT128	0x0004
+#define SCANF_ISOC23_BIN_CST		0x0004
+#define SCANF_LDBL_USES_FLOAT128	0x0008
 
 extern int __vfscanf_internal (FILE *fp, const char *format, va_list argp,
 			       unsigned int flags)
@@ -808,27 +911,31 @@ extern int _IO_vscanf (const char *, va_list) __THROW;
 # ifdef _IO_USE_OLD_IO_FILE
 #  define FILEBUF_LITERAL(CHAIN, FLAGS, FD, WDP) \
        { _IO_MAGIC+_IO_LINKED+_IO_IS_FILEBUF+FLAGS, \
-	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (FILE *) CHAIN, FD, \
-	 0, _IO_pos_BAD, 0, 0, { 0 }, &_IO_stdfile_##FD##_lock }
+	 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+	 NULL, NULL, (FILE *) CHAIN, FD, 0, { 0 }, \
+	 _IO_pos_BAD, 0, 0, { 0 }, &_IO_stdfile_##FD##_lock }
 # else
 #  define FILEBUF_LITERAL(CHAIN, FLAGS, FD, WDP) \
        { _IO_MAGIC+_IO_LINKED+_IO_IS_FILEBUF+FLAGS, \
-	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (FILE *) CHAIN, FD, \
-	 0, _IO_pos_BAD, 0, 0, { 0 }, &_IO_stdfile_##FD##_lock, _IO_pos_BAD,\
-	 NULL, WDP, 0 }
+	 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+	 NULL, NULL, (FILE *) CHAIN, FD, 0, { 0 }, \
+	 _IO_pos_BAD, 0, 0, { 0 }, &_IO_stdfile_##FD##_lock, \
+	 _IO_pos_BAD, NULL, WDP, NULL }
 # endif
 #else
 # ifdef _IO_USE_OLD_IO_FILE
 #  define FILEBUF_LITERAL(CHAIN, FLAGS, FD, WDP) \
        { _IO_MAGIC+_IO_LINKED+_IO_IS_FILEBUF+FLAGS, \
-	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (FILE *) CHAIN, FD, \
-	 0, _IO_pos_BAD }
+	 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+	 NULL, NULL, (FILE *) CHAIN, FD, 0, { 0 }, \
+	 _IO_pos_BAD }
 # else
 #  define FILEBUF_LITERAL(CHAIN, FLAGS, FD, WDP) \
        { _IO_MAGIC+_IO_LINKED+_IO_IS_FILEBUF+FLAGS, \
-	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (FILE *) CHAIN, FD, \
-	 0, _IO_pos_BAD, 0, 0, { 0 }, 0, _IO_pos_BAD, \
-	 NULL, WDP, 0 }
+	 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+	 NULL, NULL, (FILE *) CHAIN, FD, 0, { 0 }, \
+	 _IO_pos_BAD, 0, 0, { 0 }, NULL, \
+	 _IO_pos_BAD, NULL, WDP, NULL }
 # endif
 #endif
 
@@ -891,14 +998,6 @@ _IO_acquire_lock_fct (FILE **p)
   } while (0)
 #endif
 
-/* Collect all vtables in a special section for vtable verification.
-   These symbols cover the extent of this section.  */
-symbol_set_declare (__libc_IO_vtables)
-
-/* libio vtables need to carry this attribute so that they pass
-   validation.  */
-#define libio_vtable __attribute__ ((section ("__libc_IO_vtables")))
-
 #ifdef SHARED
 /* If equal to &_IO_vtable_check (with pointer guard protection),
    unknown vtable pointers are valid.  This function pointer is solely
@@ -910,9 +1009,7 @@ extern void (*IO_accept_foreign_vtables) (void) attribute_hidden;
 static inline void
 IO_set_accept_foreign_vtables (void (*flag) (void))
 {
-#ifdef PTR_MANGLE
   PTR_MANGLE (flag);
-#endif
   atomic_store_relaxed (&IO_accept_foreign_vtables, flag);
 }
 
@@ -935,16 +1032,22 @@ void _IO_vtable_check (void) attribute_hidden;
 static inline const struct _IO_jump_t *
 IO_validate_vtable (const struct _IO_jump_t *vtable)
 {
-  /* Fast path: The vtable pointer is within the __libc_IO_vtables
-     section.  */
-  uintptr_t section_length = __stop___libc_IO_vtables - __start___libc_IO_vtables;
   uintptr_t ptr = (uintptr_t) vtable;
-  uintptr_t offset = ptr - (uintptr_t) __start___libc_IO_vtables;
-  if (__glibc_unlikely (offset >= section_length))
+  uintptr_t offset = ptr - (uintptr_t) &__io_vtables;
+  if (__glibc_unlikely (offset >= IO_VTABLES_LEN))
     /* The vtable pointer is not in the expected section.  Use the
        slow path, which will terminate the process if necessary.  */
     _IO_vtable_check ();
   return vtable;
+}
+
+/* In case of an allocation failure, we resort to using the fixed buffer
+   _SHORT_BACKUPBUF.  Free PTR unless it points to that buffer.  */
+static __always_inline void
+_IO_free_backup_buf (FILE *fp, char *ptr)
+{
+  if (ptr != fp->_short_backupbuf)
+    free (ptr);
 }
 
 /* Character set conversion.  */

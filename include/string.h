@@ -55,9 +55,6 @@ extern char *__strerror_l (int __errnum, locale_t __loc);
 
 extern const char *__sigdescr_np (int __errnum);
 libc_hidden_proto (__sigdescr_np)
-
-/* Get _STRING_ARCH_unaligned.  */
-#include <string_private.h>
 #endif
 
 #include <string/string.h>
@@ -91,10 +88,15 @@ libc_hidden_proto (__stpcpy)
 # define __stpcpy(dest, src) __builtin_stpcpy (dest, src)
 #endif
 libc_hidden_proto (__stpncpy)
+extern __typeof (strlcpy) __strlcpy;
+libc_hidden_proto (__strlcpy)
+extern __typeof (strlcat) __strlcat;
+libc_hidden_proto (__strlcat)
 libc_hidden_proto (__rawmemchr)
 libc_hidden_proto (__strcasecmp)
 libc_hidden_proto (__strcasecmp_l)
 libc_hidden_proto (__strncasecmp_l)
+libc_hidden_proto (__strchrnul)
 extern __typeof (strncat) __strncat;
 libc_hidden_proto (__strncat)
 libc_hidden_proto (__strdup)
@@ -112,11 +114,13 @@ extern char *__strsep_g (char **__stringp, const char *__delim);
 libc_hidden_proto (__strsep_g)
 libc_hidden_proto (strnlen)
 libc_hidden_proto (__strnlen)
+libc_hidden_proto (__memcmpeq)
 libc_hidden_proto (memmem)
 extern __typeof (memmem) __memmem;
 libc_hidden_proto (__memmem)
 libc_hidden_proto (__ffs)
 libc_hidden_proto (__strerror_l)
+libc_hidden_proto (__memrchr)
 
 #if IS_IN (libc)
 /* Avoid hidden reference to IFUNC symbol __explicit_bzero_chk.  */
@@ -171,7 +175,7 @@ extern __typeof (strnlen) strnlen attribute_hidden;
 extern __typeof (strsep) strsep attribute_hidden;
 #endif
 
-#if (!IS_IN (libc) || !defined SHARED) \
+#if (IS_IN (libc) || IS_IN (libpthread)) && !defined SHARED \
   && !defined NO_MEMPCPY_STPCPY_REDIRECT
 /* Redirect calls to __builtin_mempcpy and __builtin_stpcpy to call
    __mempcpy and __stpcpy if not inlined.  */
@@ -204,6 +208,15 @@ extern char *__strcat_chk (char *__restrict __dest,
 extern char *__strncat_chk (char *__restrict __dest,
 			    const char *__restrict __src,
 			    size_t __len, size_t __destlen) __THROW;
+
+libc_hidden_builtin_proto (__memcpy_chk)
+libc_hidden_builtin_proto (__memmove_chk)
+libc_hidden_builtin_proto (__mempcpy_chk)
+libc_hidden_builtin_proto (__memset_chk)
+libc_hidden_builtin_proto (__stpcpy_chk)
+libc_hidden_builtin_proto (__strncpy_chk)
+libc_hidden_builtin_proto (__strcpy_chk)
+
 #endif
 
 #endif

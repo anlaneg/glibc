@@ -1,5 +1,5 @@
 /* Linux open syscall implementation, LFS, non-cancellable.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -23,12 +23,6 @@
 
 #include <not-cancel.h>
 
-#ifdef __OFF_T_MATCHES_OFF64_T
-# define EXTRA_OPEN_FLAGS 0
-#else
-# define EXTRA_OPEN_FLAGS O_LARGEFILE
-#endif
-
 int
 __open64_nocancel (const char *file, int oflag, ...)
 {
@@ -42,7 +36,7 @@ __open64_nocancel (const char *file, int oflag, ...)
       va_end (arg);
     }
 
-  return INLINE_SYSCALL_CALL (openat, AT_FDCWD, file, oflag | EXTRA_OPEN_FLAGS,
+  return INLINE_SYSCALL_CALL (openat, AT_FDCWD, file, oflag | O_LARGEFILE,
 			      mode);
 }
 

@@ -1,5 +1,5 @@
 /* Completion of TCB initialization after TLS_INIT_TP.  NPTL version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,6 +21,12 @@
 #include <list.h>
 #include <pthreadP.h>
 #include <tls.h>
+#include <rseq-internal.h>
+#include <thread_pointer.h>
+#include <dl-symbol-redir-ifunc.h>
+
+#define TUNABLE_NAMESPACE pthread
+#include <dl-tunables.h>
 
 #ifndef __ASSUME_SET_ROBUST_LIST
 bool __nptl_set_robust_list_avail;
@@ -38,6 +44,10 @@ rtld_mutex_dummy (pthread_mutex_t *lock)
   return 0;
 }
 #endif
+
+const unsigned int __rseq_flags;
+
+size_t _rseq_align attribute_hidden;
 
 void
 __tls_pre_init_tp (void)
@@ -57,14 +67,15 @@ __tls_pre_init_tp (void)
 void
 __tls_init_tp (void)
 {
+  struct pthread *pd = THREAD_SELF;
+
   /* Set up thread stack list management.  */
-  list_add (&THREAD_SELF->list, &GL (dl_stack_user));
+  list_add (&pd->list, &GL (dl_stack_user));
 
    /* Early initialization of the TCB.   */
-   struct pthread *pd = THREAD_SELF;
    pd->tid = INTERNAL_SYSCALL_CALL (set_tid_address, &pd->tid);
    THREAD_SETMEM (pd, specific[0], &pd->specific_1stblock[0]);
-   THREAD_SETMEM (pd, user_stack, true);
+   THREAD_SETMEM (pd, stack_mode, ALLOCATE_GUARD_USER);
 
   /* Before initializing GL (dl_stack_user), the debugger could not
      find us and had to set __nptl_initial_report_events.  Propagate
@@ -90,11 +101,19 @@ __tls_init_tp (void)
       }
   }
 
+  {
+    /* If the registration fails or is disabled by tunable, the public
+       '__rseq_size' will be set to '0' regardless of the feature size of the
+       allocated rseq area.  An rseq area of at least 32 bytes is always
+       allocated since application code is allowed to check the status of the
+       rseq registration by reading the content of the 'cpu_id' field.  */
+    bool do_rseq = TUNABLE_GET (rseq, int, NULL);
+    if (!rseq_register_current_thread (pd, do_rseq))
+      _rseq_size = 0;
+  }
+
   /* Set initial thread's stack block from 0 up to __libc_stack_end.
      It will be bigger than it actually is, but for unwind.c/pt-longjmp.c
      purposes this is good enough.  */
   THREAD_SETMEM (pd, stackblock_size, (size_t) __libc_stack_end);
-
-  THREAD_SETMEM (pd, cancelstate, PTHREAD_CANCEL_ENABLE);
-  THREAD_SETMEM (pd, canceltype, PTHREAD_CANCEL_DEFERRED);
 }

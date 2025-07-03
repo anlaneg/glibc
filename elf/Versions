@@ -20,13 +20,17 @@ libc {
     __register_frame_info_table_bases; _Unwind_Find_FDE;
   }
 %endif
+  GLIBC_2.35 {
+    _dl_find_object;
+  }
+  GLIBC_ABI_DT_RELR {
+    # This symbol is used only for empty version map and will be removed
+    # by scripts/versions.awk.
+    __placeholder_only_for_empty_version_map;
+  }
   GLIBC_PRIVATE {
     # functions used in other libraries
     __libc_early_init;
-
-    # Internal error handling support.  Interposes the functions in ld.so.
-    _dl_signal_exception; _dl_catch_exception;
-    _dl_signal_error; _dl_catch_error;
   }
 }
 
@@ -48,6 +52,9 @@ ld {
     # stack canary
     __stack_chk_guard;
   }
+  GLIBC_2.34 {
+    __rtld_version_placeholder;
+  }
   GLIBC_PRIVATE {
     # Those are in the dynamic linker, but used by libc.so.
     __libc_enable_secure;
@@ -55,6 +62,7 @@ ld {
     _dl_argv; _dl_find_dso_for_object; _dl_get_tls_static_info;
     _dl_deallocate_tls; _dl_make_stack_executable;
     _dl_rtld_di_serinfo; _dl_starting_up; _dl_fatal_printf;
+    _dl_audit_symbind_alt; _dl_audit_preinit;
     _rtld_global; _rtld_global_ro;
 
     # Only here for gdb while a better method is developed.
@@ -65,12 +73,11 @@ ld {
 
     # Internal error handling support.
     _dl_exception_create; _dl_exception_create_format; _dl_exception_free;
-
-    # Internal error handling support.  Interposed by libc.so.
     _dl_signal_exception; _dl_catch_exception;
-    _dl_signal_error; _dl_catch_error;
+    _dl_signal_error;
 
     # Set value of a tunable.
+    __tunable_is_initialized;
     __tunable_get_val;
   }
 }

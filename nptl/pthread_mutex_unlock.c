@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -172,7 +171,7 @@ __pthread_mutex_unlock_full (pthread_mutex_t *mutex, int decr)
          The unlock operation must be the last access to the mutex to not
          violate the mutex destruction requirements (see __lll_unlock).  */
       private = PTHREAD_ROBUST_MUTEX_PSHARED (mutex);
-      if (__glibc_unlikely ((atomic_exchange_rel (&mutex->__data.__lock, 0)
+      if (__glibc_unlikely ((atomic_exchange_release (&mutex->__data.__lock, 0)
 			     & FUTEX_WAITERS) != 0))
 	futex_wake ((unsigned int *) &mutex->__data.__lock, 1, private);
 

@@ -1,4 +1,4 @@
-# Copyright (C) 1991-2021 Free Software Foundation, Inc.
+# Copyright (C) 1991-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -22,12 +22,14 @@ subdir	:= termios
 
 include ../Makeconfig
 
-headers	:= termios.h bits/termios.h sys/ttydefaults.h sys/termios.h \
-	   sys/ttychars.h
+headers	:= termios.h bits/termios.h bits/termios-baud.h \
+	   sys/ttydefaults.h sys/termios.h sys/ttychars.h
 
 routines	:= speed cfsetspeed tcsetattr tcgetattr tcgetpgrp tcsetpgrp \
-		   tcdrain tcflow tcflush tcsendbrk cfmakeraw tcgetsid
+		   tcdrain tcflow tcflush tcsendbrk cfmakeraw tcgetsid \
+		   baud cfsetbaud
 
 include ../Rules
 
 CFLAGS-tcdrain.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-tcsetattr.c += $(config-cflags-wno-ignored-attributes)

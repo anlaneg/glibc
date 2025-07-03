@@ -1,7 +1,6 @@
 /* Compatibility symbols for the obsolete <regexp.h> interface.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -24,6 +23,7 @@
    argument to 'step' and 'advance' was defined only in regexp.h,
    as its definition depended on macros defined by the user.  */
 
+#include <stdint.h>
 #include <regex.h>
 #include <shlib-compat.h>
 
@@ -51,7 +51,7 @@ step (const char *string, const char *expbuf)
   regmatch_t match;	/* We only need info about the full match.  */
 
   expbuf += __alignof (regex_t *);
-  expbuf -= (expbuf - ((const char *) 0)) % __alignof__ (regex_t *);
+  expbuf -= ((uintptr_t) expbuf) % __alignof__ (regex_t *);
 
   if (__regexec ((const regex_t *) expbuf, string, 1, &match, REG_NOTEOL)
       == REG_NOMATCH)
@@ -74,7 +74,7 @@ advance (const char *string, const char *expbuf)
   regmatch_t match;	/* We only need info about the full match.  */
 
   expbuf += __alignof__ (regex_t *);
-  expbuf -= (expbuf - ((const char *) 0)) % __alignof__ (regex_t *);
+  expbuf -= ((uintptr_t) expbuf) % __alignof__ (regex_t *);
 
   if (__regexec ((const regex_t *) expbuf, string, 1, &match, REG_NOTEOL)
       == REG_NOMATCH

@@ -1,5 +1,5 @@
 /* Start thread.  Mach version.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -61,7 +61,7 @@ create_wakeupmsg (struct __pthread *thread)
   return 0;
 }
 
-/* Allocate any resouces for THREAD.  The new kernel thread should not
+/* Allocate any resources for THREAD.  The new kernel thread should not
    be eligible to be scheduled.  */
 int
 __pthread_thread_alloc (struct __pthread *thread)

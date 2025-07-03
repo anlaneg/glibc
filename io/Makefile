@@ -1,4 +1,4 @@
-# Copyright (C) 1992-2021 Free Software Foundation, Inc.
+# Copyright (C) 1992-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -18,106 +18,271 @@
 #
 #	Sub-makefile for I/O portion of the library.
 #
-subdir	:= io
+subdir := io
 
 include ../Makeconfig
 
-headers := sys/stat.h bits/stat.h sys/statfs.h bits/statfs.h sys/vfs.h \
-	   sys/statvfs.h bits/statvfs.h fcntl.h sys/fcntl.h bits/fcntl.h \
-	   poll.h sys/poll.h bits/poll.h bits/fcntl2.h bits/poll2.h \
-	   bits/statx.h bits/statx-generic.h bits/types/struct_statx.h \
-	   bits/types/struct_statx_timestamp.h \
-	   utime.h ftw.h fts.h sys/sendfile.h
+headers := \
+  bits/fcntl.h \
+  bits/fcntl2.h \
+  bits/poll.h \
+  bits/poll2.h \
+  bits/stat.h \
+  bits/statfs.h \
+  bits/statvfs.h \
+  bits/statx-generic.h \
+  bits/statx.h \
+  bits/types/struct_statx.h \
+  bits/types/struct_statx_timestamp.h \
+  fcntl.h \
+  fts.h \
+  ftw.h \
+  poll.h \
+  sys/fcntl.h \
+  sys/poll.h \
+  sys/sendfile.h \
+  sys/stat.h \
+  sys/statfs.h \
+  sys/statvfs.h \
+  sys/vfs.h \
+  utime.h \
+  # headers
 
-routines :=								\
-	utime								\
-	mkfifo mkfifoat							\
-	stat fstat lstat stat64 fstat64 lstat64 fstatat fstatat64	\
-	statx								\
-	mknod mknodat 							\
-	statfs fstatfs statfs64 fstatfs64				\
-	statvfs fstatvfs statvfs64 fstatvfs64				\
-	umask chmod fchmod lchmod fchmodat				\
-	mkdir mkdirat							\
-	open open_2 open64 open64_2 openat openat_2 openat64 openat64_2	\
-	read write lseek lseek64 access euidaccess faccessat		\
-	fcntl fcntl64 flock lockf lockf64				\
-	close dup dup2 dup3 pipe pipe2					\
-	creat creat64							\
-	chdir fchdir							\
-	getcwd getwd getdirname						\
-	chown fchown lchown fchownat					\
-	ttyname ttyname_r isatty					\
-	link linkat symlink symlinkat readlink readlinkat		\
-	unlink unlinkat rmdir						\
-	ftw ftw64 fts fts64 poll ppoll					\
-	posix_fadvise posix_fadvise64					\
-	posix_fallocate posix_fallocate64				\
-	sendfile sendfile64 copy_file_range 				\
-	utimensat futimens file_change_detection			\
-	fts64-time64							\
-	ftw64-time64							\
-	closefrom
+routines := \
+  access \
+  chdir \
+  chmod \
+  chown \
+  close \
+  close_range \
+  closefrom \
+  copy_file_range \
+  creat \
+  creat64 \
+  dup \
+  dup2 \
+  dup3 \
+  euidaccess \
+  faccessat \
+  fchdir \
+  fchmod \
+  fchmodat \
+  fchown \
+  fchownat \
+  fcntl \
+  fcntl64 \
+  file_change_detection \
+  flock \
+  fstat \
+  fstat64 \
+  fstatat \
+  fstatat64 \
+  fstatfs \
+  fstatfs64 \
+  fstatvfs \
+  fstatvfs64 \
+  fts \
+  fts64 \
+  fts64-time64 \
+  ftw \
+  ftw64 \
+  ftw64-time64 \
+  futimens \
+  getcwd \
+  getdirname \
+  getwd \
+  isatty \
+  isatty_nostatus \
+  lchmod \
+  lchown \
+  link \
+  linkat \
+  lockf \
+  lockf64 \
+  lseek \
+  lseek64 \
+  lstat \
+  lstat64 \
+  mkdir \
+  mkdirat \
+  mkfifo \
+  mkfifoat \
+  mknod \
+  mknodat \
+  open \
+  open64 \
+  open64_2 \
+  open_2 \
+  openat \
+  openat64 \
+  openat64_2 \
+  openat_2 \
+  pipe \
+  pipe2 \
+  poll \
+  posix_fadvise \
+  posix_fadvise64 \
+  posix_fallocate \
+  posix_fallocate64 \
+  ppoll \
+  read \
+  readlink \
+  readlinkat \
+  rmdir \
+  sendfile \
+  sendfile64 \
+  stat \
+  stat64 \
+  statfs \
+  statfs64 \
+  statvfs \
+  statvfs64 \
+  statx \
+  symlink \
+  symlinkat \
+  ttyname \
+  ttyname_r \
+  umask \
+  unlink \
+  unlinkat \
+  utime \
+  utimensat \
+  write \
+  # routines
 
-others		:= pwd
-test-srcs	:= ftwtest ftwtest-time64
-tests		:= test-utime test-stat test-stat2 test-lfs tst-getcwd \
-		   tst-fcntl bug-ftw1 bug-ftw2 bug-ftw3 bug-ftw4 tst-statvfs \
-		   tst-openat tst-unlinkat tst-fstatat tst-futimesat \
-		   tst-renameat tst-fchownat tst-fchmodat tst-faccessat \
-		   tst-symlinkat tst-linkat tst-readlinkat tst-mkdirat \
-		   tst-mknodat tst-mkfifoat tst-ttyname_r bug-ftw5 \
-		   tst-posix_fallocate tst-posix_fallocate64 \
-		   tst-fts tst-fts-lfs tst-open-tmpfile \
-		   tst-copy_file_range tst-getcwd-abspath tst-lockf \
-		   tst-ftw-lnk tst-lchmod \
-		   tst-ftw-bz26353 tst-stat tst-stat-lfs \
-		   tst-utime \
-		   tst-utimes \
-		   tst-futimes \
-		   tst-lutimes \
-		   tst-futimens \
-		   tst-utimensat \
-		   tst-closefrom \
+# Exclude fortified routines from being built with _FORTIFY_SOURCE
+routines_no_fortify += \
+  getcwd \
+  getwd \
+  open \
+  open64 \
+  openat \
+  openat64 \
+  poll \
+  ppoll \
+  read \
+  readlink \
+  readlinkat \
+  ttyname_r \
+  # routines_no_fortify
+
+others := \
+ pwd \
+ # others
+
+test-srcs := \
+  ftwtest \
+  ftwtest-time64 \
+  # test-srcs
+
+tests := \
+  bug-ftw1 \
+  bug-ftw2 \
+  bug-ftw3 \
+  bug-ftw4 \
+  bug-ftw5 \
+  test-lfs \
+  test-stat \
+  test-stat2 \
+  test-utime \
+  tst-close_range \
+  tst-closefrom \
+  tst-copy_file_range \
+  tst-faccessat \
+  tst-faccessat-setuid \
+  tst-fchmod-errors \
+  tst-fchmod-fuse \
+  tst-fchmodat \
+  tst-fchownat \
+  tst-fcntl \
+  tst-fcntl-lock \
+  tst-fcntl-lock-lfs \
+  tst-fstatat \
+  tst-fts \
+  tst-fts-lfs \
+  tst-ftw-bz26353 \
+  tst-ftw-bz28126 \
+  tst-ftw-lnk \
+  tst-futimens \
+  tst-futimes \
+  tst-futimesat \
+  tst-getcwd \
+  tst-getcwd-abspath \
+  tst-lchmod \
+  tst-linkat \
+  tst-lockf \
+  tst-lstat-nofollow \
+  tst-lutimes \
+  tst-mkdirat \
+  tst-mkfifoat \
+  tst-mknodat \
+  tst-open-tmpfile \
+  tst-openat \
+  tst-posix_fallocate \
+  tst-posix_fallocate64 \
+  tst-read-zero \
+  tst-readlinkat \
+  tst-renameat \
+  tst-stat \
+  tst-stat-lfs \
+  tst-statvfs \
+  tst-symlinkat \
+  tst-ttyname_r \
+  tst-unlinkat \
+  tst-utime \
+  tst-utimensat \
+  tst-utimes \
+  # tests
 
 tests-time64 := \
+  tst-fcntl-time64 \
+  tst-fts-time64 \
   tst-futimens-time64 \
   tst-futimes-time64\
-  tst-fts-time64 \
+  tst-futimesat-time64 \
+  tst-lchmod-time64 \
+  tst-lstat-nofollow-time64 \
   tst-lutimes-time64 \
   tst-stat-time64 \
-  tst-futimesat-time64 \
   tst-utime-time64 \
   tst-utimensat-time64 \
   tst-utimes-time64 \
-  tst-fcntl-time64 \
   # tests-time64
 
 # Likewise for statx, but we do not need static linking here.
-tests-internal += tst-statx tst-file_change_detection
-tests-static += tst-statx
+tests-internal += \
+  tst-file_change_detection \
+  tst-statx \
+  # tests-internal
+
+tests-static += \
+  tst-statx \
+  # tests-static
 
 ifeq ($(run-built-tests),yes)
-tests-special += $(objpfx)ftwtest.out \
-		 $(objpfx)ftwtest-time64.out
+tests-special += \
+  $(objpfx)ftwtest-time64.out \
+  $(objpfx)ftwtest.out \
+  # tests-special
 endif
 
 include ../Rules
 
-CFLAGS-open.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-open.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
+CFLAGS-openat.c += $(config-cflags-wno-ignored-attributes)
 CFLAGS-open64.c += -fexceptions -fasynchronous-unwind-tables
 CFLAGS-creat.c += -fexceptions -fasynchronous-unwind-tables
 CFLAGS-creat64.c += -fexceptions -fasynchronous-unwind-tables
-CFLAGS-fcntl.c += -fexceptions -fasynchronous-unwind-tables
-CFLAGS-fcntl64.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-fcntl.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
+CFLAGS-fcntl64.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
 CFLAGS-poll.c += -fexceptions -fasynchronous-unwind-tables
 CFLAGS-ppoll.c += -fexceptions -fasynchronous-unwind-tables
 CFLAGS-lockf.c += -fexceptions -fasynchronous-unwind-tables
-CFLAGS-lockf64.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-lockf64.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
 CFLAGS-statfs.c += -fexceptions
 CFLAGS-fstatfs.c += -fexceptions
-CFLAGS-statvfs.c += -fexceptions
-CFLAGS-fstatvfs.c += -fexceptions
+CFLAGS-statvfs.c += -fexceptions $(config-cflags-wno-ignored-attributes)
+CFLAGS-fstatvfs.c += -fexceptions $(config-cflags-wno-ignored-attributes)
 CFLAGS-fts.c += -Wno-uninitialized $(uses-callbacks) -fexceptions
 CFLAGS-fts64.c += -Wno-uninitialized $(uses-callbacks) -fexceptions
 CFLAGS-fts64-time64.c += -Wno-uninitialized $(uses-callbacks) -fexceptions
@@ -128,12 +293,15 @@ CFLAGS-posix_fallocate.c += -fexceptions
 CFLAGS-posix_fallocate64.c += -fexceptions
 CFLAGS-fallocate.c += -fexceptions
 CFLAGS-fallocate64.c += -fexceptions
-CFLAGS-read.c += -fexceptions -fasynchronous-unwind-tables
-CFLAGS-write.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-read.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
+CFLAGS-write.c += -fexceptions -fasynchronous-unwind-tables $(config-cflags-wno-ignored-attributes)
 CFLAGS-close.c += -fexceptions -fasynchronous-unwind-tables
+CFLAGS-lseek64.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-tst-read-zero.c += $(no-fortify-source) -D_FORTIFY_SOURCE=$(supported-fortify)
 
 CFLAGS-test-stat.c += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 CFLAGS-test-lfs.c += -D_LARGEFILE64_SOURCE
+CFLAGS-tst-lchmod.c += -D_FILE_OFFSET_BITS=64
 
 test-stat2-ARGS = Makefile . $(objpfx)test-stat2
 

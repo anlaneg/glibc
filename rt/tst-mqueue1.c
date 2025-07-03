@@ -1,7 +1,6 @@
 /* Test message queue passing.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,6 +26,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <support/check.h>
 #include "tst-mqueue.h"
 
 static int
@@ -323,11 +323,14 @@ do_test (void)
 
   if (q == (mqd_t) -1)
     {
+      if (errno == ENOSYS)
+	FAIL_UNSUPPORTED ("mq_open not supported");
+
       printf ("mq_open failed with: %m\n");
-      return result;
+      return 1;
     }
-  else
-    add_temp_mq (name);
+
+  add_temp_mq (name);
 
   result |= do_one_test (q, name, 0);
 

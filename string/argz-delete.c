@@ -1,7 +1,6 @@
 /* Routines for dealing with '\0' separated arg vectors.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Miles Bader <miles@gnu.org>
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -34,7 +33,7 @@ argz_delete (char **argz, size_t *argz_len, char *entry)
       if (*argz_len == 0)
 	{
 	  free (*argz);
-	  *argz = 0;
+	  *argz = NULL;
 	}
     }
 }

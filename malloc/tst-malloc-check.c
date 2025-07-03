@@ -1,6 +1,5 @@
-/* Copyright (C) 2005-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2005.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -20,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <libc-diag.h>
+
+#include "tst-malloc-aux.h"
 
 static int errors = 0;
 
@@ -87,7 +88,15 @@ do_test (void)
     merror ("errno is not set correctly.");
   DIAG_POP_NEEDS_COMMENT;
 
+#if __GNUC_PREREQ (12, 0)
+  /* Ignore a valid warning about using a pointer made indeterminate
+     by a prior call to realloc().  */
+  DIAG_IGNORE_NEEDS_COMMENT (12, "-Wuse-after-free");
+#endif
   free (p);
+#if __GNUC_PREREQ (12, 0)
+  DIAG_POP_NEEDS_COMMENT;
+#endif
 
   p = malloc (512);
   if (p == NULL)
@@ -105,7 +114,15 @@ do_test (void)
     merror ("errno is not set correctly.");
   DIAG_POP_NEEDS_COMMENT;
 
+#if __GNUC_PREREQ (12, 0)
+  /* Ignore a valid warning about using a pointer made indeterminate
+     by a prior call to realloc().  */
+  DIAG_IGNORE_NEEDS_COMMENT (12, "-Wuse-after-free");
+#endif
   free (p);
+#if __GNUC_PREREQ (12, 0)
+  DIAG_POP_NEEDS_COMMENT;
+#endif
   free (q);
 
   return errors != 0;

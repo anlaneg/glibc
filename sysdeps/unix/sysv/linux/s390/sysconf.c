@@ -1,5 +1,5 @@
 /* Get system parameters, e.g. cache information.  S390/S390x version.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,13 +17,15 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <unistd.h>
-#include <dl-procinfo.h>
+#include <cpu-features.h>
+#include <ldsodefs.h>
+#include <sys/auxv.h>
 
 static long int linux_sysconf (int name);
 
 /* Possible arguments for get_cache_info.
    The values are reflecting the level/attribute/type indications
-   of ecag-instruction (extract cpu attribue).  */
+   of ecag-instruction (extract cpu attribute).  */
 #define CACHE_LEVEL_MAX        8
 #define CACHE_ATTR_LINESIZE    1
 #define CACHE_ATTR_SIZE        2
@@ -44,12 +46,14 @@ get_cache_info (int level, int attr, int type)
       || type < CACHE_TYPE_DATA || type > CACHE_TYPE_INSTRUCTION)
     return 0L;
 
+  const struct cpu_features *features = &GLRO(dl_s390_cpu_features);
+
   /* Check if ecag-instruction is available.
      ecag - extract CPU attribute (only in zarch; arch >= z10; in as 2.24)  */
-  if (!(GLRO (dl_hwcap) & HWCAP_S390_STFLE)
+  if (!(features->hwcap & HWCAP_S390_STFLE)
 #if !defined __s390x__
-      || !(GLRO (dl_hwcap) & HWCAP_S390_ZARCH)
-      || !(GLRO (dl_hwcap) & HWCAP_S390_HIGH_GPRS)
+      || !(features->hwcap & HWCAP_S390_ZARCH)
+      || !(features->hwcap & HWCAP_S390_HIGH_GPRS)
 #endif /* !__s390x__ */
       )
     {
@@ -62,25 +66,7 @@ get_cache_info (int level, int attr, int type)
 	return 0L;
     }
 
-  /* Store facility list and check for z10.
-     (see ifunc-resolver for details)  */
-  register unsigned long reg0 __asm__("0") = 0;
-#ifdef __s390x__
-  unsigned long stfle_bits;
-# define STFLE_Z10_MASK (1UL << (63 - 34))
-#else
-  unsigned long long stfle_bits;
-# define STFLE_Z10_MASK (1ULL << (63 - 34))
-#endif /* !__s390x__ */
-  __asm__ __volatile__(".machine push"        "\n\t"
-		       ".machinemode \"zarch_nohighgprs\"\n\t"
-		       ".machine \"z9-109\""  "\n\t"
-		       "stfle %0"             "\n\t"
-		       ".machine pop"         "\n"
-		       : "=QS" (stfle_bits), "+d" (reg0)
-		       : : "cc");
-
-  if (!(stfle_bits & STFLE_Z10_MASK))
+  if (!S390_IS_Z10 (features->stfle_orig))
     {
       /* We are at least on a z9 machine.
 	 Return 256byte for LINESIZE for L1 d/i-cache,

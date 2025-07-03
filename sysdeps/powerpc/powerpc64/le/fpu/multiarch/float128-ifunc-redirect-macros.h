@@ -1,5 +1,5 @@
 /* _Float128 aliasing macro support for ifunc generation on PPC.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@
      Redirect func to a function named function ## variant ## reentrant_suffix
 
    F128_REDIR(function)
-     Convience wrapper for F128_REDIR_R where function does not require
+     Convenience wrapper for F128_REDIR_R where function does not require
      a suffix argument.
 
 */

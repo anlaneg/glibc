@@ -1,4 +1,4 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -48,7 +48,7 @@
 #define _HURD_H_EXTERN_INLINE __extern_inline
 #endif
 
-extern int __hurd_fail (error_t err);
+extern int __hurd_fail (error_t err) __COLD;
 
 #ifdef __USE_EXTERN_INLINES
 _HURD_H_EXTERN_INLINE int
@@ -350,12 +350,12 @@ extern int hurd_check_cancel (void);
 
 extern io_t __getdport (int fd), getdport (int fd);
 
-
+#define __need___va_list
 #include <stdarg.h>
 
 /* Write formatted output to PORT, a Mach port supporting the i/o protocol,
    according to the format string FORMAT, using the argument list in ARG.  */
-int vpprintf (io_t port, const char *format, va_list arg);
+int vpprintf (io_t port, const char *format, __gnuc_va_list arg);
 
 
 #endif	/* hurd.h */

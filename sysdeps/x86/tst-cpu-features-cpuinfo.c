@@ -1,6 +1,6 @@
 /* Test CPU feature data against /proc/cpuinfo.
    This file is part of the GNU C Library.
-   Copyright (C) 2012-2021 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -96,6 +96,11 @@ check_proc (const char *proc_name, const char *search_name, int flag,
 	      CPU_FEATURE_USABLE (name), \
 	      "HAS_CPU_FEATURE (" #name ")")
 
+#define CHECK_PROC_ACTIVE(str, name) \
+  check_proc (#str, " "#str" ", CPU_FEATURE_USABLE (name), \
+	      CPU_FEATURE_USABLE (name), \
+	      "CPU_FEATURE_USABLE (" #name ")")
+
 static int
 do_test (int argc, char **argv)
 {
@@ -169,7 +174,14 @@ do_test (int argc, char **argv)
   else if (cpu_features->basic.kind == arch_kind_amd)
     {
       fails += CHECK_PROC (ibpb, AMD_IBPB);
-      fails += CHECK_PROC (ibrs, AMD_IBRS);
+
+      /* The IBRS feature on AMD processors is reported using the Intel feature
+       * on KVM guests (synthetic bit).  In both cases the cpuinfo entry is the
+       * same.  */
+      if (HAS_CPU_FEATURE (IBRS_IBPB))
+        fails += CHECK_PROC (ibrs, IBRS_IBPB);
+      else
+        fails += CHECK_PROC (ibrs, AMD_IBRS);
       fails += CHECK_PROC (stibp, AMD_STIBP);
     }
   fails += CHECK_PROC (ibt, IBT);
@@ -210,8 +222,14 @@ do_test (int argc, char **argv)
   fails += CHECK_PROC (pku, PKU);
   fails += CHECK_PROC (popcnt, POPCNT);
   fails += CHECK_PROC (3dnowprefetch, PREFETCHW);
+#if 0
+  /* NB: /proc/cpuinfo doesn't report this feature.  */
   fails += CHECK_PROC (prefetchwt1, PREFETCHWT1);
+#endif
+#if 0
+  /* NB: /proc/cpuinfo doesn't report this feature.  */
   fails += CHECK_PROC (ptwrite, PTWRITE);
+#endif
   fails += CHECK_PROC (pse, PSE);
   fails += CHECK_PROC (pse36, PSE_36);
   fails += CHECK_PROC (psn, PSN);
@@ -228,7 +246,7 @@ do_test (int argc, char **argv)
   fails += CHECK_PROC (sgx, SGX);
   fails += CHECK_PROC (sgx_lc, SGX_LC);
   fails += CHECK_PROC (sha_ni, SHA);
-  fails += CHECK_PROC (shstk, SHSTK);
+  fails += CHECK_PROC (user_shstk, SHSTK);
   fails += CHECK_PROC (smap, SMAP);
   fails += CHECK_PROC (smep, SMEP);
   fails += CHECK_PROC (smx, SMX);
@@ -276,7 +294,10 @@ do_test (int argc, char **argv)
   fails += CHECK_PROC (waitpkg, WAITPKG);
   fails += CHECK_PROC (wbnoinvd, WBNOINVD);
   fails += CHECK_PROC (x2apic, X2APIC);
+#if 0
+  /* NB: /proc/cpuinfo doesn't report this feature.  */
   fails += CHECK_PROC (xfd, XFD);
+#endif
   fails += CHECK_PROC (xgetbv1, XGETBV_ECX_1);
   fails += CHECK_PROC (xop, XOP);
   fails += CHECK_PROC (xsave, XSAVE);
@@ -284,6 +305,8 @@ do_test (int argc, char **argv)
   fails += CHECK_PROC (xsaveopt, XSAVEOPT);
   fails += CHECK_PROC (xsaves, XSAVES);
   fails += CHECK_PROC (xtpr, XTPRUPDCTRL);
+
+  fails += CHECK_PROC_ACTIVE (fsgsbase, FSGSBASE);
 
   printf ("%d differences between /proc/cpuinfo and glibc code.\n", fails);
 

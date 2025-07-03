@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -41,7 +41,7 @@ asctime_internal (const struct tm *tp, char *buf, size_t buflen)
 
   /* We limit the size of the year which can be printed.  Using the %d
      format specifier used the addition of 1900 would overflow the
-     number and a negative vaue is printed.  For some architectures we
+     number and a negative value is printed.  For some architectures we
      could in theory use %ld or an evern larger integer format but
      this would mean the output needs more space.  This would not be a
      problem if the 'asctime_r' interface would be defined sanely and

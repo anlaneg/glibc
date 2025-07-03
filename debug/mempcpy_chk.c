@@ -1,9 +1,8 @@
 /* Copy memory to memory until the specified number of bytes
    has been copied, return pointer to following byte, with error checking.
    Overlap is NOT handled correctly.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -30,3 +29,4 @@ __mempcpy_chk (void *dstpp, const void *srcpp, size_t len, size_t dstlen)
 
   return __mempcpy (dstpp, srcpp, len);
 }
+libc_hidden_builtin_def (__mempcpy_chk)

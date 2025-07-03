@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -245,7 +245,7 @@ static void
 mask_ad_bit (struct resolv_context *ctx, void *buf)
 {
   if (!(ctx->resp->options & RES_TRUSTAD))
-    ((HEADER *) buf)->ad = 0;
+    ((UHEADER *) buf)->ad = 0;
 }
 
 int
@@ -440,8 +440,13 @@ context_send_common (struct resolv_context *ctx,
       RES_SET_H_ERRNO (&_res, NETDB_INTERNAL);
       return -1;
     }
-  int result = __res_context_send (ctx, buf, buflen, NULL, 0, ans, anssiz,
-				   NULL, NULL, NULL, NULL, NULL);
+
+  int result;
+  if (__res_handle_no_aaaa (ctx, buf, buflen, ans, anssiz, &result))
+    return result;
+
+  result = __res_context_send (ctx, buf, buflen, NULL, 0, ans, anssiz,
+			       NULL, NULL, NULL, NULL, NULL);
   __resolv_context_put (ctx);
   return result;
 }
@@ -562,9 +567,9 @@ send_vc(res_state statp,
 	int *terrno, int ns, u_char **anscp, u_char **ansp2, int *anssizp2,
 	int *resplen2, int *ansp2_malloced)
 {
-	const HEADER *hp = (HEADER *) buf;
-	const HEADER *hp2 = (HEADER *) buf2;
-	HEADER *anhp = (HEADER *) *ansp;
+	const UHEADER *hp = (UHEADER *) buf;
+	const UHEADER *hp2 = (UHEADER *) buf2;
+	UHEADER *anhp = (UHEADER *) *ansp;
 	struct sockaddr *nsap = __res_get_nsaddr (statp, ns);
 	int truncating, connreset, n;
 	/* On some architectures compiler might emit a warning indicating
@@ -701,7 +706,7 @@ send_vc(res_state statp,
 		thisansp = ansp2;
 		thisresplenp = resplen2;
 	}
-	anhp = (HEADER *) *thisansp;
+	anhp = (UHEADER *) *thisansp;
 
 	*thisresplenp = rlen;
 	/* Is the answer buffer too small?  */
@@ -722,7 +727,7 @@ send_vc(res_state statp,
 			*thisansp = newp;
 			if (thisansp == ansp2)
 			  *ansp2_malloced = 1;
-			anhp = (HEADER *) newp;
+			anhp = (UHEADER *) newp;
 			/* A uint16_t can't be larger than MAXPACKET
 			   thus it's safe to allocate MAXPACKET but
 			   read RLEN bytes instead.  */
@@ -929,8 +934,8 @@ send_dg(res_state statp,
 	int *terrno, int ns, int *v_circuit, int *gotsomewhere, u_char **anscp,
 	u_char **ansp2, int *anssizp2, int *resplen2, int *ansp2_malloced)
 {
-	const HEADER *hp = (HEADER *) buf;
-	const HEADER *hp2 = (HEADER *) buf2;
+	const UHEADER *hp = (UHEADER *) buf;
+	const UHEADER *hp2 = (UHEADER *) buf2;
 	struct timespec now, timeout, finish;
 	struct pollfd pfd[1];
 	int ptimeout;
@@ -946,9 +951,11 @@ send_dg(res_state statp,
 		seconds /= statp->nscount;
 	if (seconds <= 0)
 		seconds = 1;
-	bool single_request_reopen = (statp->options & RES_SNGLKUPREOP) != 0;
-	bool single_request = (((statp->options & RES_SNGLKUP) != 0)
-			       | single_request_reopen);
+	bool single_request_reopen = ((statp->options & RES_SNGLKUPREOP)
+				      || (statp->_flags & RES_F_SNGLKUPREOP));
+	bool single_request = ((statp->options & RES_SNGLKUP)
+			       || (statp->_flags & RES_F_SNGLKUP)
+			       || single_request_reopen);
 	int save_gotsomewhere = *gotsomewhere;
 
 	int retval;
@@ -1005,14 +1012,14 @@ send_dg(res_state statp,
 		       have received the first answer.  */
 		    if (!single_request)
 		      {
-			statp->options |= RES_SNGLKUP;
+			statp->_flags |= RES_F_SNGLKUP;
 			single_request = true;
 			*gotsomewhere = save_gotsomewhere;
 			goto retry;
 		      }
 		    else if (!single_request_reopen)
 		      {
-			statp->options |= RES_SNGLKUPREOP;
+			statp->_flags |= RES_F_SNGLKUPREOP;
 			single_request_reopen = true;
 			*gotsomewhere = save_gotsomewhere;
 			__res_iclose (statp, false);
@@ -1173,7 +1180,7 @@ send_dg(res_state statp,
 		   MSG_TRUNC which is only available on Linux.  We
 		   can abstract out the Linux-specific feature in the
 		   future to detect truncation.  */
-		HEADER *anhp = (HEADER *) *thisansp;
+		UHEADER *anhp = (UHEADER *) *thisansp;
 		socklen_t fromlen = sizeof(struct sockaddr_in6);
 		assert (sizeof(from) <= fromlen);
 		*thisresplenp = __recvfrom (pfd[0].fd, (char *) *thisansp,
@@ -1197,19 +1204,30 @@ send_dg(res_state statp,
 		}
 
 		/* Check for the correct header layout and a matching
-		   question.  */
+		   question.  Some recursive resolvers send REFUSED
+		   without copying back the question section
+		   (producing a response that is only HFIXEDSZ bytes
+		   long).  Skip query matching in this case.  */
+		bool thisansp_error = (anhp->rcode == SERVFAIL ||
+				       anhp->rcode == NOTIMP ||
+				       anhp->rcode == REFUSED);
+		bool skip_query_match = (*thisresplenp == HFIXEDSZ
+					 && ntohs (anhp->qdcount) == 0
+					 && thisansp_error);
 		int matching_query = 0; /* Default to no matching query.  */
 		if (!recvresp1
 		    && anhp->id == hp->id
-		    && __libc_res_queriesmatch (buf, buf + buflen,
-						*thisansp,
-						*thisansp + *thisanssizp))
+		    && (skip_query_match
+			|| __libc_res_queriesmatch (buf, buf + buflen,
+						    *thisansp,
+						    *thisansp + *thisanssizp)))
 		  matching_query = 1;
 		if (!recvresp2
 		    && anhp->id == hp2->id
-		    && __libc_res_queriesmatch (buf2, buf2 + buflen2,
-						*thisansp,
-						*thisansp + *thisanssizp))
+		    && (skip_query_match
+			|| __libc_res_queriesmatch (buf2, buf2 + buflen2,
+						    *thisansp,
+						    *thisansp + *thisanssizp)))
 		  matching_query = 2;
 		if (matching_query == 0)
 		  /* Spurious UDP packet.  Drop it and continue
@@ -1219,25 +1237,40 @@ send_dg(res_state statp,
 		    goto wait;
 		  }
 
-		if (anhp->rcode == SERVFAIL ||
-		    anhp->rcode == NOTIMP ||
-		    anhp->rcode == REFUSED) {
+		if (thisansp_error) {
 		next_ns:
-			if (recvresp1 || (buf2 != NULL && recvresp2)) {
-			  *resplen2 = 0;
-			  return resplen;
-			}
-			if (buf2 != NULL)
-			  {
-			    /* No data from the first reply.  */
-			    resplen = 0;
-			    /* We are waiting for a possible second reply.  */
-			    if (matching_query == 1)
-			      recvresp1 = 1;
-			    else
-			      recvresp2 = 1;
+		        /* Outside of strict-error mode, use the first
+			   response even if the second response is an
+			   error.  This allows parallel resolution to
+			   succeed even if the recursive resolver
+			   always answers with SERVFAIL for AAAA
+			   queries (which still happens in practice
+			   unfortunately).
 
-			    goto wait;
+			   In strict-error mode, always switch to the
+			   next server and try to get a response from
+			   there.  */
+			if ((statp->options & RES_STRICTERR) == 0)
+			  {
+			    if (recvresp1 || (buf2 != NULL && recvresp2))
+			      {
+				*resplen2 = 0;
+				return resplen;
+			      }
+
+			    if (buf2 != NULL && !single_request)
+			      {
+				/* No data from the first reply.  */
+				resplen = 0;
+				/* We are waiting for a possible
+				   second reply.  */
+				if (matching_query == 1)
+				  recvresp1 = 1;
+				else
+				  recvresp2 = 1;
+
+				goto wait;
+			      }
 			  }
 
 			/* don't retry if called from dig */

@@ -1,5 +1,5 @@
 /* Functionality for reporting test results.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,8 +20,14 @@
 #define SUPPORT_CHECK_H
 
 #include <sys/cdefs.h>
+#include <stddef.h>
 
 __BEGIN_DECLS
+
+/* Record a test failure, print the failure message to standard output
+   and pass the result of 1 through.  */
+#define FAIL(...) \
+  support_print_failure_impl (__FILE__, __LINE__, __VA_ARGS__)
 
 /* Record a test failure, print the failure message to standard output
    and return 1.  */
@@ -171,10 +177,24 @@ void support_test_compare_blob (const void *left,
   (support_test_compare_string (left, right, __FILE__, __LINE__, \
                                 #left, #right))
 
+/* Compare the wide strings LEFT and RIGHT and report a test failure
+   if they are different.  Also report failure if one of the arguments
+   is a null pointer and the other is not.  The strings should be
+   reasonably short because on mismatch, both are printed.  */
+#define TEST_COMPARE_STRING_WIDE(left, right)                         \
+  (support_test_compare_string_wide (left, right, __FILE__, __LINE__, \
+				     #left, #right))
+
 void support_test_compare_string (const char *left, const char *right,
                                   const char *file, int line,
                                   const char *left_expr,
                                   const char *right_expr);
+
+void support_test_compare_string_wide (const wchar_t *left,
+				       const wchar_t *right,
+				       const char *file, int line,
+				       const char *left_expr,
+				       const char *right_expr);
 
 /* Internal function called by the test driver.  */
 int support_report_failure (int status)
@@ -186,6 +206,9 @@ void support_record_failure_reset (void);
 /* Returns true or false depending on whether there have been test
    failures or not.  */
 int support_record_failure_is_failed (void);
+
+/* Terminate the process if any failures have been encountered so far.  */
+void support_record_failure_barrier (void);
 
 __END_DECLS
 

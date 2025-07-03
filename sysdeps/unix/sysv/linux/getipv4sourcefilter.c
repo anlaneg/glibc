@@ -1,7 +1,6 @@
 /* Get IPv4 source filter.  Linux version.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -17,9 +16,9 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#include <alloca.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <scratch_buffer.h>
 #include <string.h>
 #include <stdint.h>
 #include <netinet/in.h>
@@ -34,17 +33,12 @@ getipv4sourcefilter (int s, struct in_addr interface, struct in_addr group,
   /* We have to create an struct ip_msfilter object which we can pass
      to the kernel.  */
   socklen_t needed = IP_MSFILTER_SIZE (*numsrc);
-  int use_alloca = __libc_use_alloca (needed);
 
-  struct ip_msfilter *imsf;
-  if (use_alloca)
-    imsf = (struct ip_msfilter *) alloca (needed);
-  else
-    {
-      imsf = (struct ip_msfilter *) malloc (needed);
-      if (imsf == NULL)
-	return -1;
-    }
+  struct scratch_buffer buf;
+  scratch_buffer_init (&buf);
+  if (!scratch_buffer_set_array_size (&buf, 1, needed))
+    return -1;
+  struct ip_msfilter *imsf = buf.data;
 
   imsf->imsf_multiaddr = group;
   imsf->imsf_interface = interface;
@@ -62,12 +56,7 @@ getipv4sourcefilter (int s, struct in_addr interface, struct in_addr group,
       *numsrc = imsf->imsf_numsrc;
     }
 
-  if (! use_alloca)
-    {
-      int save_errno = errno;
-      free (imsf);
-      __set_errno (save_errno);
-    }
+  scratch_buffer_free (&buf);
 
   return result;
 }

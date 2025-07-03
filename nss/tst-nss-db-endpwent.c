@@ -1,5 +1,5 @@
 /* Test for endpwent->getpwent crash for BZ #24695
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 
 #include <support/support.h>
 #include <support/check.h>
+#include <support/xstdlib.h>
 
 /* It is entirely allowed to start with a getpwent call without
    resetting the state of the service via a call to setpwent.
@@ -55,7 +56,7 @@ do_test (void)
 
   cmd = xasprintf ("%s/makedb -o /var/db/passwd.db /var/db/passwd.in",
 		   support_bindir_prefix);
-  system (cmd);
+  xsystem (cmd);
   free (cmd);
 
   try_it ();

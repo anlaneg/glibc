@@ -1,5 +1,5 @@
 /* Implementation of __nss_parse_line_result.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@ __nss_parse_line_result (FILE *fp, off64_t offset, int parse_line_result)
   switch (__builtin_expect (parse_line_result, 1))
     {
     case 1:
-      /* Sucess.  */
+      /* Success.  */
       return 0;
     case 0:
       /* Parse error.  */

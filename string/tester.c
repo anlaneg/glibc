@@ -1,5 +1,5 @@
 /* Tester for string functions.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,29 +26,50 @@
 #undef __USE_STRING_INLINES
 #endif
 
+#include <sys/cdefs.h>
+#include <libc-diag.h>
+
+/* Triggered by strncpy fortify wrapper when it is enabled.  */
+#if __GNUC_PREREQ (8, 0)
+DIAG_IGNORE_NEEDS_COMMENT (8, "-Wstringop-truncation");
+#endif
+
+/* When building with fortify enabled, GCC < 12 issues a warning on the
+   fortify strncat wrapper might overflow the destination buffer (the
+   failure is tied to -Werror).
+   Triggered by strncat fortify wrapper when it is enabled.  */
+#if __GNUC_PREREQ (11, 0)
+DIAG_IGNORE_NEEDS_COMMENT (11, "-Wstringop-overread");
+#endif
+
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <fcntl.h>
-#include <libc-diag.h>
+
+static __typeof (bzero) * volatile bzero_indirect = bzero;
+static __typeof (memset) * volatile memset_indirect = memset;
+
+#undef bzero
+#undef memset
+
+#define bzero bzero_indirect
+#define memset memset_indirect
 
 /* This file tests a range of corner cases of string functions,
    including cases where truncation occurs or where sizes specified
    are larger than the actual buffers, which result in various
    warnings.  */
 DIAG_IGNORE_NEEDS_COMMENT (8, "-Warray-bounds");
+#if __GNUC_PREREQ (5, 0)
 DIAG_IGNORE_NEEDS_COMMENT (5.0, "-Wmemset-transposed-args");
+#endif
 #if __GNUC_PREREQ (7, 0)
 DIAG_IGNORE_NEEDS_COMMENT (9, "-Wrestrict");
 DIAG_IGNORE_NEEDS_COMMENT (7, "-Wstringop-overflow=");
-#endif
-#if __GNUC_PREREQ (8, 0)
-DIAG_IGNORE_NEEDS_COMMENT (8, "-Wstringop-truncation");
-#endif
-#if __GNUC_PREREQ (11, 0)
-DIAG_IGNORE_NEEDS_COMMENT (11, "-Wstringop-overread");
 #endif
 
 
@@ -380,8 +401,17 @@ test_strncat (void)
 
   (void) strcpy (one, "gh");
   (void) strcpy (two, "ef");
+  /* When building with fortify enabled, GCC 6 issues an warning the fortify
+     wrapper might overflow the destination buffer.  However, GCC does not
+     provide a specific flag to disable the warning (the failure is tied to
+     -Werror).  So to avoid disable all errors, only enable the check for
+     GCC 7 or newer.  */
+#if __GNUC_PREREQ (7, 0)
   (void) strncat (one, two, 99);
   equal (one, "ghef", 5);			/* Basic test encore. */
+#else
+  equal (one, "gh", 2);
+#endif
   equal (two, "ef", 6);			/* Stomped on source? */
 
   (void) strcpy (one, "");
@@ -529,7 +559,7 @@ test_strlen (void)
     char *p;
     for (i=0; i < 0x100; i++)
       {
-	p = (char *) ((unsigned long int)(buf + 0xff) & ~0xff) + i;
+	p = (char *) ((uintptr_t)(buf + 0xff) & ~0xff) + i;
 	strcpy (p, "OK");
 	strcpy (p+3, "BAD/WRONG");
 	check (strlen (p) == 2, 4+i);
@@ -554,7 +584,7 @@ test_strnlen (void)
   char buf[4096];
   for (int i = 0; i < 0x100; ++i)
     {
-      char *p = (char *) ((unsigned long int)(buf + 0xff) & ~0xff) + i;
+      char *p = (char *) ((uintptr_t)(buf + 0xff) & ~0xff) + i;
       strcpy (p, "OK");
       strcpy (p + 3, "BAD/WRONG");
       check (strnlen (p, 100) == 2, 10 + i);
@@ -582,7 +612,7 @@ test_strchr (void)
     char *p;
     for (i=0; i < 0x100; i++)
       {
-	p = (char *) ((unsigned long int) (buf + 0xff) & ~0xff) + i;
+	p = (char *) ((uintptr_t) (buf + 0xff) & ~0xff) + i;
 	strcpy (p, "OK");
 	strcpy (p+3, "BAD/WRONG");
 	check (strchr (p, '/') == NULL, 9+i);
@@ -614,7 +644,7 @@ test_strchrnul (void)
     char *p;
     for (i=0; i < 0x100; i++)
       {
-	p = (char *) ((unsigned long int) (buf + 0xff) & ~0xff) + i;
+	p = (char *) ((uintptr_t) (buf + 0xff) & ~0xff) + i;
 	strcpy (p, "OK");
 	strcpy (p+3, "BAD/WRONG");
 	cp = strchrnul (p, '/');
@@ -643,7 +673,7 @@ test_rawmemchr (void)
     char *p;
     for (i=0; i < 0x100; i++)
       {
-	p = (char *) ((unsigned long int) (buf + 0xff) & ~0xff) + i;
+	p = (char *) ((uintptr_t) (buf + 0xff) & ~0xff) + i;
 	strcpy (p, "OK");
 	strcpy (p+3, "BAD/WRONG");
 	check (rawmemchr (p, 'R') == p+8, 6+i);
@@ -689,7 +719,7 @@ test_strrchr (void)
     char *p;
     for (i=0; i < 0x100; i++)
       {
-	p = (char *) ((unsigned long int) (buf + 0xff) & ~0xff) + i;
+	p = (char *) ((uintptr_t) (buf + 0xff) & ~0xff) + i;
 	strcpy (p, "OK");
 	strcpy (p+3, "BAD/WRONG");
 	check (strrchr (p, '/') == NULL, 9+i);
@@ -1450,6 +1480,19 @@ test_bcmp (void)
 }
 
 static void
+test_memcmpeq (void)
+{
+  it = "__memcmpeq";
+  check (__memcmpeq ("a", "a", 1) == 0, 1); /* Identity.  */
+  check (__memcmpeq ("abc", "abc", 3) == 0, 2); /* Multicharacter.  */
+  check (__memcmpeq ("abcd", "abce", 4) != 0, 3); /* Honestly unequal.  */
+  check (__memcmpeq ("abce", "abcd", 4) != 0, 4);
+  check (__memcmpeq ("alph", "beta", 4) != 0, 5);
+  check (__memcmpeq ("abce", "abcd", 3) == 0, 6); /* Count limited.  */
+  check (__memcmpeq ("abc", "def", 0) == 0, 8); /* Zero count.  */
+}
+
+static void
 test_strerror (void)
 {
   it = "strerror";
@@ -1611,6 +1654,9 @@ main (void)
   /* bcmp - somewhat like memcmp.  */
   test_bcmp ();
 
+  /* __memcmpeq - somewhat like memcmp.  */
+  test_memcmpeq ();
+
   /* strndup.  */
   test_strndup ();
 
@@ -1631,7 +1677,7 @@ main (void)
   else
     {
       status = EXIT_FAILURE;
-      printf("%Zd errors.\n", errors);
+      printf("%zd errors.\n", errors);
     }
 
   return status;

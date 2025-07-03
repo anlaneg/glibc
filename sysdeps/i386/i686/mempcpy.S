@@ -1,8 +1,7 @@
 /* Copy memory block and return pointer to following byte.
    For Intel 80x86, x>=6.
    This file is part of the GNU C Library.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -28,12 +27,13 @@
 #define LEN	SRC+4
 
 	.text
-#if defined PIC && IS_IN (libc)
+#if defined SHARED && IS_IN (libc)
 ENTRY_CHK (__mempcpy_chk)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
 	jb	HIDDEN_JUMPTARGET (__chk_fail)
 END_CHK (__mempcpy_chk)
+libc_hidden_builtin_def (__mempcpy_chk)
 #endif
 ENTRY (__mempcpy)
 

@@ -1,6 +1,5 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -19,20 +18,26 @@
 #include <limits.h>
 #define ffsl __something_else
 #include <string.h>
-
 #undef	ffsll
+#include <math-use-builtins.h>
+#include <libc-diag.h>
 
 /* Find the first bit set in I.  */
 int
-ffsll (long long int i)
+__ffsll (long long int i)
 {
+#if USE_FFSLL_BUILTIN
+  return __builtin_ffsll (i);
+#else
   unsigned long long int x = i & -i;
 
   if (x <= 0xffffffff)
     return ffs (i);
   else
     return 32 + ffs (i >> 32);
+#endif
 }
+weak_alias (__ffsll, ffsll)
 
 #if ULONG_MAX != UINT_MAX
 #undef ffsl

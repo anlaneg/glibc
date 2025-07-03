@@ -1,5 +1,5 @@
 /* Wrapper for __vfprintf_chk.  IEEE128 version.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
 #include <libio/libioP.h>
 
 extern int
-___ieee128_vfprintf_chk (FILE *fp, int flag, const char *format, va_list ap)
+___ieee128___vfprintf_chk (FILE *fp, int flag, const char *format, va_list ap)
 {
   unsigned int mode = PRINTF_LDBL_USES_FLOAT128;
   if (flag > 0)
@@ -27,4 +27,4 @@ ___ieee128_vfprintf_chk (FILE *fp, int flag, const char *format, va_list ap)
 
   return __vfprintf_internal (fp, format, ap, mode);
 }
-strong_alias (___ieee128_vfprintf_chk, __vfprintf_chkieee128)
+strong_alias (___ieee128___vfprintf_chk, __vfprintf_chkieee128)

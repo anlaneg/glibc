@@ -1,7 +1,6 @@
 /* Conversion module for ISO-2022-CN-EXT.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -155,7 +154,7 @@ enum
 
 
 /* Since we might have to reset input pointer we must be able to save
-   and retore the state.  */
+   and restore the state.  */
 #define SAVE_RESET_STATE(Save) \
   if (Save)								      \
     save_set = *setp;							      \
@@ -575,6 +574,12 @@ DIAG_IGNORE_Os_NEEDS_COMMENT (5, "-Wmaybe-uninitialized");
 	      {								      \
 		const char *escseq;					      \
 									      \
+		if (outptr + 4 > outend)				      \
+		  {							      \
+		    result = __GCONV_FULL_OUTPUT;			      \
+		    break;						      \
+		  }							      \
+									      \
 		assert (used == CNS11643_2_set); /* XXX */		      \
 		escseq = "*H";						      \
 		*outptr++ = ESC;					      \
@@ -587,6 +592,12 @@ DIAG_IGNORE_Os_NEEDS_COMMENT (5, "-Wmaybe-uninitialized");
 	    else if ((used & SS3_mask) != 0 && (ann & SS3_ann) != (used << 8))\
 	      {								      \
 		const char *escseq;					      \
+									      \
+		if (outptr + 4 > outend)				      \
+		  {							      \
+		    result = __GCONV_FULL_OUTPUT;			      \
+		    break;						      \
+		  }							      \
 									      \
 		assert ((used >> 5) >= 3 && (used >> 5) <= 7);		      \
 		escseq = "+I+J+K+L+M" + ((used >> 5) - 3) * 2;		      \

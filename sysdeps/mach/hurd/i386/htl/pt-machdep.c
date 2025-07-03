@@ -1,5 +1,5 @@
 /* Machine dependent pthreads code.  Hurd/i386 version.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
 #include <errno.h>
 
 #include <mach.h>
-#include <mach/i386/thread_status.h>
+#include <mach/machine/thread_status.h>
 #include <mach/i386/mach_i386.h>
 #include <mach/mig_errors.h>
 #include <mach/thread_status.h>

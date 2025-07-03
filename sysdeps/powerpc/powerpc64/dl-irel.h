@@ -1,6 +1,6 @@
 /* Machine-dependent ELF indirect relocation inline functions.
    PowerPC64 version.
-   Copyright (C) 2009-2021 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <ldsodefs.h>
-#include <dl-machine.h>
+#include <dl-funcdesc.h>
 
 #define ELF_MACHINE_IRELA	1
 

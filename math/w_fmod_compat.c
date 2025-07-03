@@ -1,6 +1,5 @@
-/* Copyright (C) 2011-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gmail.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -21,10 +20,10 @@
 #include <math-svid-compat.h>
 #include <libm-alias-double.h>
 
-#if LIBM_SVID_COMPAT
+#if LIBM_SVID_COMPAT && SHLIB_COMPAT (libm, GLIBC_2_0, GLIBC_2_38)
 /* wrapper fmod */
 double
-__fmod (double x, double y)
+__fmod_compat (double x, double y)
 {
   if (__builtin_expect (isinf (x) || y == 0.0, 0)
       && _LIB_VERSION != _IEEE_ && !isnan (y) && !isnan (x))
@@ -33,5 +32,12 @@ __fmod (double x, double y)
 
   return __ieee754_fmod (x, y);
 }
-libm_alias_double (__fmod, fmod)
+compat_symbol (libm, __fmod_compat, fmod, GLIBC_2_0);
+# ifdef NO_LONG_DOUBLE
+weak_alias (__fmod_compat, fmodl)
+# endif
+# ifdef LONG_DOUBLE_COMPAT
+LONG_DOUBLE_COMPAT_CHOOSE_libm_fmodl (
+  compat_symbol (libm, __fmod_compat, fmodl, FIRST_VERSION_libm_fmodl), );
+# endif
 #endif

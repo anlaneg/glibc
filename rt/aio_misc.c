@@ -1,7 +1,6 @@
 /* Handle general operations.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -372,7 +371,7 @@ __aio_enqueue_request (aiocb_union *aiocbp, int operation)
       /* The current file descriptor is worked on.  It makes no sense
 	 to start another thread since this new thread would fight
 	 with the running thread for the resources.  But we also cannot
-	 say that the thread processing this desriptor shall immediately
+	 say that the thread processing this descriptor shall immediately
 	 after finishing the current job process this request if there
 	 are other threads in the running queue which have a higher
 	 priority.  */
@@ -695,11 +694,15 @@ handle_fildes_io (void *arg)
 
 
 /* Free allocated resources.  */
-libc_freeres_fn (free_res)
+#if !PTHREAD_IN_LIBC
+__attribute__ ((__destructor__)) static
+#endif
+void
+__aio_freemem (void)
 {
   size_t row;
 
-  for (row = 0; row < pool_max_size; ++row)
+  for (row = 0; row < pool_size; ++row)
     free (pool[row]);
 
   free (pool);

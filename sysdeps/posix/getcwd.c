@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -186,6 +186,13 @@ __getcwd_generic (char *buf, size_t size)
   struct __stat64_t64 st;
   size_t allocated = size;
   size_t used;
+
+  /* A size of 1 byte is never useful.  */
+  if (allocated == 1)
+    {
+      __set_errno (ERANGE);
+      return NULL;
+    }
 
 #if HAVE_MINIMALLY_WORKING_GETCWD
   /* If AT_FDCWD is not defined, the algorithm below is O(N**2) and

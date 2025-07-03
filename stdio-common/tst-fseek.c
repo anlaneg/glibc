@@ -1,7 +1,6 @@
 /* Tests of fseek and fseeko.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,6 +25,7 @@
 #include <time.h>
 #include <sys/stat.h>
 
+#include <support/support.h>
 
 static int
 do_test (void)
@@ -45,9 +45,7 @@ do_test (void)
   if (tmpdir == NULL || tmpdir[0] == '\0')
     tmpdir = "/tmp";
 
-  asprintf (&fname, "%s/tst-fseek.XXXXXX", tmpdir);
-  if (fname == NULL)
-    error (EXIT_FAILURE, errno, "cannot generate name for temporary file");
+  fname = xasprintf ("%s/tst-fseek.XXXXXX", tmpdir);
 
   /* Create a temporary file.   */
   fd = mkstemp (fname);

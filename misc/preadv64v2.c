@@ -1,5 +1,5 @@
 /* Default implementation of preadv2 (LFS version).
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
 #include <errno.h>
 #include <sys/uio.h>
 
-/* Same as preadv64 but with an addional flag argument.  */
+/* Same as preadv64 but with an additional flag argument.  */
 ssize_t
 preadv64v2 (int fd, const struct iovec *vector, int count, off64_t offset,
 	    int flags)

@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of strstr.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -49,7 +49,7 @@ ENTRY(STRSTR_ARCH13)
 #  error The arch13 variant of strstr needs the z13 variant of strstr!
 # endif
 	clgfi	%r4,9
-	jh	STRSTR_Z13
+	jgh	STRSTR_Z13
 
 	/* In case of a partial match, the vstrs instruction returns the index
 	   of the partial match in a vector-register.  Then we have to

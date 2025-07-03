@@ -1,5 +1,5 @@
 /* PLT trampolines.  Sparc 32-bit version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -47,6 +47,7 @@ _dl_runtime_resolve:
 
 	.size	_dl_runtime_resolve, .-_dl_runtime_resolve
 
+#ifdef SHARED
 	/* For the profiling cases we pass in our stack frame
 	 * as the base of the La_sparc32_regs, so it looks
 	 * like:
@@ -127,7 +128,7 @@ _dl_profile_invoke:
 	mov	%l5, %o0
 	mov	%l6, %o1
 	add	%sp, (11 * 8), %o2
-	call	_dl_call_pltexit
+	call	_dl_audit_pltexit
 	 add	%sp, ( 9 * 8), %o3
 
 	ldd	[%sp + ( 9 * 8)], %i0
@@ -185,3 +186,4 @@ _dl_runtime_profile:
 	cfi_endproc
 
 	.size	_dl_runtime_profile, .-_dl_runtime_profile
+#endif

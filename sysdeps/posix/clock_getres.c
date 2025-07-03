@@ -1,5 +1,5 @@
 /* clock_getres -- Get the resolution of a POSIX clockid_t.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -34,8 +34,11 @@ realtime_getres (struct timespec *res)
       /* This implementation assumes that the realtime clock has a
 	 resolution higher than 1 second.  This is the case for any
 	 reasonable implementation.  */
-      res->tv_sec = 0;
-      res->tv_nsec = 1000000000 / clk_tck;
+      if (res)
+	{
+	  res->tv_sec = 0;
+	  res->tv_nsec = 1000000000 / clk_tck;
+	}
       return 0;
     }
 

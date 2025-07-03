@@ -1,7 +1,6 @@
 /* Thread-local storage handling in the ELF dynamic linker.  m68k version.
-   Copyright (C) 2010-2021 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Maxim Kuvyrkov <maxim@codesourcery.com>, 2010.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -29,5 +28,5 @@ void *
 __tls_get_addr (tls_index *ti)
 {
   dtv_t *dtv = THREAD_DTV ();
-  return (char *) dtv[1].pointer.val + GET_ADDR_OFFSET;
+  return (char *) dtv[1].pointer.val + ti->ti_offset + TLS_DTV_OFFSET;
 }

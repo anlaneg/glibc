@@ -1,5 +1,5 @@
 /* Data for vDSO support.  Linux version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
    and shared (rtld) modes:
 
    1. PROCINFO_DECL is defined, meaning we are only interested in
-      declarations.  For static it requires use the extern keywork along with
+      declarations.  For static it requires use the extern keyword along with
       the attribute_relro while for shared it will be embedded in the
       rtld_global_ro.
 
@@ -66,22 +66,26 @@ PROCINFO_CLASS int (*_dl_vdso_clock_getres) (clockid_t,
 PROCINFO_CLASS int (*_dl_vdso_clock_getres_time64) (clockid_t,
 						    struct __timespec64 *) RELRO;
 # endif
+# ifdef HAVE_GETRANDOM_VSYSCALL
+PROCINFO_CLASS ssize_t (*_dl_vdso_getrandom) (void *buffer, size_t len,
+                                              unsigned int flags, void *state,
+                                              size_t state_len) RELRO;
+# endif
 
 /* PowerPC specific ones.  */
 # ifdef HAVE_GET_TBFREQ
 PROCINFO_CLASS uint64_t (*_dl_vdso_get_tbfreq)(void) RELRO;
 # endif
-/* The sigtramp are used on powerpc backtrace without using
-   INLINE_VSYSCALL, so there is no need to set their type.  */
-# ifdef HAVE_SIGTRAMP_RT64
-PROCINFO_CLASS void *_dl_vdso_sigtramp_rt64 RELRO;
+
+/* RISC-V specific ones.  */
+# ifdef HAVE_RISCV_HWPROBE
+PROCINFO_CLASS int (*_dl_vdso_riscv_hwprobe)(void *,
+                                             size_t,
+                                             size_t,
+                                             unsigned long *,
+                                             unsigned int) RELRO;
 # endif
-# ifdef HAVE_SIGTRAMP_RT32
-PROCINFO_CLASS void *_dl_vdso_sigtramp_rt32 RELRO;
-# endif
-# ifdef HAVE_SIGTRAMP_32
-PROCINFO_CLASS void *_dl_vdso_sigtramp_32 RELRO;
-# endif
+
 #endif
 
 #undef RELRO

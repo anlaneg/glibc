@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.org>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -23,7 +22,7 @@
 #include <wchar.h>
 #include <wcsmbsload.h>
 
-#include <sysdep.h>
+#include <pointer_guard.h>
 
 #ifndef EILSEQ
 # define EILSEQ EINVAL
@@ -63,10 +62,8 @@ __wcsnrtombs (char *dst, const wchar_t **src, size_t nwc, size_t len,
   /* Get the structure with the function pointers.  */
   tomb = fcts->tomb;
   __gconv_fct fct = tomb->__fct;
-#ifdef PTR_DEMANGLE
   if (tomb->__shlib_handle != NULL)
     PTR_DEMANGLE (fct);
-#endif
 
   /* We have to handle DST == NULL special.  */
   if (dst == NULL)

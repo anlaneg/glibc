@@ -1,6 +1,6 @@
 /* Optimized strnlen implementation for POWER8 using a vmx loop.
 
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -166,7 +166,7 @@ L(loop_64B):
 	vminub	v6,v3,v4
 	vminub	v7,v5,v6
 	vcmpequb. v7,v7,v0		/* Check for null bytes.  */
-	addi	r5,r5,64		/* Add pointer to next iteraction.  */
+	addi	r5,r5,64		/* Add pointer to next iteration.  */
 	bne	cr6,L(found_64B)	/* If found null bytes.  */
 	bdnz	L(loop_64B)		/* Continue the loop if count > 0. */
 

@@ -1,5 +1,5 @@
 /* hairy bits of Hurd file name lookup
-   Copyright (C) 1992-2021 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <_itoa.h>
-#include <eloop-threshold.h>
+#include <min-eloop-threshold.h>
 #include <unistd.h>
 
 /* Translate the error from dir_lookup into the error the user sees.  */
@@ -53,7 +53,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 				  retry_type *do_retry, string_t retry_name,
 				  mach_port_t *result),
 			       enum retry_type doretry,
-			       char retryname[1024],
+			       string_t retryname,
 			       int flags, mode_t mode,
 			       file_t *result)
 {
@@ -113,7 +113,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 	  /* Fall through.  */
 
 	case FS_RETRY_NORMAL:
-	  if (nloops++ >= __eloop_threshold ())
+	  if (nloops++ >= MIN_ELOOP_THRESHOLD)
 	    {
 	      __mach_port_deallocate (__mach_task_self (), *result);
 	      err = ELOOP;
@@ -144,7 +144,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 		     refusing symlinks while accepting mount points.
 		     Note that we actually permit something Linux doesn't:
 		     we follow root-owned symlinks; if that is deemed
-		     undesireable, we can add a final check for that
+		     undesirable, we can add a final check for that
 		     one exception to our general translator-based rule.  */
 		  struct stat64 st;
 		  err = __io_stat (*result, &st);
@@ -162,7 +162,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 			    {
 			      char buf[1024];
 			      char *trans = buf;
-			      size_t translen = sizeof buf;
+			      mach_msg_type_number_t translen = sizeof buf;
 			      err = __file_get_translator (*result,
 							   &trans, &translen);
 			      if (!err
@@ -177,7 +177,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 
 	      /* We got a successful translation.  Now apply any open-time
 		 action flags we were passed.  */
-
+#if !IS_IN (rtld)
 	      if (!err && (flags & O_TRUNC))
 		{
 		  /* Asked to truncate the file.  */
@@ -189,6 +189,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 		      __file_utimens (*result, atime, mtime);
 		    }
 		}
+#endif
 
 	      if (err)
 		__mach_port_deallocate (__mach_task_self (), *result);
@@ -206,7 +207,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 	      dirport = INIT_PORT_CRDIR;
 	      if (*result != MACH_PORT_NULL)
 		__mach_port_deallocate (__mach_task_self (), *result);
-	      if (nloops++ >= __eloop_threshold ())
+	      if (nloops++ >= MIN_ELOOP_THRESHOLD)
 		{
 		  err = ELOOP;
 		  goto out;
@@ -214,6 +215,7 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 	      file_name = &retryname[1];
 	      break;
 
+#if !IS_IN (rtld)
 	    case 'f':
 	      if (retryname[1] == 'd' && retryname[2] == '/')
 		{
@@ -275,7 +277,6 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 		  error_t err;
 		  struct host_basic_info hostinfo;
 		  mach_msg_type_number_t hostinfocnt = HOST_BASIC_INFO_COUNT;
-		  char *p;
 		  /* XXX want client's host */
 		  if (err = __host_info (__mach_host_self (), HOST_BASIC_INFO,
 					 (integer_t *) &hostinfo,
@@ -286,13 +287,11 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 		      err = EGRATUITOUS;
 		      goto out;
 		    }
-		  p = _itoa (hostinfo.cpu_subtype, &retryname[8], 10, 0);
-		  *--p = '/';
-		  p = _itoa (hostinfo.cpu_type, &retryname[8], 10, 0);
-		  if (p < retryname)
+		  file_name = _itoa (hostinfo.cpu_subtype, &retryname[8], 10, 0);
+		  *--file_name = '/';
+		  file_name = _itoa (hostinfo.cpu_type, file_name, 10, 0);
+		  if (file_name < retryname)
 		    abort ();	/* XXX write this right if this ever happens */
-		  if (p > retryname)
-		    memmove (retryname, p, strlen(p) + 1);
 		  startdir = *result;
 		}
 	      else
@@ -358,8 +357,9 @@ __hurd_file_name_lookup_retry (error_t (*use_init_port)
 		goto bad_magic;
 	      break;
 
-	    default:
 	    bad_magic:
+#endif /* !IS_IN (rtld) */
+	    default:
 	      err = EGRATUITOUS;
 	      goto out;
 	    }

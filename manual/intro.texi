@@ -85,6 +85,7 @@ standards each function or symbol comes from.
 * Berkeley Unix::               BSD and SunOS.
 * SVID::                        The System V Interface Description.
 * XPG::                         The X/Open Portability Guide.
+* Linux Kernel::                The Linux kernel.
 @end menu
 
 @node ISO C, POSIX,  , Standards and Portability
@@ -99,7 +100,7 @@ by the International Standardization Organization (ISO):
 We here refer to the standard as @w{ISO C} since this is the more
 general standard in respect of ratification.
 The header files and library facilities that make up @theglibc{} are
-a superset of those specified by the @w{ISO C} standard.@refill
+a superset of those specified by the @w{ISO C} standard.
 
 @pindex gcc
 If you are concerned about strict adherence to the @w{ISO C} standard, you
@@ -144,7 +145,7 @@ general, the additional requirements and functionality defined by the
 POSIX standards are aimed at providing lower-level support for a
 particular kind of operating system environment, rather than general
 programming language support which can run in many diverse operating
-system environments.@refill
+system environments.
 
 @Theglibc{} implements all of the functions specified in
 @cite{ISO/IEC 9945-1:1996, the POSIX System Application Program
@@ -941,7 +942,7 @@ inter-process communication and shared memory, the @code{hsearch} and
 @code{drand48} families of functions, @code{fmtmsg} and several of the
 mathematical functions.
 
-@node XPG, , SVID, Standards and Portability
+@node XPG, Linux Kernel, SVID, Standards and Portability
 @subsection XPG (The X/Open Portability Guide)
 
 The X/Open Portability Guide, published by the X/Open Company, Ltd., is
@@ -960,6 +961,32 @@ fulfilling the XPG standard with the Unix extensions is a
 precondition for getting the Unix brand chances are good that the
 functionality is available on commercial systems.
 
+@node Linux Kernel, , XPG, Standards and Portability
+@subsection Linux (The Linux Kernel)
+
+@Theglibc{} includes by reference the Linux man-pages
+@value{man_pages_version} documentation to document the listed
+syscalls for the Linux kernel. For reference purposes only, the latest
+@uref{https://www.kernel.org/doc/man-pages/,Linux man-pages Project}
+documentation can be accessed from the
+@uref{https://www.kernel.org,Linux kernel} website.  Where the syscall
+has more specific documentation in this manual that more specific
+documentation is considered authoritative.
+
+Throughout this manual, when we refer to a man page, for example:
+@quotation
+@manpageurl{sendmsg,2}
+@end quotation
+@noindent
+we are referring primarily to the specific version noted above (the
+``normative'' version), typically accessed by running (for example)
+@code{man 2 sendmsg} on a system with that version installed.  For
+convenience, we will also link to the online latest copy of the man
+pages, but keep in mind that version will almost always be newer than,
+and thus different than, the normative version noted above.
+
+Additional details on the Linux system call interface can be found in
+@xref{System Calls}.
 
 @node Using the Library, Roadmap to the Manual, Standards and Portability, Introduction
 @section Using the Library
@@ -1035,7 +1062,7 @@ feature test macro definition (@pxref{Feature Test Macros}).
 
 For more information about the use of header files and @samp{#include}
 directives, @pxref{Header Files,,, cpp.info, The GNU C Preprocessor
-Manual}.@refill
+Manual}.
 
 @Theglibc{} provides several header files, each of which contains
 the type and macro definitions and variable and function declarations
@@ -1294,14 +1321,14 @@ this manual.
 @c Pattern Matching (10)
 @c Input/Output Overview (11)
 @c Input/Output on Streams (12)
-@c Low-level Input/Ooutput (13)
+@c Low-level Input/Output (13)
 @c File System Interface (14)
 @c Pipes and FIFOs (15)
 @c Sockets (16)
 @c Low-Level Terminal Interface (17)
 @c Syslog (18)
 @c Mathematics (19)
-@c Aritmetic Functions (20)
+@c Arithmetic Functions (20)
 @c Date and Time (21)
 @c Non-Local Exist (23)
 @c Signal Handling (24)

@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -82,7 +81,8 @@ libc_locked_map_ptr (, __hst_map_handle) attribute_hidden;
 /* Note that we only free the structure if necessary.  The memory
    mapping is not removed since it is not visible to the malloc
    handling.  */
-libc_freeres_fn (hst_map_free)
+void
+__nscd_hst_map_freemem (void)
 {
   if (__hst_map_handle.mapped != NO_MAPPING)
     {
@@ -113,7 +113,7 @@ __nscd_get_nl_timestamp (void)
   if (map == NULL
       || (map != NO_MAPPING
 	  && map->head->nscd_certainly_running == 0
-	  && map->head->timestamp + MAPPING_TIMEOUT < time_now ()))
+	  && map->head->timestamp + MAPPING_TIMEOUT < time64_now ()))
     map = __nscd_get_mapping (GETFDHST, "hosts", &__hst_map_handle.mapped);
 
   if (map == NO_MAPPING)
@@ -186,7 +186,6 @@ nscd_gethst_r (const char *key, size_t keylen, request_type type,
 	      goto out;
 	    }
 
-#if !_STRING_ARCH_unaligned
 	  /* The aliases_len array in the mapped database might very
 	     well be unaligned.  We will access it word-wise so on
 	     platforms which do not tolerate unaligned accesses we
@@ -200,7 +199,6 @@ nscd_gethst_r (const char *key, size_t keylen, request_type type,
 				    hst_resp.h_aliases_cnt
 				    * sizeof (uint32_t));
 	    }
-#endif
 	  if (type != GETHOSTBYADDR && type != GETHOSTBYNAME)
 	    {
 	      if (hst_resp.h_length == INADDRSZ)
@@ -247,10 +245,9 @@ nscd_gethst_r (const char *key, size_t keylen, request_type type,
       /* A first check whether the buffer is sufficiently large is possible.  */
       /* Now allocate the buffer the array for the group members.  We must
 	 align the pointer and the base of the h_addr_list pointers.  */
-      align1 = ((__alignof__ (char *) - (cp - ((char *) 0)))
+      align1 = ((__alignof__ (char *) - ((uintptr_t) cp))
 		& (__alignof__ (char *) - 1));
-      align2 = ((__alignof__ (char *) - ((cp + align1 + hst_resp.h_name_len)
-					 - ((char *) 0)))
+      align2 = ((__alignof__ (char *) - ((uintptr_t) (cp + align1 + hst_resp.h_name_len)))
 		& (__alignof__ (char *) - 1));
       if (buflen < (align1 + hst_resp.h_name_len + align2
 		    + ((hst_resp.h_aliases_cnt + hst_resp.h_addr_list_cnt
@@ -441,7 +438,7 @@ nscd_gethst_r (const char *key, size_t keylen, request_type type,
       if ((gc_cycle & 1) != 0 || ++nretries == 5 || retval == -1)
 	{
 	  /* nscd is just running gc now.  Disable using the mapping.  */
-	  if (atomic_decrement_val (&mapped->counter) == 0)
+	  if (atomic_fetch_add_relaxed (&mapped->counter, -1) == 1)
 	    __nscd_unmap (mapped);
 	  mapped = NO_MAPPING;
 	}

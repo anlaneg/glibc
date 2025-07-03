@@ -1,5 +1,5 @@
 /* Define POSIX options for GNU/Hurd.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -87,14 +87,14 @@
 /* We support user-defined stacks.  */
 #define _POSIX_THREAD_ATTR_STACKADDR	200809L
 
-/* We do not support priority inheritence.  */
+/* We do not support priority inheritance.  */
 #define _POSIX_THREAD_PRIO_INHERIT		-1
 
 /* We do not support priority protection.  */
 #define _POSIX_THREAD_PRIO_PROTECT		-1
 
 #ifdef __USE_XOPEN2K8
-/* We do not support priority inheritence for robust mutexes.  */
+/* We do not support priority inheritance for robust mutexes.  */
 # define _POSIX_THREAD_ROBUST_PRIO_INHERIT	-1
 
 /* We do not support priority protection for robust mutexes.  */
@@ -163,7 +163,7 @@
 #define _POSIX_THREAD_PROCESS_SHARED	-1
 
 /* The monotonic clock might be available.  */
-#define _POSIX_MONOTONIC_CLOCK	0
+#define _POSIX_MONOTONIC_CLOCK	200809L
 
 /* The clock selection interfaces are available.  */
 #define _POSIX_CLOCK_SELECTION	200809L

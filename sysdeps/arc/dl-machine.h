@@ -1,5 +1,5 @@
 /* Machine-dependent ELF dynamic relocation inline functions.  ARC version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,6 +30,8 @@
 #include <string.h>
 #include <link.h>
 #include <dl-tls.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
 
 /* Dynamic Linking ABI for ARCv2 ISA.
 
@@ -122,7 +124,8 @@ elf_machine_load_address (void)
 
 static inline int
 __attribute__ ((always_inline))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   extern void _dl_runtime_resolve (void);
 
@@ -158,29 +161,16 @@ __start:								\n\
 	bl.d    _dl_start                                       	\n\
 	mov_s   r0, sp  /* pass ptr to aux vector tbl.    */    	\n\
 	mov r13, r0	/* safekeep app elf entry point.  */		\n\
-									\n\
-	/* (2). If ldso ran with executable as arg.       */		\n\
-	/*      skip the extra args calc by dl_start.     */		\n\
 	ld_s    r1, [sp]       /* orig argc.  */			\n\
-	ld      r12, [pcl, _dl_skip_args@pcl]                   	\n\
-	breq	r12, 0, 1f						\n\
 									\n\
-	add2    sp, sp, r12 /* discard argv entries from stack.  */	\n\
-	sub_s   r1, r1, r12 /* adjusted argc on stack.  */      	\n\
-	st_s    r1, [sp]                                        	\n\
-	add	r2, sp, 4						\n\
-	/* intermediate LD for ST emcoding limitations.  */		\n\
-	ld	r3, [pcl, _dl_argv@gotpc]    				\n\
-	st	r2, [r3]						\n\
-1:									\n\
-	/* (3). call preinit stuff.  */					\n\
+	/* (2). call preinit stuff.  */					\n\
 	ld	r0, [pcl, _rtld_local@pcl]				\n\
 	add	r2, sp, 4	; argv					\n\
 	add2	r3, r2, r1						\n\
 	add	r3, r3, 4	; env					\n\
 	bl	_dl_init@plt						\n\
 									\n\
-	/* (4) call app elf entry point.  */				\n\
+	/* (3) call app elf entry point.  */				\n\
 	add     r0, pcl, _dl_fini@pcl					\n\
 	j	[r13]							\n\
 									\n\
@@ -193,18 +183,14 @@ __start:								\n\
    ELF_RTYPE_CLASS_NOCOPY iff TYPE should not be allowed to resolve to one
    of the main executable's symbols, as for a COPY reloc.  */
 #define elf_machine_type_class(type)				\
-  ((((type) == R_ARC_JUMP_SLOT					\
+  ((((type) == R_ARC_JMP_SLOT					\
      || (type) == R_ARC_TLS_DTPMOD				\
      || (type) == R_ARC_TLS_DTPOFF				\
      || (type) == R_ARC_TLS_TPOFF) * ELF_RTYPE_CLASS_PLT)	\
    | (((type) == R_ARC_COPY) * ELF_RTYPE_CLASS_COPY))
 
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
-#define ELF_MACHINE_JMP_SLOT  R_ARC_JUMP_SLOT
-
-/* ARC uses Rela relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
+#define ELF_MACHINE_JMP_SLOT  R_ARC_JMP_SLOT
 
 /* Fixup a PLT entry to bounce directly to the function at VALUE.  */
 
@@ -228,10 +214,11 @@ elf_machine_fixup_plt (struct link_map *map, lookup_t t,
 
 #ifdef RESOLVE_MAP
 
-inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
-                  const ElfW(Sym) *sym, const struct r_found_version *version,
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const ElfW(Rela) *reloc, const ElfW(Sym) *sym,
+		  const struct r_found_version *version,
                   void *const reloc_addr_arg, int skip_ifunc)
 {
   ElfW(Addr) r_info = reloc->r_info;
@@ -245,7 +232,8 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
   else
     {
       const ElfW(Sym) *const refsym = sym;
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       ElfW(Addr) value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       switch (r_type)
@@ -273,7 +261,7 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
           break;
 
         case R_ARC_GLOB_DAT:
-        case R_ARC_JUMP_SLOT:
+        case R_ARC_JMP_SLOT:
             *reloc_addr = value;
           break;
 
@@ -315,7 +303,7 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
     }
 }
 
-inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
                            void *const reloc_addr_arg)
@@ -324,15 +312,16 @@ elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
   *reloc_addr += l_addr;
 }
 
-inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_lazy_rel (struct link_map *map, ElfW(Addr) l_addr,
-                      const ElfW(Rela) *reloc, int skip_ifunc)
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
+		      ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
+		      int skip_ifunc)
 {
   ElfW(Addr) *const reloc_addr = (void *) (l_addr + reloc->r_offset);
   const unsigned int r_type = ELFW (R_TYPE) (reloc->r_info);
 
-  if (r_type == R_ARC_JUMP_SLOT)
+  if (r_type == R_ARC_JMP_SLOT)
     *reloc_addr += l_addr;
   else
     _dl_reloc_bad_type (map, r_type, 1);

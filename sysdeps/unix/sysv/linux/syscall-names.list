@@ -1,5 +1,5 @@
 # List of all known Linux system calls.
-# Copyright (C) 2017-2021 Free Software Foundation, Inc.
+# Copyright (C) 2017-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -21,8 +21,8 @@
 # This file can list all potential system calls.  The names are only
 # used if the installed kernel headers also provide them.
 
-# The list of system calls is current as of Linux 5.13.
-kernel 5.13
+# The list of system calls is current as of Linux 6.15.
+kernel 6.15
 
 FAST_atomic_update
 FAST_cmpxchg
@@ -58,6 +58,7 @@ breakpoint
 brk
 cachectl
 cacheflush
+cachestat
 capget
 capset
 chdir
@@ -116,6 +117,7 @@ fanotify_mark
 fchdir
 fchmod
 fchmodat
+fchmodat2
 fchown
 fchown32
 fchownat
@@ -145,7 +147,11 @@ ftime
 ftruncate
 ftruncate64
 futex
+futex_requeue
 futex_time64
+futex_wait
+futex_waitv
+futex_wake
 futimesat
 get_kernel_syms
 get_mempolicy
@@ -192,6 +198,7 @@ getuid
 getuid32
 getunwind
 getxattr
+getxattrat
 getxgid
 getxpid
 getxuid
@@ -233,7 +240,9 @@ lgetxattr
 link
 linkat
 listen
+listmount
 listxattr
+listxattrat
 llistxattr
 llseek
 lock
@@ -241,12 +250,17 @@ lookup_dcookie
 lremovexattr
 lseek
 lsetxattr
+lsm_get_self_attr
+lsm_list_modules
+lsm_set_self_attr
 lstat
 lstat64
 madvise
+map_shadow_stack
 mbind
 membarrier
 memfd_create
+memfd_secret
 memory_ordering
 migrate_pages
 mincore
@@ -275,6 +289,7 @@ mq_timedsend
 mq_timedsend_time64
 mq_unlink
 mremap
+mseal
 msgctl
 msgget
 msgrcv
@@ -301,8 +316,10 @@ olduname
 open
 open_by_handle_at
 open_tree
+open_tree_attr
 openat
 openat2
+or1k_atomic
 osf_adjtime
 osf_afs_syscall
 osf_alt_plock
@@ -439,6 +456,7 @@ preadv
 preadv2
 prlimit64
 process_madvise
+process_mrelease
 process_vm_readv
 process_vm_writev
 prof
@@ -452,6 +470,7 @@ pwritev
 pwritev2
 query_module
 quotactl
+quotactl_fd
 read
 readahead
 readdir
@@ -466,12 +485,14 @@ recvmmsg_time64
 recvmsg
 remap_file_pages
 removexattr
+removexattrat
 rename
 renameat
 renameat2
 request_key
 restart_syscall
 riscv_flush_icache
+riscv_hwprobe
 rmdir
 rseq
 rt_sigaction
@@ -519,6 +540,7 @@ sendmmsg
 sendmsg
 sendto
 set_mempolicy
+set_mempolicy_home_node
 set_robust_list
 set_thread_area
 set_tid_address
@@ -554,6 +576,7 @@ settimeofday
 setuid
 setuid32
 setxattr
+setxattrat
 sgetmask
 shmat
 shmctl
@@ -580,6 +603,7 @@ stat
 stat64
 statfs
 statfs64
+statmount
 statx
 stime
 stty
@@ -634,6 +658,7 @@ uname
 unlink
 unlinkat
 unshare
+uretprobe
 uselib
 userfaultfd
 usr26

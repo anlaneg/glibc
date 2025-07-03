@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -52,7 +52,7 @@ static char *const _nl_current_used[] =
 # undef	DEFINE_CATEGORY
   };
 
-# define CATEGORY_USED(category)	(_nl_current_used[category] != 0)
+# define CATEGORY_USED(category)	(_nl_current_used[category] != NULL)
 
 #else
 
@@ -468,7 +468,7 @@ setlocale (int category, const char *locale)
 }
 libc_hidden_def (setlocale)
 
-static void __libc_freeres_fn_section
+static void
 free_category (int category,
 	       struct __locale_data *here, struct __locale_data *c_data)
 {
@@ -489,7 +489,7 @@ free_category (int category,
       struct __locale_data *data = (struct __locale_data *) runp->data;
 
       if (data != NULL && data != c_data)
-	_nl_unload_locale (data);
+	_nl_unload_locale (category, data);
       runp = runp->next;
       free ((char *) curr->filename);
       free (curr);
@@ -498,7 +498,7 @@ free_category (int category,
 
 /* This is called from iconv/gconv_db.c's free_mem, as locales must
    be freed before freeing gconv steps arrays.  */
-void __libc_freeres_fn_section
+void
 _nl_locale_subfreeres (void)
 {
 #ifdef NL_CURRENT_INDIRECT

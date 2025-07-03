@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -183,7 +183,8 @@ __handle_registered_modifier_wc (const unsigned int **format,
 }
 
 
-libc_freeres_fn (free_mem)
+void
+__libc_printf_freemem (void)
 {
   if (__printf_modifier_table != NULL)
     {

@@ -1,7 +1,6 @@
 /* sem_waitcommon -- wait on a semaphore, shared code.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Paul Mackerras <paulus@au.ibm.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -326,7 +325,7 @@ __sem_wait_32_finish (struct new_sem *sem)
   unsigned int wguess = atomic_load_relaxed (&sem->nwaiters);
   if (wguess == 1)
     /* We might be the last waiter, so unset.  This needs acquire MO so that
-       it syncronizes with the release MO when setting the bit above; if we
+       it synchronizes with the release MO when setting the bit above; if we
        overwrite someone else that set the bit, we'll read in the following
        decrement of nwaiters at least from that release sequence, so we'll
        see if the other waiter is still active or if another writer entered

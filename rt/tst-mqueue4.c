@@ -1,7 +1,6 @@
 /* Test message queue passing.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -30,6 +29,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <support/check.h>
 #include "tst-mqueue.h"
 
 #define TEST_FUNCTION do_test ()
@@ -46,11 +46,14 @@ do_test (void)
 
   if (q == (mqd_t) -1)
     {
+      if (errno == ENOSYS)
+	FAIL_UNSUPPORTED ("mq_open not supported");
+
       printf ("mq_open failed with: %m\n");
-      return result;
+      return 1;
     }
-  else
-    add_temp_mq (name);
+
+  add_temp_mq (name);
 
   *p = '.';
   memset (p + 1, 'x', NAME_MAX + 1 - (p - name));
@@ -59,7 +62,7 @@ do_test (void)
   mqd_t q2 = mq_open (name, O_CREAT | O_EXCL | O_RDWR, 0600, &attr);
   if (q2 == (mqd_t) -1)
     {
-      printf ("mq_open with NAME_MAX long name compoment failed with: %m\n");
+      printf ("mq_open with NAME_MAX long name component failed with: %m\n");
       result = 1;
     }
 
@@ -172,14 +175,14 @@ do_test (void)
       result = 1;
     }
 
-  q2 = mq_open (name, O_RDONLY, 0600);
+  q2 = mq_open (name, O_RDONLY);
   if (q2 == (mqd_t) -1)
     {
       printf ("mq_open without O_CREAT failed with %m\n");
       result = 1;
     }
 
-  mqd_t q3 = mq_open (name, O_RDONLY, 0600);
+  mqd_t q3 = mq_open (name, O_RDONLY);
   if (q3 == (mqd_t) -1)
     {
       printf ("mq_open without O_CREAT failed with %m\n");

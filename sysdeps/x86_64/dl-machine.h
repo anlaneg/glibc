@@ -1,7 +1,6 @@
 /* Machine-dependent ELF dynamic relocation inline functions.  x86-64 version.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Andreas Jaeger <aj@suse.de>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,10 +21,23 @@
 
 #define ELF_MACHINE_NAME "x86_64"
 
+#include <assert.h>
+#include <stdint.h>
 #include <sys/param.h>
 #include <sysdep.h>
 #include <tls.h>
 #include <dl-tlsdesc.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
+#include <isa-level.h>
+#ifdef __CET__
+# include <dl-cet.h>
+#else
+# define RTLD_START_ENABLE_X86_FEATURES
+#endif
+
+/* Translate a processor specific dynamic tag to the index in l_info array.  */
+#define DT_X86_64(x) (DT_X86_64_##x - DT_LOPROC + DT_NUM)
 
 /* Return nonzero iff ELF header is compatible with the running host.  */
 static inline int __attribute__ ((unused))
@@ -55,12 +67,10 @@ elf_machine_dynamic (void)
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int __attribute__ ((unused, always_inline))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   Elf64_Addr *got;
-  extern void _dl_runtime_resolve_fxsave (ElfW(Word)) attribute_hidden;
-  extern void _dl_runtime_resolve_xsave (ElfW(Word)) attribute_hidden;
-  extern void _dl_runtime_resolve_xsavec (ElfW(Word)) attribute_hidden;
   extern void _dl_runtime_profile_sse (ElfW(Word)) attribute_hidden;
   extern void _dl_runtime_profile_avx (ElfW(Word)) attribute_hidden;
   extern void _dl_runtime_profile_avx512 (ElfW(Word)) attribute_hidden;
@@ -83,6 +93,7 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
       /* Identify this shared object.  */
       *(ElfW(Addr) *) (got + 1) = (ElfW(Addr)) l;
 
+#ifdef SHARED
       /* The got[2] entry contains the address of a function which gets
 	 called to get the address of a so far unresolved function and
 	 jump to it.  The profiling extension of the dynamic linker allows
@@ -91,9 +102,10 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	 end in this function.  */
       if (__glibc_unlikely (profile))
 	{
-	  if (CPU_FEATURE_USABLE (AVX512F))
+	  const struct cpu_features* cpu_features = __get_cpu_features ();
+	  if (X86_ISA_CPU_FEATURE_USABLE_P (cpu_features, AVX512F))
 	    *(ElfW(Addr) *) (got + 2) = (ElfW(Addr)) &_dl_runtime_profile_avx512;
-	  else if (CPU_FEATURE_USABLE (AVX))
+	  else if (X86_ISA_CPU_FEATURE_USABLE_P (cpu_features, AVX))
 	    *(ElfW(Addr) *) (got + 2) = (ElfW(Addr)) &_dl_runtime_profile_avx;
 	  else
 	    *(ElfW(Addr) *) (got + 2) = (ElfW(Addr)) &_dl_runtime_profile_sse;
@@ -105,18 +117,13 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	    GL(dl_profile_map) = l;
 	}
       else
+#endif
 	{
 	  /* This function will get called to fix up the GOT entry
 	     indicated by the offset on the stack, and then jump to
 	     the resolved address.  */
-	  if (GLRO(dl_x86_cpu_features).xsave_state_size != 0)
-	    *(ElfW(Addr) *) (got + 2)
-	      = (CPU_FEATURE_USABLE (XSAVEC)
-		 ? (ElfW(Addr)) &_dl_runtime_resolve_xsavec
-		 : (ElfW(Addr)) &_dl_runtime_resolve_xsave);
-	  else
-	    *(ElfW(Addr) *) (got + 2)
-	      = (ElfW(Addr)) &_dl_runtime_resolve_fxsave;
+	  *(ElfW(Addr) *) (got + 2)
+	    = (ElfW(Addr)) GLRO(dl_x86_64_runtime_resolve);
 	}
     }
 
@@ -132,43 +139,37 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 .globl _start\n\
 .globl _dl_start_user\n\
 _start:\n\
-	movq %rsp, %rdi\n\
+	mov %" RSP_LP ", %" RDI_LP "\n\
 	call _dl_start\n\
 _dl_start_user:\n\
 	# Save the user entry point address in %r12.\n\
-	movq %rax, %r12\n\
-	# See if we were run as a command with the executable file\n\
-	# name as an extra leading argument.\n\
-	movl _dl_skip_args(%rip), %eax\n\
-	# Pop the original argument count.\n\
-	popq %rdx\n\
-	# Adjust the stack pointer to skip _dl_skip_args words.\n\
-	leaq (%rsp,%rax,8), %rsp\n\
-	# Subtract _dl_skip_args from argc.\n\
-	subl %eax, %edx\n\
-	# Push argc back on the stack.\n\
-	pushq %rdx\n\
+	mov %" RAX_LP ", %" R12_LP "\n\
+	# Save %rsp value in %r13.\n\
+	mov %" RSP_LP ", % " R13_LP "\n\
+"\
+	RTLD_START_ENABLE_X86_FEATURES \
+"\
+	# Read the original argument count.\n\
+	mov (%rsp), %" RDX_LP "\n\
 	# Call _dl_init (struct link_map *main_map, int argc, char **argv, char **env)\n\
 	# argc -> rsi\n\
-	movq %rdx, %rsi\n\
-	# Save %rsp value in %r13.\n\
-	movq %rsp, %r13\n\
+	mov %" RDX_LP ", %" RSI_LP "\n\
 	# And align stack for the _dl_init call. \n\
-	andq $-16, %rsp\n\
+	and $-16, %" RSP_LP "\n\
 	# _dl_loaded -> rdi\n\
-	movq _rtld_local(%rip), %rdi\n\
+	mov _rtld_local(%rip), %" RDI_LP "\n\
 	# env -> rcx\n\
-	leaq 16(%r13,%rdx,8), %rcx\n\
+	lea 2*" LP_SIZE "(%r13,%rdx," LP_SIZE "), %" RCX_LP "\n\
 	# argv -> rdx\n\
-	leaq 8(%r13), %rdx\n\
+	lea " LP_SIZE "(%r13), %" RDX_LP "\n\
 	# Clear %rbp to mark outermost frame obviously even for constructors.\n\
 	xorl %ebp, %ebp\n\
 	# Call the function to run the initializers.\n\
 	call _dl_init\n\
 	# Pass our finalizer function to the user in %rdx, as per ELF ABI.\n\
-	leaq _dl_fini(%rip), %rdx\n\
+	lea _dl_fini(%rip), %" RDX_LP "\n\
 	# And make sure %rsp points to argc stored on the stack.\n\
-	movq %r13, %rsp\n\
+	mov %" R13_LP ", %" RSP_LP "\n\
 	# Jump to the user's entry point.\n\
 	jmp *%r12\n\
 .previous\n\
@@ -178,10 +179,7 @@ _dl_start_user:\n\
    TLS variable, so undefined references should not be allowed to
    define the value.
    ELF_RTYPE_CLASS_COPY iff TYPE should not be allowed to resolve to one
-   of the main executable's symbols, as for a COPY reloc.
-   ELF_RTYPE_CLASS_EXTERN_PROTECTED_DATA iff TYPE describes relocation may
-   against protected data whose address be external due to copy relocation.
- */
+   of the main executable's symbols, as for a COPY reloc.  */
 #define elf_machine_type_class(type)					      \
   ((((type) == R_X86_64_JUMP_SLOT					      \
      || (type) == R_X86_64_DTPMOD64					      \
@@ -189,8 +187,7 @@ _dl_start_user:\n\
      || (type) == R_X86_64_TPOFF64					      \
      || (type) == R_X86_64_TLSDESC)					      \
     * ELF_RTYPE_CLASS_PLT)						      \
-   | (((type) == R_X86_64_COPY) * ELF_RTYPE_CLASS_COPY)			      \
-   | (((type) == R_X86_64_GLOB_DAT) * ELF_RTYPE_CLASS_EXTERN_PROTECTED_DATA))
+   | (((type) == R_X86_64_COPY) * ELF_RTYPE_CLASS_COPY))
 
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
 #define ELF_MACHINE_JMP_SLOT	R_X86_64_JUMP_SLOT
@@ -198,10 +195,6 @@ _dl_start_user:\n\
 /* The relative ifunc relocation.  */
 // XXX This is a work-around for a broken linker.  Remove!
 #define ELF_MACHINE_IRELATIVE	R_X86_64_IRELATIVE
-
-/* The x86-64 never uses Elf64_Rel/Elf32_Rel relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
 
 /* We define an initialization function.  This is called very early in
    _dl_sysdep_start.  */
@@ -241,8 +234,13 @@ elf_machine_plt_value (struct link_map *map, const ElfW(Rela) *reloc,
 
 
 /* Names of the architecture-specific auditing callback functions.  */
+#ifdef __LP64__
 #define ARCH_LA_PLTENTER x86_64_gnu_pltenter
 #define ARCH_LA_PLTEXIT x86_64_gnu_pltexit
+#else
+#define ARCH_LA_PLTENTER x32_gnu_pltenter
+#define ARCH_LA_PLTEXIT x32_gnu_pltexit
+#endif
 
 #endif /* !dl_machine_h */
 
@@ -251,32 +249,18 @@ elf_machine_plt_value (struct link_map *map, const ElfW(Rela) *reloc,
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void
-__attribute__ ((always_inline))
-elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
-		  const ElfW(Sym) *sym, const struct r_found_version *version,
+static inline void __attribute__((always_inline))
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const ElfW(Rela) *reloc, const ElfW(Sym) *sym,
+		  const struct r_found_version *version,
 		  void *const reloc_addr_arg, int skip_ifunc)
 {
   ElfW(Addr) *const reloc_addr = reloc_addr_arg;
   const unsigned long int r_type = ELFW(R_TYPE) (reloc->r_info);
 
-# if !defined RTLD_BOOTSTRAP || !defined HAVE_Z_COMBRELOC
+# if !defined RTLD_BOOTSTRAP
   if (__glibc_unlikely (r_type == R_X86_64_RELATIVE))
-    {
-#  if !defined RTLD_BOOTSTRAP && !defined HAVE_Z_COMBRELOC
-      /* This is defined in rtld.c, but nowhere in the static libc.a;
-	 make the reference weak so static programs can still link.
-	 This declaration cannot be done when compiling rtld.c
-	 (i.e. #ifdef RTLD_BOOTSTRAP) because rtld.c contains the
-	 common defn for _dl_rtld_map, which is incompatible with a
-	 weak decl in the same file.  */
-#   ifndef SHARED
-      weak_extern (GL(dl_rtld_map));
-#   endif
-      if (map != &GL(dl_rtld_map)) /* Already done in rtld itself.  */
-#  endif
-	*reloc_addr = map->l_addr + reloc->r_addend;
-    }
+    *reloc_addr = map->l_addr + reloc->r_addend;
   else
 # endif
 # if !defined RTLD_BOOTSTRAP
@@ -293,7 +277,8 @@ elf_machine_rela (struct link_map *map, const ElfW(Rela) *reloc,
 # ifndef RTLD_BOOTSTRAP
       const ElfW(Sym) *const refsym = sym;
 # endif
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       ElfW(Addr) value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       if (sym != NULL
@@ -326,6 +311,13 @@ and creates an unsatisfiable circular dependency.\n",
 
       switch (r_type)
 	{
+	case R_X86_64_JUMP_SLOT:
+	  map->l_has_jump_slot_reloc = true;
+	  /* fallthrough */
+	case R_X86_64_GLOB_DAT:
+	  *reloc_addr = value;
+	  break;
+
 # ifndef RTLD_BOOTSTRAP
 #  ifdef __ILP32__
 	case R_X86_64_SIZE64:
@@ -340,74 +332,55 @@ and creates an unsatisfiable circular dependency.\n",
 #  endif
 	  /* Set to symbol size plus addend.  */
 	  value = sym->st_size;
-# endif
-	  /* Fall through.  */
-	case R_X86_64_GLOB_DAT:
-	case R_X86_64_JUMP_SLOT:
 	  *reloc_addr = value + reloc->r_addend;
 	  break;
 
-# ifndef RESOLVE_CONFLICT_FIND_MAP
 	case R_X86_64_DTPMOD64:
-#  ifdef RTLD_BOOTSTRAP
-	  /* During startup the dynamic linker is always the module
-	     with index 1.
-	     XXX If this relocation is necessary move before RESOLVE
-	     call.  */
-	  *reloc_addr = 1;
-#  else
 	  /* Get the information from the link map returned by the
 	     resolve function.  */
 	  if (sym_map != NULL)
 	    *reloc_addr = sym_map->l_tls_modid;
-#  endif
 	  break;
 	case R_X86_64_DTPOFF64:
-#  ifndef RTLD_BOOTSTRAP
 	  /* During relocation all TLS symbols are defined and used.
 	     Therefore the offset is already correct.  */
 	  if (sym != NULL)
 	    {
 	      value = sym->st_value + reloc->r_addend;
-#   ifdef __ILP32__
+#  ifdef __ILP32__
 	      /* This relocation type computes a signed offset that is
 		 usually negative.  The symbol and addend values are 32
 		 bits but the GOT entry is 64 bits wide and the whole
 		 64-bit entry is used as a signed quantity, so we need
 		 to sign-extend the computed value to 64 bits.  */
 	      *(Elf64_Sxword *) reloc_addr = (Elf64_Sxword) (Elf32_Sword) value;
-#   else
+#  else
 	      *reloc_addr = value;
-#   endif
-	    }
 #  endif
+	    }
 	  break;
 	case R_X86_64_TLSDESC:
 	  {
 	    struct tlsdesc volatile *td =
 	      (struct tlsdesc volatile *)reloc_addr;
 
-#  ifndef RTLD_BOOTSTRAP
 	    if (! sym)
 	      {
 		td->arg = (void*)reloc->r_addend;
 		td->entry = _dl_tlsdesc_undefweak;
 	      }
 	    else
-#  endif
 	      {
-#  ifndef RTLD_BOOTSTRAP
-#   ifndef SHARED
+#  ifndef SHARED
 		CHECK_STATIC_TLS (map, sym_map);
-#   else
+#  else
 		if (!TRY_STATIC_TLS (map, sym_map))
 		  {
 		    td->arg = _dl_make_tlsdesc_dynamic
 		      (sym_map, sym->st_value + reloc->r_addend);
-		    td->entry = _dl_tlsdesc_dynamic;
+		    td->entry = GLRO(dl_x86_tlsdesc_dynamic);
 		  }
 		else
-#   endif
 #  endif
 		  {
 		    td->arg = (void*)(sym->st_value - sym_map->l_tls_offset
@@ -419,32 +392,26 @@ and creates an unsatisfiable circular dependency.\n",
 	  }
 	case R_X86_64_TPOFF64:
 	  /* The offset is negative, forward from the thread pointer.  */
-#  ifndef RTLD_BOOTSTRAP
 	  if (sym != NULL)
-#  endif
 	    {
-#  ifndef RTLD_BOOTSTRAP
 	      CHECK_STATIC_TLS (map, sym_map);
-#  endif
 	      /* We know the offset of the object the symbol is contained in.
 		 It is a negative value which will be added to the
 		 thread pointer.  */
 	      value = (sym->st_value + reloc->r_addend
 		       - sym_map->l_tls_offset);
-#  ifdef __ILP32__
+# ifdef __ILP32__
 	      /* The symbol and addend values are 32 bits but the GOT
 		 entry is 64 bits wide and the whole 64-bit entry is used
 		 as a signed quantity, so we need to sign-extend the
 		 computed value to 64 bits.  */
 	      *(Elf64_Sxword *) reloc_addr = (Elf64_Sxword) (Elf32_Sword) value;
-#  else
+# else
 	      *reloc_addr = value;
-#  endif
+# endif
 	    }
 	  break;
-# endif
 
-# ifndef RTLD_BOOTSTRAP
 	case R_X86_64_64:
 	  /* value + r_addend may be > 0xffffffff and R_X86_64_64
 	     relocation updates the whole 64-bit entry.  */
@@ -467,15 +434,12 @@ and creates an unsatisfiable circular dependency.\n",
 
 	      fmt = "\
 %s: Symbol `%s' causes overflow in R_X86_64_32 relocation\n";
-#  ifndef RESOLVE_CONFLICT_FIND_MAP
 	    print_err:
-#  endif
 	      strtab = (const char *) D_PTR (map, l_info[DT_STRTAB]);
 
 	      _dl_error_printf (fmt, RTLD_PROGNAME, strtab + refsym->st_name);
 	    }
 	  break;
-#  ifndef RESOLVE_CONFLICT_FIND_MAP
 	  /* Not needed for dl-conflict.c.  */
 	case R_X86_64_PC32:
 	  value += reloc->r_addend - (ElfW(Addr)) reloc_addr;
@@ -503,7 +467,6 @@ and creates an unsatisfiable circular dependency.\n",
 	      goto print_err;
 	    }
 	  break;
-#  endif
 	case R_X86_64_IRELATIVE:
 	  value = map->l_addr + reloc->r_addend;
 	  if (__glibc_likely (!skip_ifunc))
@@ -513,12 +476,12 @@ and creates an unsatisfiable circular dependency.\n",
 	default:
 	  _dl_reloc_bad_type (map, r_type, 0);
 	  break;
-# endif
+# endif /* !RTLD_BOOTSTRAP */
 	}
     }
 }
 
-auto inline void
+static inline void
 __attribute ((always_inline))
 elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
 			   void *const reloc_addr_arg)
@@ -537,9 +500,9 @@ elf_machine_rela_relative (ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
     }
 }
 
-auto inline void
+static inline void
 __attribute ((always_inline))
-elf_machine_lazy_rel (struct link_map *map,
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      ElfW(Addr) l_addr, const ElfW(Rela) *reloc,
 		      int skip_ifunc)
 {
@@ -573,7 +536,7 @@ elf_machine_lazy_rel (struct link_map *map,
 
       /* Always initialize TLS descriptors completely at load time, in
 	 case static TLS is allocated for it that requires locking.  */
-      elf_machine_rela (map, reloc, sym, version, reloc_addr, skip_ifunc);
+      elf_machine_rela (map, scope, reloc, sym, version, reloc_addr, skip_ifunc);
     }
   else if (__glibc_unlikely (r_type == R_X86_64_IRELATIVE))
     {
@@ -587,3 +550,213 @@ elf_machine_lazy_rel (struct link_map *map,
 }
 
 #endif /* RESOLVE_MAP */
+
+#if !defined ELF_DYNAMIC_AFTER_RELOC && !defined RTLD_BOOTSTRAP \
+    && defined SHARED
+# define ELF_DYNAMIC_AFTER_RELOC(map, lazy) \
+  x86_64_dynamic_after_reloc (map, (lazy))
+
+# define JMP32_INSN_OPCODE	0xe9
+# define JMP32_INSN_SIZE	5
+# define JMPABS_INSN_OPCODE	0xa100d5
+# define JMPABS_INSN_SIZE	11
+# define INT3_INSN_OPCODE	0xcc
+
+static const char *
+x86_64_reloc_symbol_name (struct link_map *map, const ElfW(Rela) *reloc)
+{
+  const ElfW(Sym) *const symtab
+    = (const void *) map->l_info[DT_SYMTAB]->d_un.d_ptr;
+  const ElfW(Sym) *const refsym = &symtab[ELFW (R_SYM) (reloc->r_info)];
+  const char *strtab = (const char *) map->l_info[DT_STRTAB]->d_un.d_ptr;
+  return strtab + refsym->st_name;
+}
+
+static void
+x86_64_rewrite_plt (struct link_map *map, ElfW(Addr) plt_rewrite)
+{
+  ElfW(Addr) l_addr = map->l_addr;
+  ElfW(Addr) pltent = map->l_info[DT_X86_64 (PLTENT)]->d_un.d_val;
+  ElfW(Addr) start = map->l_info[DT_JMPREL]->d_un.d_ptr;
+  ElfW(Addr) size = map->l_info[DT_PLTRELSZ]->d_un.d_val;
+  const ElfW(Rela) *reloc = (const void *) start;
+  const ElfW(Rela) *reloc_end = (const void *) (start + size);
+
+# ifdef __CET__
+  bool ibt_enabled_p = dl_cet_ibt_enabled ();
+# else
+  bool ibt_enabled_p = false;
+# endif
+
+  if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_FILES))
+    _dl_debug_printf ("\nchanging PLT in '%s' to direct branch\n",
+		      DSO_FILENAME (map->l_name));
+
+  for (; reloc < reloc_end; reloc++)
+    if (ELFW(R_TYPE) (reloc->r_info) == R_X86_64_JUMP_SLOT)
+      {
+	/* Get the value from the GOT entry.  */
+	ElfW(Addr) value = *(ElfW(Addr) *) (l_addr + reloc->r_offset);
+
+	/* Get the corresponding PLT entry from r_addend.  */
+	ElfW(Addr) branch_start = l_addr + reloc->r_addend;
+	/* Skip ENDBR64 if IBT isn't enabled.  */
+	if (!ibt_enabled_p)
+	  branch_start = ALIGN_DOWN (branch_start, pltent);
+	/* Get the displacement from the branch target.  NB: We must use
+	   64-bit integer on x32 to avoid overflow.  */
+	uint64_t disp = (uint64_t) value - branch_start - JMP32_INSN_SIZE;
+	ElfW(Addr) plt_end;
+	ElfW(Addr) pad;
+
+	plt_end = (branch_start | (pltent - 1)) + 1;
+
+	/* Update the PLT entry.  */
+	if (((uint64_t) disp + (uint64_t) ((uint32_t) INT32_MIN))
+	    <= (uint64_t) UINT32_MAX)
+	  {
+	    pad = branch_start + JMP32_INSN_SIZE;
+
+	    if (__glibc_unlikely (pad > plt_end))
+	      continue;
+
+	    /* If the target branch can be reached with a direct branch,
+	       rewrite the PLT entry with a direct branch.  */
+	    if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_BINDINGS))
+	      {
+		const char *sym_name = x86_64_reloc_symbol_name (map,
+								 reloc);
+		_dl_debug_printf ("changing '%s' PLT entry in '%s' to "
+				  "direct branch\n", sym_name,
+				  DSO_FILENAME (map->l_name));
+	      }
+
+	    /* Write out direct branch.  */
+	    *(uint8_t *) branch_start = JMP32_INSN_OPCODE;
+	    *(uint32_t *) (branch_start + 1) = disp;
+	  }
+	else
+	  {
+	    if (GL(dl_x86_feature_control).plt_rewrite
+		!= plt_rewrite_jmpabs)
+	      {
+		if (__glibc_unlikely (GLRO(dl_debug_mask)
+				      & DL_DEBUG_BINDINGS))
+		  {
+		    const char *sym_name
+		      = x86_64_reloc_symbol_name (map, reloc);
+		    _dl_debug_printf ("skipping '%s' PLT entry in '%s'\n",
+				      sym_name,
+				      DSO_FILENAME (map->l_name));
+		  }
+		continue;
+	      }
+
+	    pad = branch_start + JMPABS_INSN_SIZE;
+
+	    if (__glibc_unlikely (pad > plt_end))
+	      continue;
+
+	    /* Rewrite the PLT entry with JMPABS.  */
+	    if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_BINDINGS))
+	      {
+		const char *sym_name = x86_64_reloc_symbol_name (map,
+								 reloc);
+		_dl_debug_printf ("changing '%s' PLT entry in '%s' to "
+				  "JMPABS\n", sym_name,
+				  DSO_FILENAME (map->l_name));
+	      }
+
+	    /* "jmpabs $target" for 64-bit displacement.  NB: JMPABS has
+	       a 3-byte opcode + 64bit address.  There is a 1-byte overlap
+	       between 4-byte write and 8-byte write.  */
+	    *(uint32_t *) (branch_start) = JMPABS_INSN_OPCODE;
+	    *(uint64_t *) (branch_start + 3) = value;
+	  }
+
+	/* Fill the unused part of the PLT entry with INT3.  */
+	for (; pad < plt_end; pad++)
+	  *(uint8_t *) pad = INT3_INSN_OPCODE;
+      }
+}
+
+static inline void
+x86_64_rewrite_plt_in_place (struct link_map *map)
+{
+  /* Adjust DT_X86_64_PLT address and DT_X86_64_PLTSZ values.  */
+  ElfW(Addr) plt = (map->l_info[DT_X86_64 (PLT)]->d_un.d_ptr
+		    + map->l_addr);
+  size_t pagesize = GLRO(dl_pagesize);
+  ElfW(Addr) plt_aligned = ALIGN_DOWN (plt, pagesize);
+  size_t pltsz = (map->l_info[DT_X86_64 (PLTSZ)]->d_un.d_val
+		  + plt - plt_aligned);
+
+  if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_FILES))
+    _dl_debug_printf ("\nchanging PLT in '%s' to writable\n",
+		      DSO_FILENAME (map->l_name));
+
+  if (__glibc_unlikely (__mprotect ((void *) plt_aligned, pltsz,
+				    PROT_WRITE | PROT_READ) < 0))
+    {
+      if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_FILES))
+	_dl_debug_printf ("\nfailed to change PLT in '%s' to writable\n",
+			  DSO_FILENAME (map->l_name));
+      return;
+    }
+
+  x86_64_rewrite_plt (map, plt_aligned);
+
+  if (__glibc_unlikely (GLRO(dl_debug_mask) & DL_DEBUG_FILES))
+    _dl_debug_printf ("\nchanging PLT in '%s' back to read-only\n",
+		      DSO_FILENAME (map->l_name));
+
+  if (__glibc_unlikely (__mprotect ((void *) plt_aligned, pltsz,
+				    PROT_EXEC | PROT_READ) < 0))
+    _dl_signal_error (0, DSO_FILENAME (map->l_name), NULL,
+		      "failed to change PLT back to read-only");
+}
+
+/* Rewrite PLT entries to direct branch if possible.  */
+
+static inline void
+x86_64_dynamic_after_reloc (struct link_map *map, int lazy)
+{
+  /* Ignore DT_X86_64_PLT if the lazy binding is enabled.  */
+  if (lazy != 0)
+    return;
+
+  /* Ignore DT_X86_64_PLT if PLT rewrite isn't enabled.  */
+  if (__glibc_likely (GL(dl_x86_feature_control).plt_rewrite
+		      == plt_rewrite_none))
+    return;
+
+  if (__glibc_likely (map->l_info[DT_X86_64 (PLT)] == NULL))
+    return;
+
+  /* Ignore DT_X86_64_PLT if there is no R_X86_64_JUMP_SLOT.  */
+  if (map->l_has_jump_slot_reloc == 0)
+    return;
+
+  /* Ignore DT_X86_64_PLT if
+     1. DT_JMPREL isn't available or its value is 0.
+     2. DT_PLTRELSZ is 0.
+     3. DT_X86_64_PLTENT isn't available or its value is smaller than
+	16 bytes.
+     4. DT_X86_64_PLTSZ isn't available or its value is smaller than
+	DT_X86_64_PLTENT's value or isn't a multiple of DT_X86_64_PLTENT's
+	value.  */
+  if (map->l_info[DT_JMPREL] == NULL
+      || map->l_info[DT_JMPREL]->d_un.d_ptr == 0
+      || map->l_info[DT_PLTRELSZ]->d_un.d_val == 0
+      || map->l_info[DT_X86_64 (PLTSZ)] == NULL
+      || map->l_info[DT_X86_64 (PLTENT)] == NULL
+      || map->l_info[DT_X86_64 (PLTENT)]->d_un.d_val < 16
+      || (map->l_info[DT_X86_64 (PLTSZ)]->d_un.d_val
+	  < map->l_info[DT_X86_64 (PLTENT)]->d_un.d_val)
+      || (map->l_info[DT_X86_64 (PLTSZ)]->d_un.d_val
+	  % map->l_info[DT_X86_64 (PLTENT)]->d_un.d_val) != 0)
+    return;
+
+  x86_64_rewrite_plt_in_place (map);
+}
+#endif

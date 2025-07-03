@@ -1,9 +1,6 @@
 /*
- * Written by J.T. Conklin <jtc@netbsd.org>.
  * Public domain.
  *
- * Adapted for `long double' by Ulrich Drepper <drepper@cygnus.com>.
- * Changed to use fyl2xp1 for values near 1, <drepper@cygnus.com>.
  * Adapted for i686 instructions.
  */
 
@@ -46,7 +43,7 @@ ENTRY(__ieee754_logl)
 	fsubl	MO(one)		// x-1 : x : log(2)
 5:	fld	%st		// x-1 : x-1 : x : log(2)
 	fabs			// |x-1| : x-1 : x : log(2)
-	fld	MO(limit)	// 0.29 : |x-1| : x-1 : x : log(2)
+	fldl	MO(limit)	// 0.29 : |x-1| : x-1 : x : log(2)
 	fcomip	%st(1)		// |x-1| : x-1 : x : log(2)
 	fstp	%st(0)		// x-1 : x : log(2)
 	jc	2f
@@ -79,7 +76,7 @@ ENTRY(__logl_finite)
 	fsubl	MO(one)		// x-1 : x : log(2)
 	fld	%st		// x-1 : x-1 : x : log(2)
 	fabs			// |x-1| : x-1 : x : log(2)
-	fld	MO(limit)	// 0.29 : |x-1| : x-1 : x : log(2)
+	fldl	MO(limit)	// 0.29 : |x-1| : x-1 : x : log(2)
 	fcomip	%st(1)		// |x-1| : x-1 : x : log(2)
 	fstp	%st(0)		// x-1 : x : log(2)
 	jc	2b

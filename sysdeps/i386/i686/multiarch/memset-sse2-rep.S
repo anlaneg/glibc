@@ -1,6 +1,5 @@
 /* memset with SSE2 and REP string.
-   Copyright (C) 2010-2021 Free Software Foundation, Inc.
-   Contributed by Intel Corporation.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -33,16 +32,10 @@
 #define PUSH(REG)	pushl REG; CFI_PUSH (REG)
 #define POP(REG)	popl REG; CFI_POP (REG)
 
-#ifdef USE_AS_BZERO
-# define DEST		PARMS
-# define LEN		DEST+4
-# define SETRTNVAL
-#else
-# define DEST		PARMS
-# define CHR		DEST+4
-# define LEN		CHR+4
-# define SETRTNVAL	movl DEST(%esp), %eax
-#endif
+#define DEST		PARMS
+#define CHR		DEST+4
+#define LEN		CHR+4
+#define SETRTNVAL	movl DEST(%esp), %eax
 
 #ifdef PIC
 # define ENTRANCE	PUSH (%ebx);
@@ -63,7 +56,7 @@
     add		(%ebx,%ecx,4), %ebx;				\
     add		%ecx, %edx;					\
     /* We loaded the jump table and adjusted EDX. Go.  */	\
-    _CET_NOTRACK jmp *%ebx
+    jmp *%ebx
 #else
 # define ENTRANCE
 # define RETURN_END	ret
@@ -75,11 +68,11 @@
    absolute offsets.  */
 # define BRANCH_TO_JMPTBL_ENTRY(TABLE)				\
     add		%ecx, %edx;					\
-    _CET_NOTRACK jmp *TABLE(,%ecx,4)
+    jmp *TABLE(,%ecx,4)
 #endif
 
 	.section .text.sse2,"ax",@progbits
-#if defined SHARED && IS_IN (libc) && !defined USE_AS_BZERO
+#if defined SHARED && IS_IN (libc)
 ENTRY (__memset_chk_sse2_rep)
 	movl	12(%esp), %eax
 	cmpl	%eax, 16(%esp)
@@ -90,16 +83,12 @@ ENTRY (__memset_sse2_rep)
 	ENTRANCE
 
 	movl	LEN(%esp), %ecx
-#ifdef USE_AS_BZERO
-	xor	%eax, %eax
-#else
 	movzbl	CHR(%esp), %eax
 	movb	%al, %ah
 	/* Fill the whole EAX with pattern.  */
 	movl	%eax, %edx
 	shl	$16, %eax
 	or	%edx, %eax
-#endif
 	movl	DEST(%esp), %edx
 	cmp	$32, %ecx
 	jae	L(32bytesormore)
@@ -229,12 +218,8 @@ L(write_3bytes):
 /* ECX > 32 and EDX is 4 byte aligned.  */
 L(32bytesormore):
 	/* Fill xmm0 with the pattern.  */
-#ifdef USE_AS_BZERO
-	pxor	%xmm0, %xmm0
-#else
 	movd	%eax, %xmm0
 	pshufd	$0, %xmm0, %xmm0
-#endif
 	testl	$0xf, %edx
 	jz	L(aligned_16)
 /* ECX > 32 and EDX is not 16 byte aligned.  */

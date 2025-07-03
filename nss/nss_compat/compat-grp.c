@@ -1,6 +1,5 @@
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@suse.de>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -214,7 +213,7 @@ getgrent_next_nss (struct group *result, ent_t *ent, char *buffer,
   return NSS_STATUS_SUCCESS;
 }
 
-/* This function handle the +group entrys in /etc/group */
+/* This function handle the +group entries in /etc/group */
 static enum nss_status
 getgrnam_plusgroup (const char *name, struct group *result, ent_t *ent,
 		    char *buffer, size_t buflen, int *errnop)

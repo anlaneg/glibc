@@ -1,5 +1,5 @@
 /* Wrapper for __wprintf_chk.  IEEE128 version.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 #include <libio/libioP.h>
 
 extern int
-___ieee128_wprintf_chk (int flag, const wchar_t *format, ...)
+___ieee128___wprintf_chk (int flag, const wchar_t *format, ...)
 {
   va_list ap;
   int done;
@@ -35,4 +35,4 @@ ___ieee128_wprintf_chk (int flag, const wchar_t *format, ...)
 
   return done;
 }
-strong_alias (___ieee128_wprintf_chk, __wprintf_chkieee128)
+strong_alias (___ieee128___wprintf_chk, __wprintf_chkieee128)

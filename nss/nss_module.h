@@ -1,5 +1,5 @@
 /* Global list of NSS service modules.
-   Copyright (c) 2020-2021 Free Software Foundation, Inc.
+   Copyright (c) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -99,8 +99,5 @@ void *__nss_module_get_function (struct nss_module *module, const char *name)
 
 /* Block attempts to dlopen any module we haven't already opened.  */
 void __nss_module_disable_loading (void);
-
-/* Called from __libc_freeres.  */
-void __nss_module_freeres (void) attribute_hidden;
 
 #endif /* NSS_MODULE_H */

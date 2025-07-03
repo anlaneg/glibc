@@ -1,7 +1,6 @@
 /* Read and display shared object profiling data.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -120,7 +119,7 @@ static enum
 /* Nozero for testing.  */
 static int do_test;
 
-/* Strcuture describing calls.  */
+/* Structure describing calls.  */
 struct here_fromstruct
 {
   struct here_cg_arc_record volatile *here;
@@ -391,7 +390,7 @@ Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
 "),
-	   "2021");
+	   "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Ulrich Drepper");
 }
 
@@ -414,7 +413,7 @@ load_shobj (const char *name)
 
   /* Since we use dlopen() we must be prepared to work around the sometimes
      strange lookup rules for the shared objects.  If we have a file foo.so
-     in the current directory and the user specfies foo.so on the command
+     in the current directory and the user specifies foo.so on the command
      line (without specifying a directory) we should load the file in the
      current directory even if a normal dlopen() call would read the other
      file.  We do this by adding a directory portion to the name.  */
@@ -477,7 +476,7 @@ load_shobj (const char *name)
   result->kcountsize = textsize / HISTFRACTION;
   result->hashfraction = HASHFRACTION;
   if (do_test)
-    printf ("hashfraction = %d\ndivider = %Zu\n",
+    printf ("hashfraction = %d\ndivider = %zu\n",
 	    result->hashfraction,
 	    result->hashfraction * sizeof (struct here_fromstruct));
   result->tossize = textsize / HASHFRACTION;
@@ -496,7 +495,7 @@ load_shobj (const char *name)
 			      * sizeof (struct here_cg_arc_record)));
 
   if (do_test)
-    printf ("expected size: %Zd\n", result->expected_size);
+    printf ("expected size: %zd\n", result->expected_size);
 
 #define SCALE_1_TO_1	0x10000L
 
@@ -531,10 +530,7 @@ load_shobj (const char *name)
     printf ("string table: %p\n", result->dynstrtab);
 
   /* Determine the soname.  */
-  if (map->l_info[DT_SONAME] == NULL)
-    result->soname = NULL;
-  else
-    result->soname = result->dynstrtab + map->l_info[DT_SONAME]->d_un.d_val;
+  result->soname = l_soname (map);
   if (do_test && result->soname != NULL)
     printf ("soname: %s\n", result->soname);
 
@@ -810,7 +806,7 @@ load_profdata (const char *name, struct shobj *shobj)
       return NULL;
     }
 
-  /* We don't need the file desriptor anymore.  */
+  /* We don't need the file descriptor anymore.  */
   if (close (fd) < 0)
     {
       error (0, errno, _("error while closing the profiling data file"));
@@ -1358,15 +1354,15 @@ generate_call_graph (struct profdata *profdata)
 		     ? sortsym[runp->idx]->name : "<UNKNOWN>"));
 
 	    if (runp->idx != (size_t) -1l)
-	      printf (" [%Zd]", runp->idx);
+	      printf (" [%zd]", runp->idx);
 	    putchar_unlocked ('\n');
 
 	    runp = runp->next;
 	  }
 
 	/* Info about the function itself.  */
-	n = printf ("[%Zu]", cnt);
-	printf ("%*s%5.1f%8.2f%8.2f%9" PRIdMAX "         %s [%Zd]\n",
+	n = printf ("[%zu]", cnt);
+	printf ("%*s%5.1f%8.2f%8.2f%9" PRIdMAX "         %s [%zd]\n",
 		(int) (7 - n), " ",
 		total_ticks ? (100.0 * sortsym[cnt]->ticks) / total_ticks : 0,
 		sortsym[cnt]->ticks * tick_unit,
@@ -1385,7 +1381,7 @@ generate_call_graph (struct profdata *profdata)
 		    runp->count);
 
 	    if (runp->idx != (size_t) -1l)
-	      printf ("%-9" PRIdMAX "   %s [%Zd]\n",
+	      printf ("%-9" PRIdMAX "   %s [%zd]\n",
 		      sortsym[runp->idx]->calls,
 		      sortsym[runp->idx]->name,
 		      runp->idx);

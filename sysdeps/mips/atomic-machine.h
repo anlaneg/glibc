@@ -1,5 +1,5 @@
 /* Low-level functions for atomic operations. Mips version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,24 +19,7 @@
 #ifndef _MIPS_ATOMIC_MACHINE_H
 #define _MIPS_ATOMIC_MACHINE_H 1
 
-#include <stdint.h>
-#include <inttypes.h>
 #include <sgidefs.h>
-
-typedef int32_t atomic32_t;
-typedef uint32_t uatomic32_t;
-typedef int_fast32_t atomic_fast32_t;
-typedef uint_fast32_t uatomic_fast32_t;
-
-typedef int64_t atomic64_t;
-typedef uint64_t uatomic64_t;
-typedef int_fast64_t atomic_fast64_t;
-typedef uint_fast64_t uatomic_fast64_t;
-
-typedef intptr_t atomicptr_t;
-typedef uintptr_t uatomicptr_t;
-typedef intmax_t atomic_max_t;
-typedef uintmax_t uatomic_max_t;
 
 #if _MIPS_SIM == _ABIO32 && __mips < 2
 #define MIPS_PUSH_MIPS2 ".set	mips2\n\t"
@@ -70,7 +53,7 @@ typedef uintmax_t uatomic_max_t;
 #endif
 
 /* Compare and exchange.
-   For all "bool" routines, we return FALSE if exchange succesful.  */
+   For all "bool" routines, we return FALSE if exchange successful.  */
 
 #define __arch_compare_and_exchange_bool_8_int(mem, newval, oldval, model) \
   (abort (), 0)

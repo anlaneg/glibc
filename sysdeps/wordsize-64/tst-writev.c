@@ -1,6 +1,5 @@
-/* Copyright (C) 2011-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ryan S. Arnold <rsa@us.ibm.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -24,6 +23,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/uio.h>
+
+/* GNU/Hurd does not define a IOV_MAX constraint.  */
+#ifndef IOV_MAX
+# define IOV_MAX 1024
+#endif
 
 
 /* The purpose of this test is to verify that the INTERNAL_[V]SYSCALL_NCS

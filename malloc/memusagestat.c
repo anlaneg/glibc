@@ -1,7 +1,6 @@
 /* Generate graphic from memory profiling data.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -30,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <unistd_ext.h>
 #include <stdint.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -189,7 +189,7 @@ main (int argc, char *argv[])
   total = st.st_size / sizeof (struct entry) - 2;
 
   /* Read the administrative information.  */
-  read (fd, headent, sizeof (headent));
+  read_all (fd, headent, sizeof (headent));
   maxsize_heap = headent[1].heap;
   maxsize_stack = headent[1].stack;
   maxsize_total = headent[0].stack;
@@ -221,7 +221,8 @@ main (int argc, char *argv[])
 
       /* Write the computed values in the file.  */
       lseek (fd, 0, SEEK_SET);
-      write (fd, headent, 2 * sizeof (struct entry));
+      write_all (fd, headent, sizeof (headent));
+
     }
 
   if (also_total)
@@ -373,7 +374,7 @@ main (int argc, char *argv[])
           size_t new[2];
           uint64_t now;
 
-          read (fd, &entry, sizeof (entry));
+          read_all (fd, &entry, sizeof (entry));
 
           now = ((uint64_t) entry.time_high) << 32 | entry.time_low;
 
@@ -456,7 +457,7 @@ main (int argc, char *argv[])
           size_t xpos;
           uint64_t now;
 
-          read (fd, &entry, sizeof (entry));
+          read_all (fd, &entry, sizeof (entry));
 
           now = ((uint64_t) entry.time_high) << 32 | entry.time_low;
           xpos = 40 + ((xsize - 80) * (now - start_time)) / total_time;
@@ -582,6 +583,6 @@ print_version (FILE *stream, struct argp_state *state)
 Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
-"), "2021");
+"), "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Ulrich Drepper");
 }

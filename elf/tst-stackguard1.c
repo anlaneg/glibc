@@ -1,6 +1,5 @@
-/* Copyright (C) 2005-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2005.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,6 +25,8 @@
 #include <stackguard-macros.h>
 #include <tls.h>
 #include <unistd.h>
+
+#include <support/xstdlib.h>
 
 static const char *command;
 static bool child;
@@ -109,7 +110,8 @@ do_test (void)
 	  dup2 (fds[1], 2);
 	  close (fds[1]);
 
-	  system (command);
+	  xsystem (command);
+
 	  exit (0);
 	}
 

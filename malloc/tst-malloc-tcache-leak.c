@@ -1,5 +1,5 @@
 /* Bug 22111: Test that threads do not leak their per thread cache.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -42,7 +42,7 @@ worker (void *data)
   /* Allocate an arbitrary amount of memory that is known to fit into
      the thread local cache (tcache).  If we have at least 64 bins
      (default e.g. TCACHE_MAX_BINS) we should be able to allocate 32
-     bytes and force malloc to fill the tcache.  We are assuming tcahce
+     bytes and force malloc to fill the tcache.  We are assuming tcache
      init happens at the first small alloc, but it might in the future
      be deferred to some other point.  Therefore to future proof this
      test we include a full alloc/free/alloc cycle for the thread.  We

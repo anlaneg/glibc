@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -19,29 +19,12 @@
 #ifndef _AARCH64_ATOMIC_MACHINE_H
 #define _AARCH64_ATOMIC_MACHINE_H	1
 
-#include <stdint.h>
-
-typedef int8_t  atomic8_t;
-typedef int16_t atomic16_t;
-typedef int32_t atomic32_t;
-typedef int64_t atomic64_t;
-
-typedef uint8_t  uatomic8_t;
-typedef uint16_t uatomic16_t;
-typedef uint32_t uatomic32_t;
-typedef uint64_t uatomic64_t;
-
-typedef intptr_t atomicptr_t;
-typedef uintptr_t uatomicptr_t;
-typedef intmax_t atomic_max_t;
-typedef uintmax_t uatomic_max_t;
-
 #define __HAVE_64B_ATOMICS 1
 #define USE_ATOMIC_COMPILER_BUILTINS 1
 #define ATOMIC_EXCHANGE_USES_CAS 0
 
 /* Compare and exchange.
-   For all "bool" routines, we return FALSE if exchange succesful.  */
+   For all "bool" routines, we return FALSE if exchange successful.  */
 
 # define __arch_compare_and_exchange_bool_8_int(mem, newval, oldval, model) \
   ({									\

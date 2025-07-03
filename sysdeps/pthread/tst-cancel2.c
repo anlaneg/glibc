@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,6 +32,10 @@ tf (void *arg)
   char buf[100000];
 
   while (write (fd[1], buf, sizeof (buf)) > 0);
+  /* The write can return -1/EPIPE if the pipe was closed before the
+     thread calls write, which signals a side-effect that must be
+     signaled to the thread.  */
+  pthread_testcancel ();
 
   return (void *) 42l;
 }

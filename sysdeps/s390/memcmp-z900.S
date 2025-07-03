@@ -1,5 +1,5 @@
 /* memcmp - compare two memory blocks.  31/64 bit S/390 version.
-   Copyright (C) 2012-2021 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -164,6 +164,8 @@ END(MEMCMP_Z196)
    Otherwise see sysdeps/s390/memcmp.c.  */
 strong_alias (MEMCMP_DEFAULT, memcmp)
 weak_alias (memcmp, bcmp)
+strong_alias (memcmp, __memcmpeq)
+libc_hidden_def (__memcmpeq)
 #endif
 
 #if defined SHARED && IS_IN (libc)

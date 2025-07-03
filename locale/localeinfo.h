@@ -1,5 +1,5 @@
 /* Declarations for internal libc locale interfaces
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -58,19 +58,14 @@ struct __locale_data
     ld_archive			/* Both point into mmap'd archive regions.  */
   } alloc;
 
-  /* This provides a slot for category-specific code to cache data computed
-     about this locale.  That code can set a cleanup function to deallocate
-     the data.  */
-  struct
-  {
-    void (*cleanup) (struct __locale_data *);
-    union
-    {
-      void *data;
-      struct lc_time_data *time;
-      const struct gconv_fcts *ctype;
-    };
-  } private;
+  /* This provides a slot for category-specific code to cache data
+     computed about this locale.  Type of the data pointed to:
+
+     LC_CTYPE   struct lc_ctype_data (_nl_intern_locale_data)
+     LC_TIME    struct lc_time_data (_nl_init_alt_digit, _nl_init_era_entries)
+
+     This data deallocated at the start of _nl_unload_locale.  */
+  void *private;
 
   unsigned int usage_count;	/* Counter for users.  */
 
@@ -166,6 +161,27 @@ struct lc_time_data
   int walt_digits_initialized;
 };
 
+/* Ancillary data for LC_CTYPE.  Co-allocated after struct
+   __locale_data by _nl_intern_locale_data.  */
+struct lc_ctype_data
+{
+  /* See get_gconv_fcts and __wcsmbs_load_conv.  */
+  const struct gconv_fcts *fcts;
+
+  /* If false, outdigit just maps to the ASCII digits.  */
+  bool outdigit_translation_needed;
+
+  /* Cached multi-byte string lengths.  This could be added to the
+     locale data itself if the format is changed (which impacts
+     existing statically linked binaries).  */
+
+  /* For the outdigit decimal digits (copied from LC_CTYPE).  */
+  unsigned char outdigit_bytes[10];
+
+  /* If all outdigit_bytes elements are equal, this is that value,
+     otherwise it is 0.  */
+  unsigned char outdigit_bytes_all_equal;
+};
 
 /* LC_CTYPE specific:
    Hardwired indices for standard wide character translation mappings.  */
@@ -220,10 +236,9 @@ extern struct __locale_struct _nl_global_locale attribute_hidden;
 
 /* This fetches the thread-local locale_t pointer, either one set with
    uselocale or &_nl_global_locale.  */
-#define _NL_CURRENT_LOCALE	(__libc_tsd_get (locale_t, LOCALE))
-#include <libc-tsd.h>
-__libc_tsd_define (extern, locale_t, LOCALE)
-
+#define _NL_CURRENT_LOCALE	__libc_tsd_LOCALE
+extern __thread locale_t __libc_tsd_LOCALE
+  attribute_hidden attribute_tls_model_ie;
 
 /* For static linking it is desireable to avoid always linking in the code
    and data for every category when we can tell at link time that they are
@@ -349,7 +364,8 @@ extern void _nl_load_locale (struct loaded_l10nfile *file, int category)
      attribute_hidden;
 
 /* Free all resource.  */
-extern void _nl_unload_locale (struct __locale_data *locale) attribute_hidden;
+extern void _nl_unload_locale (int category, struct __locale_data *locale)
+  attribute_hidden;
 
 /* Free the locale and give back all memory if the usage count is one.  */
 extern void _nl_remove_locale (int locale, struct __locale_data *data)
@@ -364,10 +380,10 @@ extern struct __locale_data *_nl_load_locale_from_archive (int category,
 							   const char **namep)
      attribute_hidden;
 
-/* Subroutine of setlocale's __libc_subfreeres hook.  */
+/* Subroutine of setlocale's free resource.  */
 extern void _nl_archive_subfreeres (void) attribute_hidden;
 
-/* Subroutine of gconv-db's __libc_subfreeres hook.  */
+/* Subroutine of gconv-db's free resource.  */
 extern void _nl_locale_subfreeres (void) attribute_hidden;
 
 /* Validate the contents of a locale file and set up the in-core
@@ -409,7 +425,8 @@ extern int _nl_parse_alt_digit (const char **strp,
 /* Postload processing.  */
 extern void _nl_postload_ctype (void);
 
-/* Functions used for the `private.cleanup' hook.  */
+/* Deallocate category-specific data.  Used in _nl_unload_locale.  */
+extern void _nl_cleanup_ctype (struct __locale_data *) attribute_hidden;
 extern void _nl_cleanup_time (struct __locale_data *) attribute_hidden;
 
 

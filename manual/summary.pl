@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 # Generate the Summary of Library Facilities (summary.texi).
 
-# Copyright (C) 2017-2021 Free Software Foundation, Inc.
+# Copyright (C) 2017-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
-# Contributed by Rical Jasan <ricaljasan@pacific.net>, 2017.
 
 # The GNU C Library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public License

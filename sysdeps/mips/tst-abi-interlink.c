@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -715,7 +715,7 @@ unload_object (enum fp_obj obj)
   return true;
 }
 
-/* Load every permuation of OBJECTS.  */
+/* Load every permutation of OBJECTS.  */
 static bool
 test_permutations (enum fp_obj objects[], int count)
 {

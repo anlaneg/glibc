@@ -1,4 +1,4 @@
-# Copyright (C) 1991-2021 Free Software Foundation, Inc.
+# Copyright (C) 1991-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -141,8 +141,10 @@ usage () {
 cat << EOF
 Usage: $$0 [OPTIONS] <program> [ARGUMENTS...]
 
-  --tool=TOOL  Run with the specified TOOL. It can be strace, valgrind or
-               container. The container will run within support/test-container.
+  --tool=TOOL  Run with the specified TOOL. It can be strace, rpctrace,
+               valgrind or container. The container will run within
+               support/test-container.  For strace and valgrind,
+               additional arguments can be passed after the tool name.
 EOF
 
   exit 1
@@ -173,12 +175,16 @@ case "$$toolname" in
     exec $(subst $(common-objdir),"$${builddir}", $(test-program-prefix)) \
       $${1+"$$@"}
     ;;
-  strace)
-    exec strace $(patsubst %, -E%, $(run-program-env)) \
+  strace*)
+    exec $$toolname $(patsubst %, -E%, $(run-program-env)) \
       $(test-via-rtld-prefix) $${1+"$$@"}
     ;;
-  valgrind)
-    exec env $(run-program-env) valgrind $(test-via-rtld-prefix) $${1+"$$@"}
+  rpctrace)
+    exec rpctrace $(patsubst %, -E%, $(run-program-env)) \
+      $(test-via-rtld-prefix) $${1+"$$@"}
+    ;;
+  valgrind*)
+    exec env $(run-program-env) $$toolname $(test-via-rtld-prefix) $${1+"$$@"}
     ;;
   container)
     exec env $(run-program-env) $(test-via-rtld-prefix) \
@@ -512,7 +518,10 @@ mostlyclean: parent-mostlyclean
 	@$(MAKE) subdir_mostlyclean no_deps=t
 	-rm -f $(postclean)
 
-tests-clean:
+# Remove test artifacts from the whole glibc build.
+# do-tests-clean removes test artifacts from top-level directory, and
+# subdir_testclean removes them from individual sub-directories.
+tests-clean: do-tests-clean
 	@$(MAKE) subdir_testclean no_deps=t
 
 ifneq (,$(CXX))
@@ -536,8 +545,9 @@ tests-special += $(objpfx)check-installed-headers-c.out
 libof-check-installed-headers-c := testsuite
 $(objpfx)check-installed-headers-c.out: \
     scripts/check-installed-headers.sh $(headers)
-	$(SHELL) $(..)scripts/check-installed-headers.sh c \
-	  "$(CC) $(filter-out -std=%,$(CFLAGS)) -D_ISOMAC $(+includes)" \
+	$(SHELL) $(..)scripts/check-installed-headers.sh c $(supported-fortify) \
+	  "$(CC) $(test-config-cflags-finput-charset-ascii) \
+	     $(filter-out -std=%,$(CFLAGS)) -D_ISOMAC $(+includes)" \
 	  $(headers) > $@; \
 	$(evaluate-test)
 
@@ -546,8 +556,9 @@ tests-special += $(objpfx)check-installed-headers-cxx.out
 libof-check-installed-headers-cxx := testsuite
 $(objpfx)check-installed-headers-cxx.out: \
     scripts/check-installed-headers.sh $(headers)
-	$(SHELL) $(..)scripts/check-installed-headers.sh c++ \
-	  "$(CXX) $(filter-out -std=%,$(CXXFLAGS)) -D_ISOMAC $(+includes)" \
+	$(SHELL) $(..)scripts/check-installed-headers.sh c++ $(supported-fortify) \
+	  "$(CXX) $(test-config-cxxflags-finput-charset-ascii) \
+	     $(filter-out -std=%,$(CXXFLAGS)) -D_ISOMAC $(+includes)" \
 	  $(headers) > $@; \
 	$(evaluate-test)
 endif # $(CXX)
@@ -558,11 +569,32 @@ $(objpfx)check-wrapper-headers.out: scripts/check-wrapper-headers.py $(headers)
 	  --generated $(common-generated) > $@; $(evaluate-test)
 endif # $(headers)
 
+# Lint all Makefiles; including this one.  Pass `pwd` as the source
+# directory since the top-level Makefile is in the root of the source
+# tree and these tests are run from there.  We add light-weight linting
+# to the 'check' target to support the existing developer workflow of:
+# edit -> make -> make check; without needing an additional step.
+tests-special += $(objpfx)lint-makefiles.out
+$(objpfx)lint-makefiles.out: scripts/lint-makefiles.sh
+	$(SHELL) $< "$(PYTHON)" `pwd` > $@ ; \
+	$(evaluate-test)
+
+# Link libc.a as a whole to verify that it does not contain multiple
+# definitions of any symbols.
+tests-special += $(objpfx)link-static-libc.out
+$(objpfx)link-static-libc.out:
+	$(LINK.o) $(whole-archive) -nostdlib -nostartfiles -r \
+	  $(objpfx)libc.a -o /dev/null > $@ 2>&1; \
+	$(evaluate-test)
+
+# Print test summary for tests in $1 .sum file;
+# $2 is optional test identifier.
+# Fail if there are unexpected failures in the test results.
 define summarize-tests
-@egrep -v '^(PASS|XFAIL):' $(objpfx)$1 || true
-@echo "Summary of test results$2:"
-@sed 's/:.*//' < $(objpfx)$1 | sort | uniq -c
-@! egrep -q -v '^(X?PASS|XFAIL|UNSUPPORTED):' $(objpfx)$1
+@grep -E '^[A-Z]+:' $(objpfx)$1 | grep -E -v '^(PASS|XFAIL):' || true
+@echo "		=== Summary of results$2 ==="
+@sed -e '/:.*/!d' -e 's/:.*//' < $(objpfx)$1 | sort | uniq -c
+@! grep -E '^[A-Z]+:' $(objpfx)$1 | grep -E -q -v '^(X?PASS|XFAIL|UNSUPPORTED):'
 endef
 
 # The intention here is to do ONE install of our build into the
@@ -605,7 +637,7 @@ $(objpfx)testroot.pristine/install.stamp :
 ifeq ($(run-built-tests),yes)
 	# Copy these DSOs first so we can overwrite them with our own.
 	for dso in `$(test-wrapper-env) LD_TRACE_LOADED_OBJECTS=1  \
-		$(rtld-prefix) \
+		$(rtld-prefix) --inhibit-cache \
 		$(objpfx)testroot.pristine/bin/sh \
 	        | sed -n '/\//{s@.*=> /@/@;s/^[^/]*//;s/ .*//p;}'` ;\
 	  do \
@@ -614,7 +646,7 @@ ifeq ($(run-built-tests),yes)
 	    $(test-wrapper) cp $$dso $(objpfx)testroot.pristine$$dso ;\
 	  done
 	for dso in `$(test-wrapper-env) LD_TRACE_LOADED_OBJECTS=1  \
-		$(rtld-prefix) \
+		$(rtld-prefix) --inhibit-cache \
 		$(objpfx)support/$(LINKS_DSO_PROGRAM) \
 	        | sed -n '/\//{s@.*=> /@/@;s/^[^/]*//;s/ .*//p;}'` ;\
 	  do \
@@ -715,7 +747,7 @@ endif
 INSTALL: manual/install-plain.texi manual/macros.texi \
 	 $(common-objpfx)manual/pkgvers.texi manual/install.texi
 	makeinfo --no-validate --plaintext --no-number-sections \
-		 -I$(common-objpfx)manual $< -o $@-tmp
+		 --disable-encoding -I$(common-objpfx)manual $< -o $@-tmp
 	$(AWK) 'NF == 0 { ++n; next } \
 		NF != 0 { while (n-- > 0) print ""; n = 0; print }' \
 	  < $@-tmp > $@-tmp2

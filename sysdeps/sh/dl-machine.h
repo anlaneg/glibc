@@ -1,5 +1,5 @@
 /* Machine-dependent ELF dynamic relocation inline functions.  SH version.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,8 @@
 #include <sys/param.h>
 #include <sysdep.h>
 #include <assert.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
 
 /* Return nonzero iff ELF header is compatible with the running host.  */
 static inline int __attribute__ ((unused))
@@ -69,7 +71,8 @@ elf_machine_load_address (void)
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int __attribute__ ((unused, always_inline))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   Elf32_Addr *got;
   extern void _dl_runtime_resolve (Elf32_Word);
@@ -98,6 +101,7 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	 to intercept the calls to collect information.	 In this case we
 	 don't store the address in the GOT so that all future calls also
 	 end in this function.	*/
+#ifdef SHARED
       if (profile)
 	{
 	  got[2] = (Elf32_Addr) &_dl_runtime_profile;
@@ -107,6 +111,7 @@ elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
 	    GL(dl_profile_map) = l;
 	}
       else
+#endif
 	/* This function will get called to fix up the GOT entry indicated by
 	   the offset on the stack, and then jump to the resolved address.  */
 	got[2] = (Elf32_Addr) &_dl_runtime_resolve;
@@ -146,20 +151,8 @@ _dl_start_user:\n\
 	 add r0,r12\n\
 	.align 2\n\
 1:	.long _GLOBAL_OFFSET_TABLE_\n\
-2:	! See if we were run as a command with the executable file\n\
-	! name as an extra leading argument.\n\
-	mov.l .L_dl_skip_args,r0\n\
-	mov.l @(r0,r12),r0\n\
-	mov.l @r0,r0\n\
-	! Get the original argument count.\n\
+2:	! Get the original argument count.\n\
 	mov.l @r15,r5\n\
-	! Subtract _dl_skip_args from it.\n\
-	sub r0,r5\n\
-	! Adjust the stack pointer to skip _dl_skip_args words.\n\
-	shll2 r0\n\
-	add r0,r15\n\
-	! Store back the modified argument count.\n\
-	mov.l r5,@r15\n\
 	! Compute argv address and envp.\n\
 	mov r15,r6\n\
 	add #4,r6\n\
@@ -185,8 +178,6 @@ _dl_start_user:\n\
 	.align 2\n\
 .L_dl_start:\n\
 	.long _dl_start@PLT\n\
-.L_dl_skip_args:\n\
-	.long _dl_skip_args@GOT\n\
 .L_dl_init:\n\
 	.long _dl_init@PLT\n\
 .L_dl_loaded:\n\
@@ -250,19 +241,16 @@ elf_machine_plt_value (struct link_map *map, const Elf32_Rela *reloc,
 
 #endif /* !dl_machine_h */
 
-/* SH never uses Elf32_Rel relocations.	 */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
-
 #ifdef RESOLVE_MAP
 
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
 
-auto inline void
+static inline void
 __attribute ((always_inline))
-elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
-		  const Elf32_Sym *sym, const struct r_found_version *version,
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const Elf32_Rela *reloc, const Elf32_Sym *sym,
+		  const struct r_found_version *version,
 		  void *const reloc_addr_arg, int skip_ifunc)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
@@ -296,7 +284,7 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
   if (__glibc_unlikely (r_type == R_SH_RELATIVE))
     {
 #ifndef RTLD_BOOTSTRAP
-      if (map != &GL(dl_rtld_map)) /* Already done in rtld itself.	 */
+      if (is_rtld_link_map (map)) /* Already done in rtld itself.  */
 #endif
 	{
 	  if (reloc->r_addend)
@@ -318,7 +306,8 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
   else
     {
       const Elf32_Sym *const refsym = sym;
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
 
       value = SYMBOL_ADDRESS (sym_map, sym, true);
       value += reloc->r_addend;
@@ -390,17 +379,8 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
 	  break;
 	case R_SH_DIR32:
 	  {
-#if !defined RTLD_BOOTSTRAP && !defined RESOLVE_CONFLICT_FIND_MAP
-	   /* This is defined in rtld.c, but nowhere in the static
-	      libc.a; make the reference weak so static programs can
-	      still link.  This declaration cannot be done when
-	      compiling rtld.c (i.e. #ifdef RTLD_BOOTSTRAP) because
-	      rtld.c contains the common defn for _dl_rtld_map, which
-	      is incompatible with a weak decl in the same file.  */
-# ifndef SHARED
-	    weak_extern (_dl_rtld_map);
-# endif
-	    if (map == &GL(dl_rtld_map))
+#if !defined RTLD_BOOTSTRAP
+	    if (is_rtld_link_map (map))
 	      /* Undo the relocation done here during bootstrapping.
 		 Now we will relocate it anew, possibly using a
 		 binding found in the user program or a loaded library
@@ -424,7 +404,7 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
     }
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -443,9 +423,9 @@ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 #undef COPY_UNALIGNED_WORD
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_lazy_rel (struct link_map *map,
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
 		      int skip_ifunc)
 {

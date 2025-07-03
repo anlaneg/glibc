@@ -1,6 +1,5 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -19,13 +18,16 @@
 #include <limits.h>
 #define ffsl __something_else
 #include <string.h>
-
 #undef	ffs
+#include <math-use-builtins.h>
 
 /* Find the first bit set in I.  */
 int
 __ffs (int i)
 {
+#if USE_FFS_BUILTIN
+  return __builtin_ffs (i);
+#else
   static const unsigned char table[] =
     {
       0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
@@ -43,6 +45,7 @@ __ffs (int i)
   a = x <= 0xffff ? (x <= 0xff ? 0 : 8) : (x <= 0xffffff ?  16 : 24);
 
   return table[x >> a] + a;
+#endif
 }
 weak_alias (__ffs, ffs)
 libc_hidden_def (__ffs)

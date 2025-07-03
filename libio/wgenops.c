@@ -1,7 +1,5 @@
-/* Copyright (C) 1993-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Ulrich Drepper <drepper@cygnus.com>.
-   Based on the single byte version by Per Bothner <bothner@cygnus.com>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -603,7 +601,7 @@ _IO_unsave_wmarkers (FILE *fp)
   struct _IO_marker *mark = fp->_markers;
   if (mark)
     {
-      fp->_markers = 0;
+      fp->_markers = NULL;
     }
 
   if (_IO_have_backup (fp))

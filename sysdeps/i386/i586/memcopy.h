@@ -1,6 +1,5 @@
 /* memcopy.h -- definitions for memory copy functions.  Pentium version.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
-   Contributed by Torbjorn Granlund (tege@sics.se).
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or

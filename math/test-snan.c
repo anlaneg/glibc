@@ -1,7 +1,6 @@
 /* Test signaling NaNs in issignaling, isnan, isinf, and similar functions.
-   Copyright (C) 2008-2021 Free Software Foundation, Inc.
+   Copyright (C) 2008-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Andreas Jaeger <aj@suse.de>, 2005.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,8 +25,10 @@
 #include <setjmp.h>
 
 #include <math-tests.h>
+#include <support/check.h>
 
 
+#ifdef __SUPPORT_SNAN__
 static sigjmp_buf sigfpe_buf;
 
 static void
@@ -124,10 +125,12 @@ NAME (void)								      \
 TEST_FUNC (float_test, float, f)
 TEST_FUNC (double_test, double, )
 TEST_FUNC (ldouble_test, long double, l)
+#endif
 
 static int
 do_test (void)
 {
+#ifdef __SUPPORT_SNAN__
   signal (SIGFPE, &myFPsighandler);
 
   float_test ();
@@ -135,7 +138,9 @@ do_test (void)
   ldouble_test ();
 
   return errors != 0;
+#else
+  FAIL_UNSUPPORTED ("compiler does not support -fsignaling-nans");
+#endif
 }
 
-#define TEST_FUNCTION do_test ()
-#include "../test-skeleton.c"
+#include <support/test-driver.c>

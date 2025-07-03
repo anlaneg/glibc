@@ -1,8 +1,6 @@
 /* Internal function for converting integers to ASCII.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund <tege@matematik.su.se>
-   and Ulrich Drepper <drepper@gnu.org>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,6 +16,11 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
+/* Mark symbols hidden in static PIE for early self relocation to work.
+   Note: string.h may have ifuncs which cannot be hidden on i686.  */
+#if BUILD_PIE_DEFAULT
+# pragma GCC visibility push(hidden)
+#endif
 #include <gmp-mparam.h>
 #include <gmp.h>
 #include <limits.h>
@@ -158,36 +161,6 @@ const struct base_table_t _itoa_base_table[] attribute_hidden =
 # endif
 };
 #endif
-
-char *
-_itoa_word (_ITOA_WORD_TYPE value, char *buflim,
-	    unsigned int base, int upper_case)
-{
-  const char *digits = (upper_case
-			? _itoa_upper_digits
-			: _itoa_lower_digits);
-
-  switch (base)
-    {
-#define SPECIAL(Base)							      \
-    case Base:								      \
-      do								      \
-	*--buflim = digits[value % Base];				      \
-      while ((value /= Base) != 0);					      \
-      break
-
-      SPECIAL (10);
-      SPECIAL (16);
-      SPECIAL (8);
-    default:
-      do
-	*--buflim = digits[value % base];
-      while ((value /= base) != 0);
-    }
-  return buflim;
-}
-#undef SPECIAL
-
 
 #if _ITOA_NEEDED
 char *
@@ -454,17 +427,6 @@ _itoa (unsigned long long int value, char *buflim, unsigned int base,
   return buflim;
 }
 #endif
-
-char *
-_fitoa_word (_ITOA_WORD_TYPE value, char *buf, unsigned int base,
-	     int upper_case)
-{
-  char tmpbuf[sizeof (value) * 4];	      /* Worst case length: base 2.  */
-  char *cp = _itoa_word (value, tmpbuf + sizeof (value) * 4, base, upper_case);
-  while (cp < tmpbuf + sizeof (value) * 4)
-    *buf++ = *cp++;
-  return buf;
-}
 
 #if _ITOA_NEEDED
 char *

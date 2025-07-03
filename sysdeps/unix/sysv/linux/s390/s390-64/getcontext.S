@@ -1,6 +1,5 @@
-/* Copyright (C) 2001-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,16 +32,18 @@
   other than the PRESERVED state.  */
 
 ENTRY(__getcontext)
-	lgr     %r1,%r2
+	lgr	%r0,%r2
 
 	/* rt_sigprocmask (SIG_BLOCK, NULL, &sc->sc_mask, sigsetsize).  */
+	la	%r4,SC_MASK(%r2)
 	la      %r2,SIG_BLOCK
 	slgr	%r3,%r3
-	la	%r4,SC_MASK(%r1)
 	lghi	%r5,_NSIG8
-	svc	SYS_ify(rt_sigprocmask)
+	lghi	%r1,SYS_ify(rt_sigprocmask)
+	svc	0
 
 	/* Store fpu context.  */
+	lgr	%r1,%r0
 	stfpc   SC_FPC(%r1)
 	std     %f0,SC_FPRS(%r1)
 	std     %f1,SC_FPRS+8(%r1)
@@ -69,6 +70,12 @@ ENTRY(__getcontext)
 
 	/* Store general purpose registers.  */
 	stmg    %r0,%r15,SC_GPRS(%r1)
+
+	/* Store psw mask to 0x0 and addr to return address.  Then the address
+	   can be retrieved from the ucontext structure in the same way as if it
+	   is created by kernel and passed to a signal-handler.  */
+	stg	%r2,SC_PSW+0(%r1)
+	stg	%r14,SC_PSW+8(%r1)
 
 	/* Return.  */
 	br	%r14

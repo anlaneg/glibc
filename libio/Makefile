@@ -1,4 +1,4 @@
-# Copyright (C) 1995-2021 Free Software Foundation, Inc.
+# Copyright (C) 1995-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@ subdir	:= libio
 include ../Makeconfig
 
 headers	:= stdio.h \
-	   bits/stdio.h bits/stdio2.h bits/stdio-ldbl.h \
+	   bits/stdio.h bits/stdio2.h bits/stdio2-decl.h bits/stdio-ldbl.h \
 	   bits/types/FILE.h bits/types/__FILE.h bits/types/struct_FILE.h \
 	   bits/types/__fpos_t.h bits/types/__fpos64_t.h \
 	   bits/types/cookie_io_functions_t.h
@@ -51,22 +51,105 @@ routines	:=							      \
 									      \
 	libc_fatal fmemopen oldfmemopen vtables
 
-tests = tst_swprintf tst_wprintf tst_swscanf tst_wscanf tst_getwc tst_putwc   \
-	tst_wprintf2 tst-widetext test-fmemopen tst-ext tst-ext2 \
-	tst-fgetws tst-ungetwc1 tst-ungetwc2 tst-swscanf tst-sscanf	      \
-	tst-mmap-setvbuf bug-ungetwc1 bug-ungetwc2 tst-atime tst-eof          \
-	tst-freopen bug-rewind bug-rewind2 bug-ungetc bug-fseek \
-	tst-mmap-eofsync tst-mmap-fflushsync bug-mmap-fflush \
-	tst-mmap2-eofsync tst-mmap-offend bug-fopena+ bug-wfflush \
-	bug-ungetc2 bug-ftell bug-ungetc3 bug-ungetc4 tst-fopenloc2 \
-	tst-memstream1 tst-memstream2 tst-memstream3 tst-memstream4 \
-	tst-wmemstream1 tst-wmemstream2 tst-wmemstream3 tst-wmemstream4 \
-	tst-wmemstream5 bug-memstream1 bug-wmemstream1 \
-	tst-setvbuf1 tst-popen1 tst-fgetwc bug-wsetpos tst-fseek \
-	tst-fwrite-error tst-ftell-partial-wide tst-ftell-active-handler \
-	tst-ftell-append tst-fputws tst-bz22415 tst-fgetc-after-eof \
-	tst-sprintf-ub tst-sprintf-chk-ub tst-bz24051 tst-bz24153 \
-	tst-wfile-sync
+gen-as-const-headers += libio-macros.sym
+
+# Exclude fortified routines from being built with _FORTIFY_SOURCE
+routines_no_fortify += \
+  fwprintf \
+  iofgets \
+  iofgets_u \
+  iofgetws \
+  iofgetws_u \
+  swprintf \
+  vasprintf \
+  vsnprintf \
+  vswprintf \
+  vwprintf \
+  wprintf \
+  # routines_no_fortify
+
+tests = \
+  bug-fopena+ \
+  bug-fseek \
+  bug-ftell \
+  bug-memstream1 \
+  bug-mmap-fflush \
+  bug-rewind \
+  bug-rewind2 \
+  bug-ungetc \
+  bug-ungetc2 \
+  bug-ungetc3 \
+  bug-ungetc4 \
+  bug-ungetwc1 \
+  bug-ungetwc2 \
+  bug-wfflush \
+  bug-wmemstream1 \
+  bug-wsetpos \
+  test-fmemopen \
+  test-fputs-unbuffered-full \
+  test-fputws-unbuffered-full \
+  tst-asprintf-null \
+  tst-atime \
+  tst-bz22415 \
+  tst-bz24051 \
+  tst-bz24153 \
+  tst-bz28828 \
+  tst-closeall \
+  tst-eof \
+  tst-ext \
+  tst-ext2 \
+  tst-fclose-unopened \
+  tst-fclose-unopened2 \
+  tst-fdopen-seek-failure \
+  tst-fflush \
+  tst-fflush-NULL \
+  tst-fgetc-after-eof \
+  tst-fgetwc \
+  tst-fgetws \
+  tst-fopenloc2 \
+  tst-fputws \
+  tst-freopen \
+  tst-fseek \
+  tst-ftell-active-handler \
+  tst-ftell-append \
+  tst-ftell-partial-wide \
+  tst-fwrite-error \
+  tst-getdelim \
+  tst-memstream1 \
+  tst-memstream2 \
+  tst-memstream3 \
+  tst-memstream4 \
+  tst-mmap-eofsync \
+  tst-mmap-fflushsync \
+  tst-mmap-offend \
+  tst-mmap-setvbuf \
+  tst-mmap2-eofsync \
+  tst-popen-fork \
+  tst-popen1 \
+  tst-setvbuf1 \
+  tst-sprintf-chk-ub \
+  tst-sprintf-ub \
+  tst-sscanf \
+  tst-swscanf \
+  tst-ungetwc1 \
+  tst-ungetwc2 \
+  tst-wfile-sync \
+  tst-widetext \
+  tst-wmemstream1 \
+  tst-wmemstream2 \
+  tst-wmemstream3 \
+  tst-wmemstream4 \
+  tst-wmemstream5 \
+  tst_getwc \
+  tst_putwc \
+  tst_swprintf \
+  tst_swscanf \
+  tst_wprintf \
+  tst_wprintf2 \
+  tst_wscanf \
+  # tests
+
+$(objpfx)tst-popen-fork: $(shared-thread-library)
 
 tests-internal = tst-vtables tst-vtables-interposed
 
@@ -112,18 +195,18 @@ CFLAGS-getchar.c += -fexceptions
 CFLAGS-getwc.c += -fexceptions
 CFLAGS-getwchar.c += -fexceptions
 CFLAGS-iofclose.c += -fexceptions
-CFLAGS-iofflush.c += -fexceptions
+CFLAGS-iofflush.c += -fexceptions $(config-cflags-wno-ignored-attributes)
 CFLAGS-iofgetpos64.c += -fexceptions
 CFLAGS-iofgetpos.c += -fexceptions
 CFLAGS-iofgets.c += -fexceptions
 CFLAGS-iofgetws.c += -fexceptions
-CFLAGS-iofputs.c += -fexceptions
+CFLAGS-iofputs.c += -fexceptions $(config-cflags-wno-ignored-attributes)
 CFLAGS-iofputws.c += -fexceptions
 CFLAGS-iofread.c += -fexceptions
 CFLAGS-iofsetpos64.c += -fexceptions
 CFLAGS-iofsetpos.c += -fexceptions
 CFLAGS-ioftell.c += -fexceptions
-CFLAGS-iofwrite.c += -fexceptions
+CFLAGS-iofwrite.c += -fexceptions $(config-cflags-wno-ignored-attributes)
 CFLAGS-iogetdelim.c += -fexceptions
 CFLAGS-iogetline.c += -fexceptions
 CFLAGS-iogets.c += -fexceptions
@@ -153,20 +236,40 @@ CFLAGS-oldiofopen.c += -fexceptions
 CFLAGS-iofopen.c += -fexceptions
 CFLAGS-iofopen64.c += -fexceptions
 CFLAGS-oldtmpfile.c += -fexceptions
+CFLAGS-fileno.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-feof_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-ferror_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-getc_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-iofflush_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-putc_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-iofgets_u.c += $(config-cflags-wno-ignored-attributes)
+CFLAGS-iofputs_u.c += $(config-cflags-wno-ignored-attributes)
 # XXX Do we need filedoalloc and wfiledoalloc?  Others?
+
+# Prevent fortification as these are built with -O0
+CFLAGS-tst-bz24051.c += $(no-fortify-source)
+CFLAGS-tst-bz24153.c += $(no-fortify-source)
 
 CFLAGS-tst_putwc.c += -DOBJPFX=\"$(objpfx)\"
 
 # These test cases intentionally use overlapping arguments
-CFLAGS-tst-sprintf-ub.c += -Wno-restrict
-CFLAGS-tst-sprintf-chk-ub.c += -Wno-restrict
+CFLAGS-tst-sprintf-ub.c += $(test-config-cflags-wno-restrict) \
+			   $(no-fortify-source)
+CFLAGS-tst-sprintf-chk-ub.c += $(test-config-cflags-wno-restrict) \
+			       $(no-fortify-source)
 
 LDFLAGS-tst-bz24228 = -Wl,--version-script=tst-bz24228.map
 
 tst_wprintf2-ARGS = "Some Text"
 
+tst-fclose-unopened2-ENV = \
+  MALLOC_TRACE=$(objpfx)tst-fclose-unopened2.mtrace \
+  LD_PRELOAD=$(common-objpfx)/malloc/libc_malloc_debug.so
 test-fmemopen-ENV = MALLOC_TRACE=$(objpfx)test-fmemopen.mtrace \
 		    LD_PRELOAD=$(common-objpfx)/malloc/libc_malloc_debug.so
+tst-fdopen-seek-failure-ENV = \
+  MALLOC_TRACE=$(objpfx)tst-fdopen-seek-failure.mtrace \
+  LD_PRELOAD=$(common-objpfx)/malloc/libc_malloc_debug.so
 tst-fopenloc-ENV = MALLOC_TRACE=$(objpfx)tst-fopenloc.mtrace \
 		   LD_PRELOAD=$(common-objpfx)/malloc/libc_malloc_debug.so
 tst-bz22415-ENV = MALLOC_TRACE=$(objpfx)tst-bz22415.mtrace \
@@ -174,15 +277,44 @@ tst-bz22415-ENV = MALLOC_TRACE=$(objpfx)tst-bz22415.mtrace \
 tst-bz24228-ENV = MALLOC_TRACE=$(objpfx)tst-bz24228.mtrace \
 		  LD_PRELOAD=$(common-objpfx)/malloc/libc_malloc_debug.so
 
-generated += test-fmemopen.mtrace test-fmemopen.check
-generated += tst-fopenloc.mtrace tst-fopenloc.check
-generated += tst-bz22415.mtrace tst-bz22415.check
-
 aux	:= fileops genops stdfiles stdio strops
 
+ifeq ($(run-built-tests),yes)
 ifeq ($(build-shared),yes)
-generated += tst-bz24228.mtrace tst-bz24228.check
+ifneq ($(PERL),no)
+generated += \
+  test-fmemopen.check \
+  test-fmemopen.mtrace \
+  tst-bz22415.check \
+  tst-bz22415.mtrace \
+  tst-bz24228.check \
+  tst-bz24228.mtrace \
+  tst-fclose-unopened2.check \
+  tst-fclose-unopened2.mtrace \
+  tst-fdopen-seek-failure.check \
+  tst-fdopen-seek-failure.mtrace \
+  tst-fopenloc.check \
+  tst-fopenloc.mtrace \
+  # generated
+endif
+endif
+endif
+
+ifeq ($(build-shared),yes)
 aux	+= oldfileops oldstdfiles
+tests += \
+  tst-fopen-compat \
+  tst-stderr-compat \
+# tests
+tests-2.0 += \
+  tst-fopen-compat \
+  tst-stderr-compat \
+# tests-2.0
+
+tst-fopen-compat-ARGS = tst-fopen-compat.c
+# Disable PIE to trigger copy relocation.
+CFLAGS-tst-fopen-compat.c += -fno-pie
+tst-fopen-compat-no-pie = yes
 endif
 
 shared-only-routines = oldiofopen oldiofdopen oldiofclose oldfileops	\
@@ -191,25 +323,47 @@ shared-only-routines = oldiofopen oldiofdopen oldiofclose oldfileops	\
 		       oldiofsetpos64
 
 ifeq ($(run-built-tests),yes)
-tests-special += $(objpfx)test-freopen.out $(objpfx)test-fmemopen-mem.out \
-		 $(objpfx)tst-bz22415-mem.out
+tests-special += \
+  $(objpfx)test-freopen.out \
+  # tests-special
 ifeq (yes,$(build-shared))
 # Run tst-fopenloc-cmp.out and tst-openloc-mem.out only if shared
 # library is enabled since they depend on tst-fopenloc.out.
-tests-special += $(objpfx)tst-fopenloc-cmp.out $(objpfx)tst-fopenloc-mem.out \
-		 $(objpfx)tst-bz24228-mem.out
+tests-special += $(objpfx)tst-fopenloc-cmp.out
+ifeq ($(build-shared),yes)
+ifneq ($(PERL),no)
+tests-special += \
+  $(objpfx)test-fmemopen-mem.out \
+  $(objpfx)tst-bz22415-mem.out \
+  $(objpfx)tst-bz24228-mem.out \
+  $(objpfx)tst-fclose-unopened2-mem.out \
+  $(objpfx)tst-fdopen-seek-failure-mem.out \
+  $(objpfx)tst-fopenloc-mem.out \
+  # tests-special
+endif
+endif
 endif
 
-tests += tst-cleanup-default tst-cleanup-default-static
+tests += \
+  tst-cleanup-default \
+  tst-cleanup-default-static \
+  # tests
 tests-static += tst-cleanup-default-static
 tests-special += $(objpfx)tst-cleanup-default-cmp.out $(objpfx)tst-cleanup-default-static-cmp.out
 LDFLAGS-tst-cleanup-default = -Wl,--gc-sections
 LDFLAGS-tst-cleanup-default-static = -Wl,--gc-sections
 
 ifeq ($(have-gnu-retain)$(have-z-start-stop-gc),yesyes)
-tests += tst-cleanup-start-stop-gc tst-cleanup-start-stop-gc-static \
-		tst-cleanup-nostart-stop-gc tst-cleanup-nostart-stop-gc-static
-tests-static += tst-cleanup-start-stop-gc-static tst-cleanup-nostart-stop-gc-static
+tests += \
+  tst-cleanup-nostart-stop-gc \
+  tst-cleanup-nostart-stop-gc-static \
+  tst-cleanup-start-stop-gc \
+  tst-cleanup-start-stop-gc-static \
+  # tests
+tests-static += \
+  tst-cleanup-nostart-stop-gc-static \
+  tst-cleanup-start-stop-gc-static \
+  # tests-static
 tests-special += $(objpfx)tst-cleanup-start-stop-gc-cmp.out \
 		$(objpfx)tst-cleanup-start-stop-gc-static-cmp.out \
 		$(objpfx)tst-cleanup-nostart-stop-gc-cmp.out \
@@ -268,6 +422,16 @@ $(objpfx)tst-fopenloc-cmp.out: ../iconvdata/testdata/ISO-8859-1..UTF8 \
 
 $(objpfx)test-fmemopen-mem.out: $(objpfx)test-fmemopen.out
 	$(common-objpfx)malloc/mtrace $(objpfx)test-fmemopen.mtrace > $@; \
+	$(evaluate-test)
+
+$(objpfx)tst-fclose-unopened2-mem.out: $(objpfx)tst-fclose-unopened2.out
+	$(common-objpfx)malloc/mtrace \
+	  $(objpfx)tst-fclose-unopened2.mtrace > $@; \
+	$(evaluate-test)
+
+$(objpfx)tst-fdopen-seek-failure-mem.out: $(objpfx)tst-fdopen-seek-failure.out
+	$(common-objpfx)malloc/mtrace \
+	  $(objpfx)tst-fdopen-seek-failure.mtrace > $@; \
 	$(evaluate-test)
 
 $(objpfx)tst-fopenloc-mem.out: $(objpfx)tst-fopenloc.out

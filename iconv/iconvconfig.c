@@ -1,7 +1,6 @@
 /* Generate fastloading iconv module configuration files.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2000.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -399,7 +398,7 @@ print_version (FILE *stream, struct argp_state *state)
 Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
-"), "2021");
+"), "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Ulrich Drepper");
 }
 
@@ -446,7 +445,7 @@ static void
 add_alias (char *rp)
 {
   /* We now expect two more string.  The strings are normalized
-     (converted to UPPER case) and strored in the alias database.  */
+     (converted to UPPER case) and stored in the alias database.  */
   char *from;
   char *to;
   char *wp;
@@ -653,13 +652,21 @@ add_module (char *rp, const char *directory,
 static int
 handle_dir (const char *dir)
 {
+  char *newp = NULL;
   size_t dirlen = strlen (dir);
   bool found = false;
 
-  char *fulldir = xasprintf ("%s%s%s", dir[0] == '/' ? prefix : "",
-			     dir, dir[dirlen - 1] != '/' ? "/" : "");
+  /* End directory path with a '/' if it doesn't already.  */
+  if (dir[dirlen - 1] != '/')
+    {
+      newp = xmalloc (dirlen + 2);
+      memcpy (newp, dir, dirlen);
+      newp[dirlen++] = '/';
+      newp[dirlen] = '\0';
+      dir = newp;
+    }
 
-  found = gconv_parseconfdir (fulldir, strlen (fulldir));
+  found = gconv_parseconfdir (dir[0] == '/' ? prefix : NULL, dir, dirlen);
 
   if (!found)
     {
@@ -671,7 +678,7 @@ handle_dir (const char *dir)
 	     "configuration files with names ending in .conf.");
     }
 
-  free (fulldir);
+  free (newp);
 
   return found ? 0 : 1;
 }

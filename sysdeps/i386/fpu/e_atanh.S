@@ -1,7 +1,6 @@
 /* ix87 specific implementation of arctanh function.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -34,7 +33,8 @@ one:	.double 1.0
 limit:	.double 0.29
 	ASM_SIZE_DIRECTIVE(limit)
 	.type ln2_2,@object
-ln2_2:	.tfloat 0.3465735902799726547086160
+ln2_2:	.quad  0xb17217f7d1cf79ac /* 0.3465735902799726547086160  */
+	.short 0x3ffd
 	ASM_SIZE_DIRECTIVE(ln2_2)
 
 DEFINE_DBL_MIN

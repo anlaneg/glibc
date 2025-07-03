@@ -1,5 +1,5 @@
 /* `ptrace' debugger support interface.  Linux/SPARC version.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 #include <bits/wordsize.h>
 
 /* Linux/SPARC kernels up to 2.3.18 do not care much
-   about what namespace polution, so use a kludge now.  */
+   about what namespace pollution, so use a kludge now.  */
 #undef PTRACE_GETREGS
 #undef PTRACE_SETREGS
 #undef PTRACE_GETFPREGS
@@ -225,8 +225,18 @@ enum __ptrace_request
 #define PTRACE_GET_SYSCALL_INFO PTRACE_GET_SYSCALL_INFO
 
   /* Get rseq configuration information.  */
-  PTRACE_GET_RSEQ_CONFIGURATION = 0x420f
+  PTRACE_GET_RSEQ_CONFIGURATION = 0x420f,
 #define PTRACE_GET_RSEQ_CONFIGURATION PTRACE_GET_RSEQ_CONFIGURATION
+
+  /* Set configuration for syscall user dispatch.  */
+  PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG = 0x4210,
+#define PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG \
+  PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG
+
+  /* Get configuration for syscall user dispatch.  */
+  PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG = 0x4211
+#define PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG \
+  PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG
 };
 
 

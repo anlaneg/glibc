@@ -1,7 +1,6 @@
 /* Simple transformations functions.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -57,7 +56,7 @@ __gconv_btwoc_ascii (struct __gconv_step *step, unsigned char c)
 
 /* Transform from the internal, UCS4-like format, to UCS4.  The
    difference between the internal ucs4 format and the real UCS4
-   format is, if any, the endianess.  The Unicode/ISO 10646 says that
+   format is, if any, the endianness.  The Unicode/ISO 10646 says that
    unless some higher protocol specifies it differently, the byte
    order is big endian.*/
 #define DEFINE_INIT		0
@@ -87,19 +86,21 @@ internal_ucs4_loop (struct __gconv_step *step,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
   /* Sigh, we have to do some real work.  */
   size_t cnt;
-  uint32_t *outptr32 = (uint32_t *) outptr;
 
-  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4)
-    *outptr32++ = bswap_32 (*(const uint32_t *) inptr);
+  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4, outptr += 4)
+    {
+      uint32_t val = get32 (inptr);
+      put32 (outptr, __builtin_bswap32 (val));
+    }
 
   *inptrp = inptr;
-  *outptrp = (unsigned char *) outptr32;
+  *outptrp = outptr;
 #elif __BYTE_ORDER == __BIG_ENDIAN
   /* Simply copy the data.  */
   *inptrp = inptr + n_convert * 4;
   *outptrp = __mempcpy (outptr, inptr, n_convert * 4);
 #else
-# error "This endianess is not supported."
+# error "This endianness is not supported."
 #endif
 
   /* Determine the status.  */
@@ -112,56 +113,6 @@ internal_ucs4_loop (struct __gconv_step *step,
 
   return result;
 }
-
-#if !_STRING_ARCH_unaligned
-static inline int
-__attribute ((always_inline))
-internal_ucs4_loop_unaligned (struct __gconv_step *step,
-			      struct __gconv_step_data *step_data,
-			      const unsigned char **inptrp,
-			      const unsigned char *inend,
-			      unsigned char **outptrp,
-			      const unsigned char *outend,
-			      size_t *irreversible)
-{
-  const unsigned char *inptr = *inptrp;
-  unsigned char *outptr = *outptrp;
-  size_t n_convert = MIN (inend - inptr, outend - outptr) / 4;
-  int result;
-
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-  /* Sigh, we have to do some real work.  */
-  size_t cnt;
-
-  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4, outptr += 4)
-    {
-      outptr[0] = inptr[3];
-      outptr[1] = inptr[2];
-      outptr[2] = inptr[1];
-      outptr[3] = inptr[0];
-    }
-
-  *inptrp = inptr;
-  *outptrp = outptr;
-# elif __BYTE_ORDER == __BIG_ENDIAN
-  /* Simply copy the data.  */
-  *inptrp = inptr + n_convert * 4;
-  *outptrp = __mempcpy (outptr, inptr, n_convert * 4);
-# else
-#  error "This endianess is not supported."
-# endif
-
-  /* Determine the status.  */
-  if (*inptrp == inend)
-    result = __GCONV_EMPTY_INPUT;
-  else if (*outptrp + 4 > outend)
-    result = __GCONV_FULL_OUTPUT;
-  else
-    result = __GCONV_INCOMPLETE_INPUT;
-
-  return result;
-}
-#endif
 
 
 static inline int
@@ -202,7 +153,7 @@ internal_ucs4_loop_single (struct __gconv_step *step,
   (*outptrp)[2] = state->__value.__wchb[2];
   (*outptrp)[3] = state->__value.__wchb[3];
 #else
-# error "This endianess is not supported."
+# error "This endianness is not supported."
 #endif
   *outptrp += 4;
 
@@ -243,12 +194,9 @@ ucs4_internal_loop (struct __gconv_step *step,
 
   for (; inptr + 4 <= inend && outptr + 4 <= outend; inptr += 4)
     {
-      uint32_t inval;
-
+      uint32_t inval = get32 (inptr);
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-      inval = bswap_32 (*(const uint32_t *) inptr);
-#else
-      inval = *(const uint32_t *) inptr;
+      inval = __builtin_bswap32 (inval);
 #endif
 
       if (__glibc_unlikely (inval > 0x7fffffff))
@@ -259,7 +207,7 @@ ucs4_internal_loop (struct __gconv_step *step,
 	     UCS4 does not allow such values.  */
 	  if (irreversible == NULL)
 	    /* We are transliterating, don't try to correct anything.  */
-	    return __GCONV_ILLEGAL_INPUT;
+	    return __gconv_mark_illegal_input (step_data);
 
 	  if (flags & __GCONV_IGNORE_ERRORS)
 	    {
@@ -270,10 +218,10 @@ ucs4_internal_loop (struct __gconv_step *step,
 
 	  *inptrp = inptr;
 	  *outptrp = outptr;
-	  return __GCONV_ILLEGAL_INPUT;
+	  return __gconv_mark_illegal_input (step_data);
 	}
 
-      *((uint32_t *) outptr) = inval;
+      put32 (outptr, inval);
       outptr += sizeof (uint32_t);
     }
 
@@ -290,75 +238,6 @@ ucs4_internal_loop (struct __gconv_step *step,
 
   return result;
 }
-
-#if !_STRING_ARCH_unaligned
-static inline int
-__attribute ((always_inline))
-ucs4_internal_loop_unaligned (struct __gconv_step *step,
-			      struct __gconv_step_data *step_data,
-			      const unsigned char **inptrp,
-			      const unsigned char *inend,
-			      unsigned char **outptrp,
-			      const unsigned char *outend,
-			      size_t *irreversible)
-{
-  int flags = step_data->__flags;
-  const unsigned char *inptr = *inptrp;
-  unsigned char *outptr = *outptrp;
-  int result;
-
-  for (; inptr + 4 <= inend && outptr + 4 <= outend; inptr += 4)
-    {
-      if (__glibc_unlikely (inptr[0] > 0x80))
-	{
-	  /* The value is too large.  We don't try transliteration here since
-	     this is not an error because of the lack of possibilities to
-	     represent the result.  This is a genuine bug in the input since
-	     UCS4 does not allow such values.  */
-	  if (irreversible == NULL)
-	    /* We are transliterating, don't try to correct anything.  */
-	    return __GCONV_ILLEGAL_INPUT;
-
-	  if (flags & __GCONV_IGNORE_ERRORS)
-	    {
-	      /* Just ignore this character.  */
-	      ++*irreversible;
-	      continue;
-	    }
-
-	  *inptrp = inptr;
-	  *outptrp = outptr;
-	  return __GCONV_ILLEGAL_INPUT;
-	}
-
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-      outptr[3] = inptr[0];
-      outptr[2] = inptr[1];
-      outptr[1] = inptr[2];
-      outptr[0] = inptr[3];
-# else
-      outptr[0] = inptr[0];
-      outptr[1] = inptr[1];
-      outptr[2] = inptr[2];
-      outptr[3] = inptr[3];
-# endif
-      outptr += 4;
-    }
-
-  *inptrp = inptr;
-  *outptrp = outptr;
-
-  /* Determine the status.  */
-  if (*inptrp == inend)
-    result = __GCONV_EMPTY_INPUT;
-  else if (*outptrp + 4 > outend)
-    result = __GCONV_FULL_OUTPUT;
-  else
-    result = __GCONV_INCOMPLETE_INPUT;
-
-  return result;
-}
-#endif
 
 
 static inline int
@@ -397,7 +276,7 @@ ucs4_internal_loop_single (struct __gconv_step *step,
       if (!(flags & __GCONV_IGNORE_ERRORS))
 	{
 	  *inptrp -= cnt - (state->__count & 7);
-	  return __GCONV_ILLEGAL_INPUT;
+	  return __gconv_mark_illegal_input (step_data);
 	}
     }
   else
@@ -454,11 +333,12 @@ internal_ucs4le_loop (struct __gconv_step *step,
 #if __BYTE_ORDER == __BIG_ENDIAN
   /* Sigh, we have to do some real work.  */
   size_t cnt;
-  uint32_t *outptr32 = (uint32_t *) outptr;
 
-  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4)
-    *outptr32++ = bswap_32 (*(const uint32_t *) inptr);
-  outptr = (unsigned char *) outptr32;
+  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4, outptr += 4)
+    {
+      uint32_t val = get32 (inptr);
+      put32 (outptr, __builtin_bswap32 (val));
+    }
 
   *inptrp = inptr;
   *outptrp = outptr;
@@ -467,7 +347,7 @@ internal_ucs4le_loop (struct __gconv_step *step,
   *inptrp = inptr + n_convert * 4;
   *outptrp = __mempcpy (outptr, inptr, n_convert * 4);
 #else
-# error "This endianess is not supported."
+# error "This endianness is not supported."
 #endif
 
   /* Determine the status.  */
@@ -480,59 +360,6 @@ internal_ucs4le_loop (struct __gconv_step *step,
 
   return result;
 }
-
-#if !_STRING_ARCH_unaligned
-static inline int
-__attribute ((always_inline))
-internal_ucs4le_loop_unaligned (struct __gconv_step *step,
-				struct __gconv_step_data *step_data,
-				const unsigned char **inptrp,
-				const unsigned char *inend,
-				unsigned char **outptrp,
-				const unsigned char *outend,
-				size_t *irreversible)
-{
-  const unsigned char *inptr = *inptrp;
-  unsigned char *outptr = *outptrp;
-  size_t n_convert = MIN (inend - inptr, outend - outptr) / 4;
-  int result;
-
-# if __BYTE_ORDER == __BIG_ENDIAN
-  /* Sigh, we have to do some real work.  */
-  size_t cnt;
-
-  for (cnt = 0; cnt < n_convert; ++cnt, inptr += 4, outptr += 4)
-    {
-      outptr[0] = inptr[3];
-      outptr[1] = inptr[2];
-      outptr[2] = inptr[1];
-      outptr[3] = inptr[0];
-    }
-
-  *inptrp = inptr;
-  *outptrp = outptr;
-# elif __BYTE_ORDER == __LITTLE_ENDIAN
-  /* Simply copy the data.  */
-  *inptrp = inptr + n_convert * 4;
-  *outptrp = __mempcpy (outptr, inptr, n_convert * 4);
-# else
-#  error "This endianess is not supported."
-# endif
-
-  /* Determine the status.  */
-  if (*inptrp == inend)
-    result = __GCONV_EMPTY_INPUT;
-  else if (*inptrp + 4 > inend)
-    result = __GCONV_INCOMPLETE_INPUT;
-  else
-    {
-      assert (*outptrp + 4 > outend);
-      result = __GCONV_FULL_OUTPUT;
-    }
-
-  return result;
-}
-#endif
 
 
 static inline int
@@ -613,12 +440,9 @@ ucs4le_internal_loop (struct __gconv_step *step,
 
   for (; inptr + 4 <= inend && outptr + 4 <= outend; inptr += 4)
     {
-      uint32_t inval;
-
+      uint32_t inval = get32 (inptr);
 #if __BYTE_ORDER == __BIG_ENDIAN
-      inval = bswap_32 (*(const uint32_t *) inptr);
-#else
-      inval = *(const uint32_t *) inptr;
+      inval = __builtin_bswap32 (inval);
 #endif
 
       if (__glibc_unlikely (inval > 0x7fffffff))
@@ -629,7 +453,7 @@ ucs4le_internal_loop (struct __gconv_step *step,
 	     UCS4 does not allow such values.  */
 	  if (irreversible == NULL)
 	    /* We are transliterating, don't try to correct anything.  */
-	    return __GCONV_ILLEGAL_INPUT;
+	    return __gconv_mark_illegal_input (step_data);
 
 	  if (flags & __GCONV_IGNORE_ERRORS)
 	    {
@@ -640,10 +464,10 @@ ucs4le_internal_loop (struct __gconv_step *step,
 
 	  *inptrp = inptr;
 	  *outptrp = outptr;
-	  return __GCONV_ILLEGAL_INPUT;
+	  return __gconv_mark_illegal_input (step_data);
 	}
 
-      *((uint32_t *) outptr) = inval;
+      put32 (outptr, inval);
       outptr += sizeof (uint32_t);
     }
 
@@ -663,79 +487,6 @@ ucs4le_internal_loop (struct __gconv_step *step,
 
   return result;
 }
-
-#if !_STRING_ARCH_unaligned
-static inline int
-__attribute ((always_inline))
-ucs4le_internal_loop_unaligned (struct __gconv_step *step,
-				struct __gconv_step_data *step_data,
-				const unsigned char **inptrp,
-				const unsigned char *inend,
-				unsigned char **outptrp,
-				const unsigned char *outend,
-				size_t *irreversible)
-{
-  int flags = step_data->__flags;
-  const unsigned char *inptr = *inptrp;
-  unsigned char *outptr = *outptrp;
-  int result;
-
-  for (; inptr + 4 <= inend && outptr + 4 <= outend; inptr += 4)
-    {
-      if (__glibc_unlikely (inptr[3] > 0x80))
-	{
-	  /* The value is too large.  We don't try transliteration here since
-	     this is not an error because of the lack of possibilities to
-	     represent the result.  This is a genuine bug in the input since
-	     UCS4 does not allow such values.  */
-	  if (irreversible == NULL)
-	    /* We are transliterating, don't try to correct anything.  */
-	    return __GCONV_ILLEGAL_INPUT;
-
-	  if (flags & __GCONV_IGNORE_ERRORS)
-	    {
-	      /* Just ignore this character.  */
-	      ++*irreversible;
-	      continue;
-	    }
-
-	  *inptrp = inptr;
-	  *outptrp = outptr;
-	  return __GCONV_ILLEGAL_INPUT;
-	}
-
-# if __BYTE_ORDER == __BIG_ENDIAN
-      outptr[3] = inptr[0];
-      outptr[2] = inptr[1];
-      outptr[1] = inptr[2];
-      outptr[0] = inptr[3];
-# else
-      outptr[0] = inptr[0];
-      outptr[1] = inptr[1];
-      outptr[2] = inptr[2];
-      outptr[3] = inptr[3];
-# endif
-
-      outptr += 4;
-    }
-
-  *inptrp = inptr;
-  *outptrp = outptr;
-
-  /* Determine the status.  */
-  if (*inptrp == inend)
-    result = __GCONV_EMPTY_INPUT;
-  else if (*inptrp + 4 > inend)
-    result = __GCONV_INCOMPLETE_INPUT;
-  else
-    {
-      assert (*outptrp + 4 > outend);
-      result = __GCONV_FULL_OUTPUT;
-    }
-
-  return result;
-}
-#endif
 
 
 static inline int
@@ -772,7 +523,7 @@ ucs4le_internal_loop_single (struct __gconv_step *step,
 	 represent the result.  This is a genuine bug in the input since
 	 UCS4 does not allow such values.  */
       if (!(flags & __GCONV_IGNORE_ERRORS))
-	return __GCONV_ILLEGAL_INPUT;
+	return __gconv_mark_illegal_input (step_data);
     }
   else
     {
@@ -960,8 +711,8 @@ ucs4le_internal_loop_single (struct __gconv_step *step,
       }									      \
     else								      \
       {									      \
-	uint_fast32_t cnt;						      \
-	uint_fast32_t i;						      \
+	unsigned int cnt;						      \
+	unsigned int i;						      \
 									      \
 	if (ch >= 0xc2 && ch < 0xe0)					      \
 	  {								      \
@@ -1218,7 +969,7 @@ ucs4le_internal_loop_single (struct __gconv_step *step,
 	   surrogates pass through, attackers could make a security	      \
 	   hole exploit by synthesizing any desired plane 1-16		      \
 	   character.  */						      \
-	result = __GCONV_ILLEGAL_INPUT;					      \
+	result = __gconv_mark_illegal_input (step_data);		      \
 	if (! ignore_errors_p ())					      \
 	  break;							      \
 	inptr += 4;							      \
@@ -1261,7 +1012,7 @@ ucs4le_internal_loop_single (struct __gconv_step *step,
 	   them.  (Catching this here is not security relevant.)  */	      \
 	if (! ignore_errors_p ())					      \
 	  {								      \
-	    result = __GCONV_ILLEGAL_INPUT;				      \
+	    result = __gconv_mark_illegal_input (step_data);		      \
 	    break;							      \
 	  }								      \
 	inptr += 2;							      \
@@ -1310,7 +1061,7 @@ ucs4le_internal_loop_single (struct __gconv_step *step,
 	   character.  */						      \
 	if (! ignore_errors_p ())					      \
 	  {								      \
-	    result = __GCONV_ILLEGAL_INPUT;				      \
+	    result = __gconv_mark_illegal_input (step_data);		      \
 	    break;							      \
 	  }								      \
 	inptr += 4;							      \

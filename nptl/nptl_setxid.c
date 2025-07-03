@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -89,7 +88,7 @@ __nptl_setxid_sighandler (int sig, siginfo_t *si, void *ctx)
   self->setxid_futex = 1;
   futex_wake (&self->setxid_futex, 1, FUTEX_PRIVATE);
 
-  if (atomic_decrement_val (&xidcmd->cntr) == 0)
+  if (atomic_fetch_add_relaxed (&xidcmd->cntr, -1) == 1)
     futex_wake ((unsigned int *) &xidcmd->cntr, 1, FUTEX_PRIVATE);
 }
 libc_hidden_def (__nptl_setxid_sighandler)
@@ -164,7 +163,7 @@ setxid_signal_thread (struct xid_command *cmdp, struct pthread *t)
   /* If this failed, it must have had not started yet or else exited.  */
   if (!INTERNAL_SYSCALL_ERROR_P (val))
     {
-      atomic_increment (&cmdp->cntr);
+      atomic_fetch_add_relaxed (&cmdp->cntr, 1);
       return 1;
     }
   else

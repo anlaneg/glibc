@@ -1,7 +1,6 @@
 /* Inner loops of cache daemon.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -257,6 +256,17 @@ int inotify_fd = -1;
 #ifdef HAVE_NETLINK
 /* Descriptor for netlink status updates.  */
 static int nl_status_fd = -1;
+
+static uint32_t
+__bump_nl_timestamp (void)
+{
+  static uint32_t nl_timestamp;
+
+  if (atomic_fetch_add_relaxed (&nl_timestamp, 1) + 1 == 0)
+    atomic_fetch_add_relaxed (&nl_timestamp, 1);
+
+  return nl_timestamp;
+}
 #endif
 
 /* Number of times clients had to wait.  */
@@ -1360,7 +1370,7 @@ cannot open /proc/self/cmdline: %m; disabling paranoia mode"));
   for (char *cp = cmdline; cp < cmdline + readlen;)
     {
       argv[argc++] = cp;
-      cp = (char *) rawmemchr (cp, '\0') + 1;
+      cp = strchr (cp, '\0') + 1;
     }
   argv[argc] = NULL;
 
@@ -1455,7 +1465,7 @@ cannot change to old working directory: %s; disabling paranoia mode"),
   paranoia = 0;
   free (cmdline);
 
-  /* Reenable the databases.  */
+  /* Re-enable the databases.  */
   time_t now = time (NULL);
   for (int cnt = 0; cnt < lastdb; ++cnt)
     if (dbs[cnt].enabled)
@@ -1533,11 +1543,11 @@ nscd_run_prune (void *p)
       if (e == ETIMEDOUT || now >= dbs[my_number].wakeup_time
 	  || dbs[my_number].clear_cache)
 	{
-	  /* We will determine the new timout values based on the
+	  /* We will determine the new timeout values based on the
 	     cache content.  Should there be concurrent additions to
 	     the cache which are not accounted for in the cache
 	     pruning we want to know about it.  Therefore set the
-	     timeout to the maximum.  It will be descreased when adding
+	     timeout to the maximum.  It will be decreased when adding
 	     new entries to the cache, if necessary.  */
 	  dbs[my_number].wakeup_time = MAX_TIMEOUT_VALUE;
 
@@ -2285,7 +2295,8 @@ main_loop_epoll (int efd)
 					     sizeof (buf))) != -1)
 	      ;
 
-	    __bump_nl_timestamp ();
+	    dbs[hstdb].head->extra_data[NSCD_HST_IDX_CONF_TIMESTAMP]
+	      = __bump_nl_timestamp ();
 	  }
 # endif
 	else

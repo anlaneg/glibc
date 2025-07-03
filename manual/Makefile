@@ -1,4 +1,4 @@
-# Copyright (C) 1992-2021 Free Software Foundation, Inc.
+# Copyright (C) 1992-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -36,10 +36,10 @@ endif
 chapters = $(addsuffix .texi, \
 		       intro errno memory ctype string charset locale	\
 		       message search pattern io stdio llio filesys	\
-		       pipe socket terminal syslog math arith time	\
+		       pipe socket terminal syslog math arith stdbit time \
 		       resource setjmp signal startup process ipc job	\
 		       nss users sysinfo conf crypt debug threads	\
-		       probes tunables)
+		       dynlink probes tunables)
 appendices = lang.texi header.texi install.texi maint.texi platform.texi \
 	     contrib.texi
 licenses = freemanuals.texi lgpl-2.1.texi fdl-1.3.texi
@@ -55,7 +55,7 @@ examples = $(filter %.c.texi, $(texis))
 
 # Generated files directly included from libc.texinfo.
 libc-texi-generated = chapters.texi top-menu.texi dir-add.texi \
-		      libm-err.texi version.texi pkgvers.texi
+		      version.texi pkgvers.texi
 
 # Add path to build dir for generated files
 texis-path := $(filter-out $(libc-texi-generated) summary.texi $(examples), \
@@ -69,6 +69,11 @@ chapters.% top-menu.%: libc-texinfo.sh $(texis-path) Makefile
 				'$(chapters)' \
 			       '$(appendices) $(licenses)'
 
+# Verify validity of texinfo sources against project rules.
+tests-special += \
+  $(objpfx)check-deftype.out \
+  $(objpfx)check-safety.out \
+  # tests-special
 
 $(objpfx)libc.dvi $(objpfx)libc.pdf $(objpfx)libc.info: \
 	$(addprefix $(objpfx),$(libc-texi-generated))
@@ -83,9 +88,18 @@ $(objpfx)summary.texi: $(objpfx)stamp-summary ;
 $(objpfx)stamp-summary: summary.pl $(filter-out $(objpfx)summary.texi, \
 					$(texis-path))
 	$(SHELL) ./check-safety.sh $(filter-out $(objpfx)%, $(texis-path))
+	$(SHELL) ./check-deftype.sh $(filter-out $(objpfx)%, $(texis-path))
 	LC_ALL=C $(PERL) $^ > $(objpfx)summary-tmp
 	$(move-if-change) $(objpfx)summary-tmp $(objpfx)summary.texi
 	touch $@
+
+$(objpfx)check-safety.out: check-safety.sh
+	$(SHELL) $< > $@ ; \
+	$(evaluate-test)
+
+$(objpfx)check-deftype.out: check-deftype.sh
+	$(SHELL) $< > $@ ; \
+	$(evaluate-test)
 
 # Generate a file which can be added to the `dir' content to provide direct
 # access to the documentation of the function, variables, and other
@@ -97,16 +111,6 @@ $(objpfx)dir-add.texi: xtract-typefun.awk $(texis-path)
 	 echo "@end direntry") > $@.new
 	mv -f $@.new $@
 
-# The table with the math errors is generated.
-$(objpfx)libm-err.texi: $(objpfx)stamp-libm-err
-$(objpfx)stamp-libm-err: $(..)math/gen-libm-test.py \
-			 $(wildcard $(foreach dir,$(sysdirs),\
-						  $(dir)/libm-test-ulps))
-	pwd=`pwd`; \
-	$(PYTHON) $< -s $$pwd/.. -m $(objpfx)libm-err-tmp
-	$(move-if-change) $(objpfx)libm-err-tmp $(objpfx)libm-err.texi
-	touch $@
-
 # Package version and bug reporting URL.
 $(objpfx)pkgvers.texi: $(objpfx)stamp-pkgvers ;
 $(objpfx)stamp-pkgvers: $(common-objpfx)config.make
@@ -117,6 +121,7 @@ $(objpfx)stamp-pkgvers: $(common-objpfx)config.make
 	  echo "@set PKGVERSION_DEFAULT" >> $(objpfx)pkgvers-tmp; \
 	fi
 	echo "@set REPORT_BUGS_TO $(REPORT_BUGS_TEXI)" >> $(objpfx)pkgvers-tmp
+	echo "@set man_pages_version $(man-pages-version)" >> $(objpfx)pkgvers-tmp; \
 	echo "@end ifclear" >> $(objpfx)pkgvers-tmp
 	$(move-if-change) $(objpfx)pkgvers-tmp $(objpfx)pkgvers.texi
 	touch $@
@@ -151,10 +156,19 @@ $(objpfx)%.pdf: %.texinfo
 
 
 # Distribution.
-minimal-dist = summary.pl texis.awk tsort.awk libc-texinfo.sh libc.texinfo \
-	       libm-err.texi stamp-libm-err check-safety.sh		    \
-	       $(filter-out summary.texi, $(nonexamples))		    \
-	       $(patsubst %.c.texi,examples/%.c, $(examples))
+minimal-dist = \
+  $(filter-out summary.texi, $(nonexamples)) \
+  $(patsubst %.c.texi,examples/%.c, $(examples)) \
+  check-deftype.sh \
+  check-safety.sh \
+  libc-texinfo.sh \
+  libc.texinfo \
+  libm-err.texi \
+  stamp-libm-err \
+  summary.pl \
+  texis.awk \
+  tsort.awk \
+  # minimal-dist
 
 indices = cp fn pg tp vr ky
 generated-dirs += libc

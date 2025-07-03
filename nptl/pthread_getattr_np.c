@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -44,7 +43,7 @@ __pthread_getattr_np (pthread_t thread_id, pthread_attr_t *attr)
   lll_lock (thread->lock, LLL_PRIVATE);
 
   /* The thread library is responsible for keeping the values in the
-     thread desriptor up-to-date in case the user changes them.  */
+     thread descriptor up-to-date in case the user changes them.  */
   memcpy (&iattr->schedparam, &thread->schedparam,
 	  sizeof (struct sched_param));
   iattr->schedpolicy = thread->schedpolicy;
@@ -146,9 +145,9 @@ __pthread_getattr_np (pthread_t thread_id, pthread_attr_t *attr)
 			  > (size_t) iattr->stackaddr - last_to)
 			iattr->stacksize = (size_t) iattr->stackaddr - last_to;
 #else
-		      /* The limit might be too high.  */
+		      /* The limit might be too low.  */
 		      if ((size_t) iattr->stacksize
-			  > to - (size_t) iattr->stackaddr)
+			  < to - (size_t) iattr->stackaddr)
 			iattr->stacksize = to - (size_t) iattr->stackaddr;
 #endif
 		      /* We succeed and no need to look further.  */

@@ -1,5 +1,5 @@
 /* longlong.h -- definitions for mixed size 32/64 bit arithmetic.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -593,6 +593,18 @@ extern UDItype __umulsidi3 (USItype, USItype);
 #define UMUL_TIME 14
 #endif
 
+#ifdef __loongarch__
+# if W_TYPE_SIZE == 32
+#  define count_leading_zeros(count, x)  ((count) = __builtin_clz (x))
+#  define count_trailing_zeros(count, x) ((count) = __builtin_ctz (x))
+#  define COUNT_LEADING_ZEROS_0 32
+# elif W_TYPE_SIZE == 64
+#  define count_leading_zeros(count, x)  ((count) = __builtin_clzll (x))
+#  define count_trailing_zeros(count, x) ((count) = __builtin_ctzll (x))
+#  define COUNT_LEADING_ZEROS_0 64
+# endif
+#endif
+
 #if defined (__M32R__) && W_TYPE_SIZE == 32
 #define add_ssaaaa(sh, sl, ah, al, bh, bl) \
   /* The cmp clears the condition bit.  */ \
@@ -1062,7 +1074,7 @@ extern UDItype __umulsidi3 (USItype, USItype);
 #elif __riscv_xlen == 64
   #define MULUW3 "call __muldi3"
 #else
-#error unsupport xlen
+#error unsupported xlen
 #endif /* __riscv_xlen */
 /* We rely on the fact that MULUW3 doesn't clobber the t-registers.
    It can get better register allocation result.  */

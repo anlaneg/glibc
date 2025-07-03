@@ -1,4 +1,3 @@
-/* Test case by Alexandre Duret-Lutz <duret_g@epita.fr>.  */
 #include <obstack.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -21,8 +20,8 @@ verbose_malloc (size_t size)
 static void
 verbose_free (void *buf)
 {
-  free (buf);
   printf ("free (%p)\n", buf);
+  free (buf);
 }
 
 static int

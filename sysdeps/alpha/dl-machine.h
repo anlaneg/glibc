@@ -1,7 +1,6 @@
 /* Machine-dependent ELF dynamic relocation inline functions.  Alpha version.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Richard Henderson <rth@tamu.edu>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -26,6 +25,8 @@
 #define ELF_MACHINE_NAME "alpha"
 
 #include <string.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
 
 
 /* Mask identifying addresses reserved for the user program,
@@ -70,12 +71,11 @@ elf_machine_load_address (void)
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int
-elf_machine_runtime_setup (struct link_map *map, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *map, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   extern char _dl_runtime_resolve_new[] attribute_hidden;
-  extern char _dl_runtime_profile_new[] attribute_hidden;
   extern char _dl_runtime_resolve_old[] attribute_hidden;
-  extern char _dl_runtime_profile_old[] attribute_hidden;
 
   struct pltgot {
     char *resolve;
@@ -107,6 +107,9 @@ elf_machine_runtime_setup (struct link_map *map, int lazy, int profile)
   else
     resolve = _dl_runtime_resolve_old;
 
+#ifdef SHARED
+  extern char _dl_runtime_profile_new[] attribute_hidden;
+  extern char _dl_runtime_profile_old[] attribute_hidden;
   if (__builtin_expect (profile, 0))
     {
       if (secureplt)
@@ -121,6 +124,7 @@ elf_machine_runtime_setup (struct link_map *map, int lazy, int profile)
 	  GL(dl_profile_map) = map;
 	}
     }
+#endif
 
   pg->resolve = resolve;
   pg->link = map;
@@ -154,12 +158,6 @@ _dl_start_user:							\n\
 	.prologue 0						\n\
 	/* Save the user entry point address in s0.  */		\n\
 	mov	$0, $9						\n\
-	/* See if we were run as a command with the executable	\n\
-	   file name as an extra leading argument.  */		\n\
-	ldah	$1, _dl_skip_args($gp)	!gprelhigh		\n\
-	ldl	$1, _dl_skip_args($1)	!gprellow		\n\
-	bne	$1, $fixup_stack				\n\
-$fixup_stack_ret:						\n\
 	/* The special initializer gets called with the stack	\n\
 	   just as the application's entry point will see it;	\n\
 	   it can switch stacks if it moves these contents	\n\
@@ -180,41 +178,6 @@ $fixup_stack_ret:						\n\
 	/* Jump to the user's entry point.  */			\n\
 	mov	$9, $27						\n\
 	jmp	($9)						\n\
-$fixup_stack:							\n\
-	/* Adjust the stack pointer to skip _dl_skip_args words.\n\
-	   This involves copying everything down, since the	\n\
-	   stack pointer must always be 16-byte aligned.  */	\n\
-	ldah	$7, __GI__dl_argv($gp) !gprelhigh		\n\
-	ldq	$2, 0($sp)					\n\
-	ldq	$5, __GI__dl_argv($7) !gprellow			\n\
-	subq	$31, $1, $6					\n\
-	subq	$2, $1, $2					\n\
-	s8addq	$6, $5, $5					\n\
-	mov	$sp, $4						\n\
-	s8addq	$1, $sp, $3					\n\
-	stq	$2, 0($sp)					\n\
-	stq	$5, __GI__dl_argv($7) !gprellow			\n\
-	/* Copy down argv.  */					\n\
-0:	ldq	$5, 8($3)					\n\
-	addq	$4, 8, $4					\n\
-	addq	$3, 8, $3					\n\
-	stq	$5, 0($4)					\n\
-	bne	$5, 0b						\n\
-	/* Copy down envp.  */					\n\
-1:	ldq	$5, 8($3)					\n\
-	addq	$4, 8, $4					\n\
-	addq	$3, 8, $3					\n\
-	stq	$5, 0($4)					\n\
-	bne	$5, 1b						\n\
-	/* Copy down auxiliary table.  */			\n\
-2:	ldq	$5, 8($3)					\n\
-	ldq	$6, 16($3)					\n\
-	addq	$4, 16, $4					\n\
-	addq	$3, 16, $3					\n\
-	stq	$5, -8($4)					\n\
-	stq	$6, 0($4)					\n\
-	bne	$5, 2b						\n\
-	br	$fixup_stack_ret				\n\
 	.end _dl_start_user					\n\
 	.set noat						\n\
 .previous");
@@ -239,10 +202,6 @@ $fixup_stack:							\n\
 
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
 #define ELF_MACHINE_JMP_SLOT	 R_ALPHA_JMP_SLOT
-
-/* The alpha never uses Elf64_Rel relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
 
 /* We define an initialization functions.  This is called very early in
  *    _dl_sysdep_start.  */
@@ -361,9 +320,9 @@ elf_machine_plt_value (struct link_map *map, const Elf64_Rela *reloc,
 
 /* Perform the relocation specified by RELOC and SYM (which is fully resolved).
    MAP is the object containing the reloc.  */
-auto inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_rela (struct link_map *map,
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
 		  const Elf64_Rela *reloc,
 		  const Elf64_Sym *sym,
 		  const struct r_found_version *version,
@@ -373,37 +332,22 @@ elf_machine_rela (struct link_map *map,
   Elf64_Addr *const reloc_addr = reloc_addr_arg;
   unsigned long int const r_type = ELF64_R_TYPE (reloc->r_info);
 
-#if !defined RTLD_BOOTSTRAP && !defined HAVE_Z_COMBRELOC && !defined SHARED
-  /* This is defined in rtld.c, but nowhere in the static libc.a; make the
-     reference weak so static programs can still link.  This declaration
-     cannot be done when compiling rtld.c (i.e.  #ifdef RTLD_BOOTSTRAP)
-     because rtld.c contains the common defn for _dl_rtld_map, which is
-     incompatible with a weak decl in the same file.  */
-  weak_extern (_dl_rtld_map);
-#endif
-
   /* We cannot use a switch here because we cannot locate the switch
      jump table until we've self-relocated.  */
 
-#if !defined RTLD_BOOTSTRAP || !defined HAVE_Z_COMBRELOC
+#if !defined RTLD_BOOTSTRAP
   if (__builtin_expect (r_type == R_ALPHA_RELATIVE, 0))
     {
-# if !defined RTLD_BOOTSTRAP && !defined HAVE_Z_COMBRELOC
-      /* Already done in dynamic linker.  */
-      if (map != &GL(dl_rtld_map))
-# endif
-	{
-	  /* XXX Make some timings.  Maybe it's preferable to test for
-	     unaligned access and only do it the complex way if necessary.  */
-	  Elf64_Addr reloc_addr_val;
+	/* XXX Make some timings.  Maybe it's preferable to test for
+	   unaligned access and only do it the complex way if necessary.  */
+	Elf64_Addr reloc_addr_val;
 
-	  /* Load value without causing unaligned trap. */
-	  memcpy (&reloc_addr_val, reloc_addr_arg, 8);
-	  reloc_addr_val += map->l_addr;
+	/* Load value without causing unaligned trap. */
+	memcpy (&reloc_addr_val, reloc_addr_arg, 8);
+	reloc_addr_val += map->l_addr;
 
-	  /* Store value without causing unaligned trap. */
-	  memcpy (reloc_addr_arg, &reloc_addr_val, 8);
-	}
+	/* Store value without causing unaligned trap. */
+	memcpy (reloc_addr_arg, &reloc_addr_val, 8);
     }
   else
 #endif
@@ -411,7 +355,8 @@ elf_machine_rela (struct link_map *map,
       return;
   else
     {
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       Elf64_Addr sym_value;
       Elf64_Addr sym_raw_value;
 
@@ -424,23 +369,8 @@ elf_machine_rela (struct link_map *map,
 
       if (r_type == R_ALPHA_GLOB_DAT)
 	*reloc_addr = sym_value;
-#ifdef RESOLVE_CONFLICT_FIND_MAP
-      /* In .gnu.conflict section, R_ALPHA_JMP_SLOT relocations have
-	 R_ALPHA_JMP_SLOT in lower 8 bits and the remaining 24 bits
-	 are .rela.plt index.  */
-      else if ((r_type & 0xff) == R_ALPHA_JMP_SLOT)
-	{
-	  /* elf_machine_fixup_plt needs the map reloc_addr points into,
-	     while in _dl_resolve_conflicts map is _dl_loaded.  */
-	  RESOLVE_CONFLICT_FIND_MAP (map, reloc_addr);
-	  reloc = ((const Elf64_Rela *) D_PTR (map, l_info[DT_JMPREL]))
-		  + (r_type >> 8);
-	  elf_machine_fixup_plt (map, 0, 0, 0, reloc, reloc_addr, sym_value);
-	}
-#else
       else if (r_type == R_ALPHA_JMP_SLOT)
 	elf_machine_fixup_plt (map, 0, 0, 0, reloc, reloc_addr, sym_value);
-#endif
 #ifndef RTLD_BOOTSTRAP
       else if (r_type == R_ALPHA_REFQUAD)
 	{
@@ -489,7 +419,7 @@ elf_machine_rela (struct link_map *map,
    can be skipped.  */
 #define ELF_MACHINE_REL_RELATIVE 1
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
 elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
 			   void *const reloc_addr_arg)
@@ -506,9 +436,9 @@ elf_machine_rela_relative (Elf64_Addr l_addr, const Elf64_Rela *reloc,
   memcpy (reloc_addr_arg, &reloc_addr_val, 8);
 }
 
-auto inline void
+static inline void
 __attribute__ ((always_inline))
-elf_machine_lazy_rel (struct link_map *map,
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      Elf64_Addr l_addr, const Elf64_Rela *reloc,
 		      int skip_ifunc)
 {

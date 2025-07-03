@@ -1,5 +1,5 @@
 /* fxstat using old-style Unix stat system call.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,7 +35,9 @@ __fxstat (int vers, int fd, struct stat *buf)
       {
 	struct kernel_stat kbuf;
 	int r = INTERNAL_SYSCALL_CALL (fstat, fd, &kbuf);
-	return r ?: __xstat_conv (vers, &kbuf, buf);
+	if (r == 0)
+	  return  __xstat_conv (vers, &kbuf, buf);
+	return INLINE_SYSCALL_ERROR_RETURN_VALUE (-r);
       }
     }
 }

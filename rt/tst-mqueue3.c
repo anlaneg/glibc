@@ -1,7 +1,6 @@
 /* Test SIGEV_THREAD handling for POSIX message queues.
-   Copyright (C) 2004-2021 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -28,6 +27,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <support/check.h>
 
 #if _POSIX_THREADS
 # include <pthread.h>
@@ -61,13 +61,13 @@ fct (union sigval s)
   /* Check the values.  */
   if (attr.mq_maxmsg != MAXMSG)
     {
-      printf ("%s: mq_maxmsg wrong: is %jd, expecte %d\n",
+      printf ("%s: mq_maxmsg wrong: is %jd, expected %d\n",
 	      __FUNCTION__, (intmax_t) attr.mq_maxmsg, MAXMSG);
       exit (1);
     }
   if (attr.mq_msgsize != MAXMSG)
     {
-      printf ("%s: mq_msgsize wrong: is %jd, expecte %d\n",
+      printf ("%s: mq_msgsize wrong: is %jd, expected %d\n",
 	      __FUNCTION__, (intmax_t) attr.mq_msgsize, MSGSIZE);
       exit (1);
     }
@@ -162,15 +162,13 @@ do_test (void)
   /* Create the message queue.  */
   struct mq_attr attr = { .mq_maxmsg = MAXMSG, .mq_msgsize = MSGSIZE };
   m = mq_open (mqname, O_CREAT | O_EXCL | O_RDWR, 0600, &attr);
+
   if (m == -1)
     {
       if (errno == ENOSYS)
-	{
-	  puts ("not implemented");
-	  return 0;
-	}
+	FAIL_UNSUPPORTED ("mq_open not supported");
 
-      puts ("mq_open failed");
+      printf ("mq_open failed with: %m\n");
       return 1;
     }
 

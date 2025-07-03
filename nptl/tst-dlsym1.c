@@ -1,4 +1,3 @@
-/* Test case by Hui Huang <hui.huang@sun.com>.  */
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -54,7 +53,7 @@ do_test (void)
     }
   if (pthread_join (tid3, NULL) != 0)
     {
-      puts ("2rd join failed");
+      puts ("2nd join failed");
       exit (1);
     }
 

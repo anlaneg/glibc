@@ -1,5 +1,5 @@
 /* Linux openat syscall implementation, LFS, non-cancellable.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -22,12 +22,6 @@
 #include <sysdep-cancel.h>
 #include <not-cancel.h>
 
-#ifdef __OFF_T_MATCHES_OFF64_T
-# define EXTRA_OPEN_FLAGS 0
-#else
-# define EXTRA_OPEN_FLAGS O_LARGEFILE
-#endif
-
 int
 __openat64_nocancel (int fd, const char *file, int oflag, ...)
 {
@@ -40,7 +34,7 @@ __openat64_nocancel (int fd, const char *file, int oflag, ...)
       va_end (arg);
     }
 
-  return INLINE_SYSCALL_CALL (openat, fd, file, oflag | EXTRA_OPEN_FLAGS,
+  return INLINE_SYSCALL_CALL (openat, fd, file, oflag | O_LARGEFILE,
 			      mode);
 }
 hidden_def (__openat64_nocancel)

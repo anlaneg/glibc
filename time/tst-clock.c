@@ -1,7 +1,6 @@
 /* Test program for POSIX clock_* functions.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 2000.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -111,7 +110,7 @@ do_test (void)
     /* XXX It's not yet a bug when this fails.  */
     clock_test (cl);
   else
-	  printf("CPU clock unavailble, skipping test\n");
+	  printf("CPU clock unavailable, skipping test\n");
 
   return result;
 }

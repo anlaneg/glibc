@@ -1,5 +1,5 @@
 /* Destroy a semaphore.  Generic version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <semaphore.h>
 #include <errno.h>
 
+#include <hurd.h>
 #include <pt-internal.h>
 
 int
@@ -34,10 +35,7 @@ __sem_destroy (sem_t *sem)
 #endif
       )
     /* There are threads waiting on *SEM.  */
-    {
-      errno = EBUSY;
-      return -1;
-    }
+    return __hurd_fail (EBUSY);
 
   return 0;
 }

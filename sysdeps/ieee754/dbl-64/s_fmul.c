@@ -1,5 +1,5 @@
 /* Multiply double values, narrowing the result to float.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,6 +29,7 @@
 float
 __fmul (double x, double y)
 {
-  NARROW_MUL_ROUND_TO_ODD (x, y, float, union ieee754_double, , mantissa1);
+  NARROW_MUL_ROUND_TO_ODD (x, y, float, union ieee754_double, , mantissa1,
+			   false);
 }
 libm_alias_float_double (mul)

@@ -1,6 +1,5 @@
-/* Copyright (C) 1999-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Andreas Jaeger <aj@arthur.rhein-neckar.de>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -19,7 +18,11 @@
 #include <errno.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <libc-diag.h>
+#include <time.h>
+
+#include "tst-malloc-aux.h"
 
 static int errors = 0;
 
@@ -35,6 +38,8 @@ do_test (void)
 {
   void *p, *q;
   int save;
+
+  srandom (time (NULL));
 
   errno = 0;
 

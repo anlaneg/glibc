@@ -1,8 +1,6 @@
 /* Test STRCHR functions.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
-   Added wcschr support by Liubov Dmitrieva <liubov.dmitrieva@gmail.com>, 2011
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -37,8 +35,6 @@
 #ifndef WIDE
 # ifdef USE_FOR_STRCHRNUL
 #  define STRCHR strchrnul
-#  define stupid_STRCHR stupid_STRCHRNUL
-#  define simple_STRCHR simple_STRCHRNUL
 # else
 #  define STRCHR strchr
 # endif /* !USE_FOR_STRCHRNUL */
@@ -53,8 +49,6 @@
 # include <wchar.h>
 # ifdef USE_FOR_STRCHRNUL
 #  define STRCHR wcschrnul
-#  define stupid_STRCHR stupid_WCSCHRNUL
-#  define simple_STRCHR simple_WCSCHRNUL
 # else
 #  define STRCHR wcschr
 # endif /* !USE_FOR_STRCHRNUL */
@@ -76,29 +70,40 @@
 
 typedef CHAR *(*proto_t) (const CHAR *, int);
 
-CHAR *
-simple_STRCHR (const CHAR *s, int c)
-{
-  for (; *s != (CHAR) c; ++s)
-    if (*s == '\0')
-      return NULLRET ((CHAR *) s);
-  return (CHAR *) s;
-}
-
-CHAR *
-stupid_STRCHR (const CHAR *s, int c)
-{
-  size_t n = STRLEN (s) + 1;
-
-  while (n--)
-    if (*s++ == (CHAR) c)
-      return (CHAR *) s - 1;
-  return NULLRET ((CHAR *) s - 1);
-}
-
-IMPL (stupid_STRCHR, 0)
-IMPL (simple_STRCHR, 0)
 IMPL (STRCHR, 1)
+
+/* Also check the generic implementation.  */
+#undef STRCHR
+#undef weak_alias
+#define weak_alias(a, b)
+#undef libc_hidden_builtin_def
+#define libc_hidden_builtin_def(a)
+#undef libc_hidden_def
+#define libc_hidden_def(a)
+#undef libc_hidden_weak
+#define libc_hidden_weak(a)
+#ifndef WIDE
+# define STRCHRNUL __strchrnul_default
+# include "string/strchrnul.c"
+# ifndef USE_FOR_STRCHRNUL
+#  define STRCHR __strchr_default
+#  include "string/strchr.c"
+#  define STRCHR_DEFAULT STRCHR
+# else
+#  define STRCHR_DEFAULT STRCHRNUL
+# endif
+#else
+# ifndef USE_FOR_STRCHRNUL
+#  define WCSCHR __wcschr_default
+#  include "wcsmbs/wcschr.c"
+#  define STRCHR_DEFAULT WCSCHR
+# else
+#  define WCSCHRNUL __wcschrnul_default
+#  include "wcsmbs/wcschrnul.c"
+#  define STRCHR_DEFAULT WCSCHRNUL
+# endif
+#endif
+IMPL (STRCHR_DEFAULT, 1)
 
 static int
 check_result (impl_t *impl, const CHAR *s, int c, const CHAR *exp_res)
@@ -106,7 +111,7 @@ check_result (impl_t *impl, const CHAR *s, int c, const CHAR *exp_res)
   CHAR *res = CALL (impl, s, c);
   if (res != exp_res)
     {
-      error (0, 0, "Wrong result in function %s %#x %p %p", impl->name,
+      error (0, 0, "Wrong result in function %s(%p) %#x %p %p", impl->name, s,
 	     c, res, exp_res);
       ret = 1;
       return -1;
@@ -114,11 +119,10 @@ check_result (impl_t *impl, const CHAR *s, int c, const CHAR *exp_res)
   return 0;
 }
 
-static void
+static int
 do_one_test (impl_t *impl, const CHAR *s, int c, const CHAR *exp_res)
 {
-  if (check_result (impl, s, c, exp_res) < 0)
-    return;
+  return check_result (impl, s, c, exp_res);
 }
 
 static void
@@ -155,7 +159,15 @@ do_test (size_t align, size_t pos, size_t len, int seek_char, int max_char)
     result = NULLRET (buf + align + len);
 
   FOR_EACH_IMPL (impl, 0)
-    do_one_test (impl, buf + align, seek_char, result);
+    {
+      if (do_one_test (impl, buf + align, seek_char, result) != 0)
+	{
+	  error (0, 0,
+		 "\tAlign=%zu, Pos=%zu, Len=%zu, seek=%d, max_char=%d, "
+		 "Buf=%p, Res=%p",
+		 align, pos, len, seek_char, max_char, buf, result);
+	}
+    }
 }
 
 static void
@@ -233,10 +245,77 @@ check1 (void)
 {
   CHAR s[] __attribute__((aligned(16))) = L ("\xff");
   CHAR c = L ('\xfe');
-  CHAR *exp_result = stupid_STRCHR (s, c);
+#ifndef USE_FOR_STRCHRNUL
+  CHAR *exp_result = NULL;
+#else
+  CHAR *exp_result = s + STRLEN (s);
+#endif
 
   FOR_EACH_IMPL (impl, 0)
     check_result (impl, s, c, exp_result);
+}
+
+static void
+check2 (void)
+{
+  CHAR *s = (CHAR *) (buf1 + getpagesize () - 4 * sizeof (CHAR));
+  CHAR *s_begin = (CHAR *) (buf1 + getpagesize () - 64);
+#ifndef USE_FOR_STRCHRNUL
+  CHAR *exp_result = NULL;
+#else
+  CHAR *exp_result = s + 1;
+#endif
+  CHAR val = 0x12;
+  for (; s_begin != s; ++s_begin)
+    *s_begin = val;
+
+  s[0] = val + 1;
+  s[1] = 0;
+  s[2] = val + 1;
+  s[3] = val + 1;
+
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
+  s[3] = val;
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
+  exp_result = s;
+  s[0] = val;
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
+
+  s[3] = val + 1;
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
+
+  s[0] = val + 1;
+  s[1] = val + 1;
+  s[2] = val + 1;
+  s[3] = val + 1;
+  s[4] = val;
+  exp_result = s + 4;
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
+  s[4] = 0;
+#ifndef USE_FOR_STRCHRNUL
+  exp_result = NULL;
+#else
+  exp_result = s + 4;
+#endif
+  {
+    FOR_EACH_IMPL (impl, 0)
+      check_result (impl, s, val, exp_result);
+  }
 }
 
 int
@@ -247,7 +326,7 @@ test_main (void)
   test_init ();
 
   check1 ();
-
+  check2 ();
   printf ("%20s", "");
   FOR_EACH_IMPL (impl, 0)
     printf ("\t%s", impl->name);

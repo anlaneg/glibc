@@ -1,5 +1,5 @@
 /* Vector optimized 32/64 bit S/390 version of wcsrchr.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@
 
    Register usage:
    -r0=loaded bytes in first part of s.
-   -r1=pointer to last occurence of c or NULL if not found.
+   -r1=pointer to last occurrence of c or NULL if not found.
    -r2=s
    -r3=c
    -r4=tmp
@@ -37,7 +37,7 @@
    -v16=part of s
    -v17=index of found element
    -v18=replicated c
-   -v19=part of s with last occurence of c.
+   -v19=part of s with last occurrence of c.
    -v20=permute pattern
 */
 ENTRY(WCSRCHR_Z13)
@@ -100,7 +100,7 @@ ENTRY(WCSRCHR_Z13)
 	j	.Lloop
 
 .Lfound_first_part:
-	/* This code is only executed if the found c/zero is whithin loaded
+	/* This code is only executed if the found c/zero is within loaded
 	   bytes. If no c/zero was found (cc==3) the found index = 16, thus
 	   this code is not called.
 	   Resulting condition code of vector find element equal:

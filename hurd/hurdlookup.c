@@ -1,4 +1,4 @@
-/* Copyright (C) 1992-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1992-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,6 +16,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <hurd.h>
+#include <hurd/fd.h>
 #include <hurd/lookup.h>
 #include <string.h>
 #include <fcntl.h>
@@ -50,7 +51,7 @@ __hurd_file_name_lookup (error_t (*use_init_port)
 {
   error_t err;
   enum retry_type doretry;
-  char retryname[1024];		/* XXX string_t LOSES! */
+  string_t retryname;
   int startport;
 
   error_t lookup_op (mach_port_t startdir)
@@ -220,14 +221,7 @@ weak_alias (__hurd_directory_name_split, hurd_directory_name_split)
 file_t
 __file_name_lookup (const char *file_name, int flags, mode_t mode)
 {
-  error_t err;
-  file_t result;
-
-  err = __hurd_file_name_lookup (&_hurd_ports_use, &__getdport, 0,
-				 file_name, flags, mode & ~_hurd_umask,
-				 &result);
-
-  return err ? (__hurd_fail (err), MACH_PORT_NULL) : result;
+  return __file_name_lookup_at (AT_FDCWD, 0, file_name, flags, mode);
 }
 weak_alias (__file_name_lookup, file_name_lookup)
 

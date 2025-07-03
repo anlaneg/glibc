@@ -1,5 +1,5 @@
 /* Tests for posix_spawn signal handling.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 
 #include <arch-fd_to_filename.h>
 #include <array_length.h>
+#include <tst-spawn.h>
 
 /* Nonzero if the program gets called via `exec'.  */
 static int restart;
@@ -161,14 +162,13 @@ spawn_closefrom_test (posix_spawn_file_actions_t *fa, int lowfd, int highfd,
   args[argc] = NULL;
   TEST_VERIFY (argc < argv_size);
 
-  pid_t pid;
-  int status;
+  PID_T_TYPE pid;
+  siginfo_t sinfo;
 
-  TEST_COMPARE (posix_spawn (&pid, args[0], fa, NULL, args, environ), 0);
-  TEST_COMPARE (xwaitpid (pid, &status, 0), pid);
-  TEST_VERIFY (WIFEXITED (status));
-  TEST_VERIFY (!WIFSIGNALED (status));
-  TEST_COMPARE (WEXITSTATUS (status), 0);
+  TEST_COMPARE (POSIX_SPAWN (&pid, args[0], fa, NULL, args, environ), 0);
+  TEST_COMPARE (WAITID (P_PID, pid, &sinfo, WEXITED), 0);
+  TEST_COMPARE (sinfo.si_code, CLD_EXITED);
+  TEST_COMPARE (sinfo.si_status, 0);
 }
 
 static void
@@ -269,7 +269,7 @@ do_test (int argc, char *argv[])
        + argv[1]: the application name
        + argv[2]: the lowest file descriptor expected
        + argv[3]: first expected open file descriptor   optional
-       + argv[n]: last expected open file descritptor   optional
+       + argv[n]: last expected open file descriptor   optional
 
      * When built with --enable-hardcoded-path-in-tests or issued without
        using the loader directly.  */

@@ -1,5 +1,5 @@
 /* Common definitions for open_memstream tests.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 #ifdef TEST_WCHAR
 # include <wchar.h>
 
-/* Straighforward implementation so tst-memstream3 could use check
+/* Straightforward implementation so tst-memstream3 could use check
    fwrite on open_memstream.  */
 static size_t __attribute__ ((used))
 fwwrite (const void *ptr, size_t size, size_t nmemb, FILE *arq)

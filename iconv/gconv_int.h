@@ -1,6 +1,5 @@
-/* Copyright (C) 1997-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,6 +26,34 @@
 
 __BEGIN_DECLS
 
+/* We have to provide support for machines which are not able to handled
+   unaligned memory accesses.  Some of the character encodings have
+   representations with a fixed width of 2 or 4 bytes.  */
+#define get16(addr)							\
+({									\
+  const struct { uint16_t r; } __attribute__ ((__packed__)) *__ptr	\
+    = (__typeof(__ptr))(addr);						\
+  __ptr->r;								\
+})
+#define get32(addr)							\
+({									\
+  const struct { uint32_t r; } __attribute__ ((__packed__)) *__ptr	\
+    = (__typeof(__ptr))(addr);						\
+  __ptr->r;								\
+})
+
+#define put16(addr, val)						\
+do {									\
+   struct { uint16_t r; } __attribute__ ((__packed__)) *__ptr		\
+    = (__typeof(__ptr))(addr);						\
+   __ptr->r = val;							\
+} while (0)
+#define put32(addr, val)						\
+do {									\
+   struct { uint32_t r; } __attribute__ ((__packed__)) *__ptr		\
+    = (__typeof(__ptr))(addr);						\
+   __ptr->r = val;							\
+} while (0)
 
 /* Structure for alias definition.  Simply two strings.  */
 struct gconv_alias
@@ -145,7 +172,7 @@ __libc_lock_define (extern, __gconv_lock attribute_hidden)
   })
 
 
-/* Return in *HANDLE, a decriptor for the transformation.  The function expects
+/* Return in *HANDLE, a descriptor for the transformation.  The function expects
    the specification of the transformation in the structure pointed to by
    CONV_SPEC.  It only reads *CONV_SPEC and does not take ownership of it.  */
 extern int __gconv_open (struct gconv_spec *conv_spec,
@@ -303,5 +330,35 @@ extern wint_t __gconv_btwoc_ascii (struct __gconv_step *step, unsigned char c);
 #endif
 
 __END_DECLS
+
+/* Internal extensions for <gconv.h>.  */
+
+/* Internal flags for __flags in struct __gconv_step_data.  Overlaps
+   with flags for __gconv_open.  */
+enum
+  {
+    /* The conversion encountered an illegal input character at one
+       point.  */
+    __GCONV_ENCOUNTERED_ILLEGAL_INPUT = 1U << 30,
+  };
+
+/* Mark *STEP_DATA as having seen illegal input, and return
+   __GCONV_ILLEGAL_INPUT.  */
+static inline int
+__gconv_mark_illegal_input (struct __gconv_step_data *step_data)
+{
+  step_data->__flags |= __GCONV_ENCOUNTERED_ILLEGAL_INPUT;
+  return __GCONV_ILLEGAL_INPUT;
+}
+
+/* Returns true if any of the conversion steps encountered illegal input.  */
+static _Bool __attribute__ ((unused))
+__gconv_has_illegal_input (__gconv_t cd)
+{
+  for (size_t i = 0; i < cd->__nsteps; ++i)
+    if (cd->__data[i].__flags & __GCONV_ENCOUNTERED_ILLEGAL_INPUT)
+      return true;
+  return false;
+}
 
 #endif /* gconv_int.h */

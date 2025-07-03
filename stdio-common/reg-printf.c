@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,21 +21,14 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <libc-lock.h>
+#include <set-freeres.h>
 
 
 /* Array of functions indexed by format character.  */
-libc_freeres_ptr (printf_arginfo_size_function **__printf_arginfo_table)
-  attribute_hidden;
+printf_arginfo_size_function **__printf_arginfo_table attribute_hidden;
 printf_function **__printf_function_table attribute_hidden;
 
 __libc_lock_define_initialized (static, lock)
-
-int __register_printf_specifier (int, printf_function,
-				 printf_arginfo_size_function);
-libc_hidden_proto (__register_printf_specifier)
-int __register_printf_function (int, printf_function,
-				printf_arginfo_function);
-
 
 /* Register FUNC to be called to format SPEC specifiers.  */
 int
@@ -86,3 +79,5 @@ __register_printf_function (int spec, printf_function converter,
 				      (printf_arginfo_size_function*) arginfo);
 }
 weak_alias (__register_printf_function, register_printf_function)
+
+weak_alias (__printf_arginfo_table, __libc_reg_printf_freemem_ptr)

@@ -1,5 +1,5 @@
 /* Wait on a condition.  Generic version.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,7 +17,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <pthread.h>
-
+#include <shlib-compat.h>
 #include <pt-internal.h>
 #include <pthreadP.h>
 #include <time.h>
@@ -34,8 +34,12 @@ __pthread_cond_timedwait (pthread_cond_t *cond,
 {
   return __pthread_cond_timedwait_internal (cond, mutex, -1, abstime);
 }
+libc_hidden_def (__pthread_cond_timedwait)
+versioned_symbol (libc, __pthread_cond_timedwait, pthread_cond_timedwait, GLIBC_2_21);
 
-weak_alias (__pthread_cond_timedwait, pthread_cond_timedwait);
+#if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_12, GLIBC_2_21)
+compat_symbol (libc, __pthread_cond_timedwait, pthread_cond_timedwait, GLIBC_2_12);
+#endif
 
 int
 __pthread_cond_clockwait (pthread_cond_t *cond,
@@ -45,8 +49,8 @@ __pthread_cond_clockwait (pthread_cond_t *cond,
 {
   return __pthread_cond_timedwait_internal (cond, mutex, clockid, abstime);
 }
-
 weak_alias (__pthread_cond_clockwait, pthread_cond_clockwait);
+libc_hidden_def (__pthread_cond_clockwait)
 
 struct cancel_ctx
 {
@@ -142,12 +146,14 @@ __pthread_cond_timedwait_internal (pthread_cond_t *cond,
 
   __pthread_mutex_unlock (&self->cancel_lock);
 
+  /* Increase the waiter reference count.  Relaxed MO is sufficient because
+     we only need to synchronize when decrementing the reference count.
+     We however need to have the mutex held to prevent concurrency with
+     a pthread_cond_destroy.  */
+  atomic_fetch_add_relaxed (&cond->__wrefs, 2);
+
   /* Release MUTEX before blocking.  */
   __pthread_mutex_unlock (mutex);
-
-  /* Increase the waiter reference count.  Relaxed MO is sufficient because
-     we only need to synchronize when decrementing the reference count.  */
-  atomic_fetch_add_relaxed (&cond->__wrefs, 2);
 
   /* Block the thread.  */
   if (abstime != NULL)
@@ -175,7 +181,7 @@ __pthread_cond_timedwait_internal (pthread_cond_t *cond,
     }
   else
     {
-      /* We're still in the list of waiters.  Noone attempted to wake us up,
+      /* We're still in the list of waiters.  No one attempted to wake us up,
          i.e. we timed out.  */
       assert (err == ETIMEDOUT);
       __pthread_dequeue (self);

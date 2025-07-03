@@ -1,7 +1,6 @@
 /* Conversion module for Unicode
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -52,10 +51,10 @@
 	    return (inptr == inend					      \
 		    ? __GCONV_EMPTY_INPUT : __GCONV_INCOMPLETE_INPUT);	      \
 									      \
-	  if (get16u (inptr) == BOM)					      \
+	  if (get16 (inptr) == BOM)					      \
 	    /* Simply ignore the BOM character.  */			      \
 	    *inptrp = inptr += 2;					      \
-	  else if (get16u (inptr) == BOM_OE)				      \
+	  else if (get16 (inptr) == BOM_OE)				      \
 	    {								      \
 	      data->__flags |= __GCONV_SWAP;				      \
 	      *inptrp = inptr += 2;					      \
@@ -68,7 +67,7 @@
       if (__glibc_unlikely (outbuf + 2 > outend))			      \
 	return __GCONV_FULL_OUTPUT;					      \
 									      \
-      put16u (outbuf, BOM);						      \
+      put16 (outbuf, BOM);						      \
       outbuf += 2;							      \
     }									      \
   swap = data->__flags & __GCONV_SWAP;
@@ -164,7 +163,7 @@ gconv_end (struct __gconv_step *data)
 	   surrogates pass through, attackers could make a security	      \
 	   hole exploit by synthesizing any desired plane 1-16		      \
 	   character.  */						      \
-	result = __GCONV_ILLEGAL_INPUT;					      \
+	result = __gconv_mark_illegal_input (step_data);		      \
 	if (! ignore_errors_p ())					      \
 	  break;							      \
 	inptr += 4;							      \

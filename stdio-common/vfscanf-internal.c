@@ -1,5 +1,5 @@
 /* Internal functions for the *scanf* implementation.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -381,6 +381,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
   while (*f != '\0')
     {
       unsigned int argpos;
+      bool is_fast;
       /* Extract the next argument, which is of type TYPE.
 	 For a %N$... spec, this is the Nth argument from the beginning;
 	 otherwise it is the next argument after the state now in ARG.  */
@@ -602,6 +603,53 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	  else if (sizeof (ptrdiff_t) > sizeof (int))
 	    flags |= LONG;
 	  break;
+	case L_('w'):
+	  {
+	    is_fast = false;
+	    if (*f == L_('f'))
+	      {
+		++f;
+		is_fast = true;
+	      }
+	    int bitwidth = 0;
+	    if (ISDIGIT (*f))
+	      bitwidth = read_int (&f);
+	    if (is_fast)
+	      switch (bitwidth)
+		{
+		case 8:
+		  bitwidth = INT_FAST8_WIDTH;
+		  break;
+		case 16:
+		  bitwidth = INT_FAST16_WIDTH;
+		  break;
+		case 32:
+		  bitwidth = INT_FAST32_WIDTH;
+		  break;
+		case 64:
+		  bitwidth = INT_FAST64_WIDTH;
+		  break;
+		}
+	    switch (bitwidth)
+	      {
+	      case 8:
+		flags |= CHAR;
+		break;
+	      case 16:
+		flags |= SHORT;
+		break;
+	      case 32:
+		break;
+	      case 64:
+		flags |= LONGDBL | LONG;
+		break;
+	      default:
+		/* ISO C requires this error to be detected.  */
+		__set_errno (EINVAL);
+		goto errout;
+	      }
+	  }
+	  break;
 	default:
 	  /* Not a recognized modifier.  Backup.  */
 	  --f;
@@ -668,7 +716,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	      /* We have a severe problem here.  The ISO C standard
 		 contradicts itself in explaining the effect of the %n
 		 format in `scanf'.  While in ISO C:1990 and the ISO C
-		 Amendement 1:1995 the result is described as
+		 Amendment 1:1995 the result is described as
 
 		   Execution of a %n directive does not effect the
 		   assignment count returned at the completion of
@@ -1381,6 +1429,10 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	  base = 8;
 	  goto number;
 
+	case L_('b'):	/* Binary integer.  */
+	  base = 2;
+	  goto number;
+
 	case L_('u'):	/* Unsigned decimal integer.  */
 	  base = 10;
 	  goto number;
@@ -1411,25 +1463,46 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	  /* Look for a leading indication of base.  */
 	  if (width != 0 && c == L_('0'))
 	    {
+	      WINT_T ctmp = c;
+
 	      if (width > 0)
 		--width;
-
-	      char_buffer_add (&charbuf, c);
 	      c = inchar ();
 
-	      if (width != 0 && TOLOWER (c) == L_('x'))
+	      if (width != 0
+		  && TOLOWER (c) == L_('x')
+		  && (base == 0 || base == 16))
+		{
+		  base = 16;
+		  if (width > 0)
+		    --width;
+		  /* If we try to read a number in hexadecimal notation
+		     and we have only the `0x' prefix, this is an error.  */
+		  if (width == 0)
+		    conv_error ();
+		  c = inchar ();
+		}
+	      else if (width != 0
+		       && TOLOWER (c) == L_('b')
+		       && (base == 2
+			   || ((mode_flags & SCANF_ISOC23_BIN_CST) != 0
+			       && base == 0)))
+		{
+		  base = 2;
+		  if (width > 0)
+		    --width;
+		  /* If we try to read a number in binary notation and
+		     we have only the `0b' prefix, this is an error.  */
+		  if (width == 0)
+		    conv_error ();
+		  c = inchar ();
+		}
+	      else
 		{
 		  if (base == 0)
-		    base = 16;
-		  if (base == 16)
-		    {
-		      if (width > 0)
-			--width;
-		      c = inchar ();
-		    }
+		    base = 8;
+		  char_buffer_add (&charbuf, ctmp);
 		}
-	      else if (base == 0)
-		base = 8;
 	    }
 
 	  if (base == 0)
@@ -1440,13 +1513,14 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	      int from_level;
 	      int to_level;
 	      int level;
+	      enum { num_digits_len = 10 };
 #ifdef COMPILE_WSCANF
-	      const wchar_t *wcdigits[10];
-	      const wchar_t *wcdigits_extended[10];
+	      const wchar_t *wcdigits[num_digits_len];
 #else
-	      const char *mbdigits[10];
-	      const char *mbdigits_extended[10];
+	      const char *mbdigits[num_digits_len];
 #endif
+	      CHAR_T *digits_extended[num_digits_len] = { NULL };
+
 	      /*  "to_inpunct" is a map from ASCII digits to their
 		  equivalent in locale. This is defined for locales
 		  which use an extra digits set.  */
@@ -1467,18 +1541,23 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		  /*  Adding new level for extra digits set in locale file.  */
 		  ++to_level;
 
-		  for (n = 0; n < 10; ++n)
+		  for (n = 0; n < num_digits_len; ++n)
 		    {
 #ifdef COMPILE_WSCANF
 		      wcdigits[n] = (const wchar_t *)
 			_NL_CURRENT (LC_CTYPE, _NL_CTYPE_INDIGITS0_WC + n);
 
 		      wchar_t *wc_extended = (wchar_t *)
-			alloca ((to_level + 2) * sizeof (wchar_t));
+			malloc ((to_level + 2) * sizeof (wchar_t));
+		      if (wc_extended == NULL)
+			{
+			  done = EOF;
+			  goto digits_extended_fail;
+			}
 		      __wmemcpy (wc_extended, wcdigits[n], to_level);
 		      wc_extended[to_level] = __towctrans (L'0' + n, map);
 		      wc_extended[to_level + 1] = '\0';
-		      wcdigits_extended[n] = wc_extended;
+		      digits_extended[n] = wc_extended;
 #else
 		      mbdigits[n]
 			= curctype->values[_NL_CTYPE_INDIGITS0_MB + n].string;
@@ -1509,14 +1588,18 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		      size_t mbdigits_len = last_char - mbdigits[n];
 
 		      /*  Allocate memory for extended multibyte digit.  */
-		      char *mb_extended;
-		      mb_extended = (char *) alloca (mbdigits_len + mblen + 1);
+		      char *mb_extended = malloc (mbdigits_len + mblen + 1);
+		      if (mb_extended == NULL)
+			{
+			  done = EOF;
+			  goto digits_extended_fail;
+			}
 
 		      /*  And get the mbdigits + extra_digit string.  */
 		      *(char *) __mempcpy (__mempcpy (mb_extended, mbdigits[n],
 						      mbdigits_len),
 					   extra_mbdigit, mblen) = '\0';
-		      mbdigits_extended[n] = mb_extended;
+		      digits_extended[n] = mb_extended;
 #endif
 		    }
 		}
@@ -1526,7 +1609,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		{
 		  /* In this round we get the pointer to the digit strings
 		     and also perform the first round of comparisons.  */
-		  for (n = 0; n < 10; ++n)
+		  for (n = 0; n < num_digits_len; ++n)
 		    {
 		      /* Get the string for the digits with value N.  */
 #ifdef COMPILE_WSCANF
@@ -1538,7 +1621,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		      DIAG_IGNORE_NEEDS_COMMENT (4.7, "-Wmaybe-uninitialized");
 
 		      if (__glibc_unlikely (map != NULL))
-			wcdigits[n] = wcdigits_extended[n];
+			wcdigits[n] = digits_extended[n];
 		      else
 			wcdigits[n] = (const wchar_t *)
 			  _NL_CURRENT (LC_CTYPE, _NL_CTYPE_INDIGITS0_WC + n);
@@ -1559,7 +1642,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		      int avail = width > 0 ? width : INT_MAX;
 
 		      if (__glibc_unlikely (map != NULL))
-			mbdigits[n] = mbdigits_extended[n];
+			mbdigits[n] = digits_extended[n];
 		      else
 			mbdigits[n]
 			  = curctype->values[_NL_CTYPE_INDIGITS0_MB + n].string;
@@ -1602,13 +1685,13 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 #endif
 		    }
 
-		  if (n == 10)
+		  if (n == num_digits_len)
 		    {
 		      /* Have not yet found the digit.  */
 		      for (level = from_level + 1; level <= to_level; ++level)
 			{
 			  /* Search all ten digits of this level.  */
-			  for (n = 0; n < 10; ++n)
+			  for (n = 0; n < num_digits_len; ++n)
 			    {
 #ifdef COMPILE_WSCANF
 			      if (c == (wint_t) *wcdigits[n])
@@ -1654,7 +1737,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 #endif
 			    }
 
-			  if (n < 10)
+			  if (n < num_digits_len)
 			    {
 			      /* Found it.  */
 			      from_level = level;
@@ -1664,7 +1747,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 			}
 		    }
 
-		  if (n < 10)
+		  if (n < num_digits_len)
 		    c = L_('0') + n;
 		  else if (flags & GROUP)
 		    {
@@ -1693,7 +1776,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 			{
 			  __set_errno (ENOMEM);
 			  done = EOF;
-			  goto errout;
+			  break;
 			}
 
 		      if (*cmpp != '\0')
@@ -1727,6 +1810,13 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 
 		  c = inchar ();
 		}
+
+digits_extended_fail:
+	      for (n = 0; n < num_digits_len; n++)
+		free (digits_extended[n]);
+
+	      if (done == EOF)
+		goto errout;
 	    }
 	  else
 	    /* Read the number into workspace.  */
@@ -1948,7 +2038,51 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	      if (width > 0)
 		--width;
 	      char_buffer_add (&charbuf, c);
-	      /* It is "nan".  */
+	      /* It is at least "nan".  Now we check for nan() and
+		 nan(n-char-sequence).  */
+	      if (width != 0 && inchar () != EOF)
+		{
+		  if (c == L_('('))
+		    {
+		      if (width > 0)
+			--width;
+		      char_buffer_add (&charbuf, c);
+		      /* A '(' was observed, check for a closing ')', there
+			 may or may not be a n-char-sequence in between.  We
+			 have to check the longest prefix until there is a
+			 conversion error or closing parenthesis.  */
+		      do
+			{
+			  if (__glibc_unlikely (width == 0
+						|| inchar () == EOF))
+			    {
+			      /* Conversion error because we ran out of
+				 characters.  */
+			      conv_error ();
+			      break;
+			    }
+			  if (!((c >= L_('0') && c <= L_('9'))
+				|| (c >= L_('A') && c <= L_('Z'))
+				|| (c >= L_('a') && c <= L_('z'))
+				|| c == L_('_') || c == L_(')')))
+			    {
+			      /* Invalid character was observed.  Only valid
+				 characters are [a-zA-Z0-9_] and ')'.  */
+			      conv_error ();
+			      break;
+			    }
+			  if (width > 0)
+			    --width;
+			  char_buffer_add (&charbuf, c);
+			}
+		      while (c != L_(')'));
+		      /* The loop only exits successfully when ')' is the
+			 last character.  */
+		    }
+		  else
+		    /* It is only 'nan'.  */
+		    ungetc (c, s);
+		}
 	      goto scan_float;
 	    }
 	  else if (TOLOWER (c) == L_('i'))
@@ -2021,8 +2155,13 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 	      c = inchar ();
 	      if (width > 0)
 		--width;
-	      if (width != 0 && TOLOWER (c) == L_('x'))
+	      if (TOLOWER (c) == L_('x'))
 		{
+		  /* If we try to read a number in hexadecimal notation
+		     and we have only the `0x' prefix, this is an error.  */
+		  if (width == 0)
+		    conv_error ();
+
 		  /* It is a number in hexadecimal format.  */
 		  char_buffer_add (&charbuf, c);
 
@@ -2065,6 +2204,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		{
 		  char_buffer_add (&charbuf, exp_char);
 		  got_e = got_dot = 1;
+		  got_digit = 0;
 		}
 	      else
 		{
@@ -2285,7 +2425,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 		      if (got_e && charbuf.current[-1] == exp_char
 			  && (c == L_('-') || c == L_('+')))
 			char_buffer_add (&charbuf, c);
-		      else if (char_buffer_size (&charbuf) > got_sign && !got_e
+		      else if (got_digit && !got_e
 			       && (CHAR_T) TOLOWER (c) == exp_char)
 			{
 			  char_buffer_add (&charbuf, exp_char);
@@ -2302,7 +2442,10 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 			      if (c == wcdigits[n])
 				{
 				  if (n < 10)
-				    char_buffer_add (&charbuf, L_('0') + n);
+				    {
+				      char_buffer_add (&charbuf, L_('0') + n);
+				      got_digit = 1;
+				    }
 				  else if (n == 11 && !got_dot)
 				    {
 				      char_buffer_add (&charbuf, decimal);
@@ -2337,7 +2480,10 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 				    width = avail;
 
 				  if (n < 10)
-				    char_buffer_add (&charbuf, L_('0') + n);
+				    {
+				      char_buffer_add (&charbuf, L_('0') + n);
+				      got_digit = 1;
+				    }
 				  else if (n == 11 && !got_dot)
 				    {
 				      /* Add all the characters.  */
@@ -2408,11 +2554,13 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 
 	  /* Have we read any character?  If we try to read a number
 	     in hexadecimal notation and we have read only the `0x'
-	     prefix this is an error.  */
+	     prefix this is an error.  Also it is an error where we
+	     have read no digits after the exponent character.  */
 	  if (__glibc_unlikely (char_buffer_size (&charbuf) == got_sign
 				|| ((flags & HEXA_FLOAT)
 				    && (char_buffer_size (&charbuf)
-					== 2 + got_sign))))
+					== 2 + got_sign)))
+				|| (got_e && !got_digit))
 	    conv_error ();
 
 	scan_float:
@@ -2739,7 +2887,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 #endif
 
 	      if (__glibc_unlikely (now == read_in))
-		/* We haven't succesfully read any character.  */
+		/* We haven't successfully read any character.  */
 		conv_error ();
 
 	      if (!(flags & SUPPRESS))
@@ -2937,7 +3085,7 @@ __vfscanf_internal (FILE *s, const char *format, va_list argptr,
 #endif
 
 	      if (__glibc_unlikely (now == read_in))
-		/* We haven't succesfully read any character.  */
+		/* We haven't successfully read any character.  */
 		conv_error ();
 
 	      if (!(flags & SUPPRESS))

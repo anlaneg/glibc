@@ -1,5 +1,5 @@
 /* Replacement for mach_msg used in interruptible Hurd RPCs.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,16 +17,13 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <mach.h>
+#include <mach_rpc.h>
 #include <mach/mig_errors.h>
 #include <mach/mig_support.h>
 #include <hurd/signal.h>
 #include <assert.h>
 
 #include "intr-msg.h"
-
-#ifdef NDR_CHAR_ASCII		/* OSF Mach flavors have different names.  */
-# define mig_reply_header_t	mig_reply_error_t
-#endif
 
 error_t
 _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
@@ -44,12 +41,11 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 
   struct clobber
   {
-#ifdef NDR_CHAR_ASCII
-    NDR_record_t ndr;
-#else
     mach_msg_type_t type;
-#endif
-    error_t err;
+    union {
+      error_t err;
+      uintptr_t align;
+    };
   };
   union msg
   {
@@ -58,11 +54,7 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
     struct
     {
       mach_msg_header_t header;
-#ifdef NDR_CHAR_ASCII
-      NDR_record_t ndr;
-#else
-      int type;
-#endif
+      mach_msg_type_t type;
       int code;
     } check;
     struct
@@ -142,6 +134,12 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 	     XXX */
 	  goto retry_receive;
 	}
+      if (!(option & MACH_SEND_INTERRUPT))
+	{
+	  option = user_option;
+	  timeout = user_timeout;
+	  goto message;
+	}
       /* FALLTHROUGH */
 
       /* These are the other codes that mean a pseudo-receive modified
@@ -164,7 +162,6 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 	}
       if (msg->msgh_bits & MACH_MSGH_BITS_COMPLEX)
 	{
-#ifndef MACH_MSG_PORT_DESCRIPTOR
 	  /* Check for MOVE_SEND rights in the message.  These hold refs
 	     that we need to release in case the message is in fact never
 	     re-sent later.  Since it might in fact be re-sent, we turn
@@ -179,14 +176,19 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 	      mach_msg_type_size_t size;
 	      mach_msg_type_number_t number;
 
-	      inline void clean_ports (mach_port_t *ports, int dealloc)
+	      inline void clean_ports_and_memory (char *data, const vm_size_t length,
+						int dealloc)
 		{
 		  mach_msg_type_number_t i;
 		  switch (name)
 		    {
 		    case MACH_MSG_TYPE_MOVE_SEND:
-		      for (i = 0; i < number; i++)
-			__mach_port_deallocate (__mach_task_self (), *ports++);
+		      {
+			mach_port_t *ports = (mach_port_t *) data;
+			for (i = 0; i < number; i++)
+			  __mach_port_deallocate (__mach_task_self (),
+						  *ports++);
+		      }
 		      if (ty->msgtl_header.msgt_longform)
 			ty->msgtl_name = MACH_MSG_TYPE_COPY_SEND;
 		      else
@@ -200,97 +202,62 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 			assert (! "unexpected port type in interruptible RPC");
 		    }
 		  if (dealloc)
-		    __vm_deallocate (__mach_task_self (),
-				     (vm_address_t) ports,
-				     number * sizeof (mach_port_t));
+		    __vm_deallocate (__mach_task_self (), (vm_address_t) data, length);
 		}
 
+	      inline void clean_inlined_ports (mach_port_name_inlined_t *ports)
+		{
+		  mach_msg_type_number_t i;
+		  switch (name)
+		    {
+		    case MACH_MSG_TYPE_MOVE_SEND:
+		      for (i = 0; i < number; i++)
+			__mach_port_deallocate (__mach_task_self (), ports[i].name);
+		      if (ty->msgtl_header.msgt_longform)
+			ty->msgtl_name = MACH_MSG_TYPE_COPY_SEND;
+		      else
+			ty->msgtl_header.msgt_name = MACH_MSG_TYPE_COPY_SEND;
+		      break;
+		    case MACH_MSG_TYPE_COPY_SEND:
+		    case MACH_MSG_TYPE_MOVE_RECEIVE:
+		      break;
+		    default:
+		      if (MACH_MSG_TYPE_PORT_ANY (name))
+			assert (! "unexpected port type in interruptible RPC");
+		    }
+		}
+
+	      char *data;
 	      if (ty->msgtl_header.msgt_longform)
 		{
 		  name = ty->msgtl_name;
 		  size = ty->msgtl_size;
 		  number = ty->msgtl_number;
-		  ty = (void *) ty + sizeof (mach_msg_type_long_t);
+		  data = (char *) ty + sizeof (mach_msg_type_long_t);
 		}
 	      else
 		{
 		  name = ty->msgtl_header.msgt_name;
 		  size = ty->msgtl_header.msgt_size;
 		  number = ty->msgtl_header.msgt_number;
-		  ty = (void *) ty + sizeof (mach_msg_type_t);
+		  data = (char *) ty + sizeof (mach_msg_type_t);
 		}
 
+	      /* Calculate length of data in bytes.  */
+	      const vm_size_t length = ((number * size) + 7) >> 3;
 	      if (ty->msgtl_header.msgt_inline)
 		{
-		  clean_ports ((void *) ty, 0);
-		  /* calculate length of data in bytes, rounding up */
-		  ty = (void *) ty + (((((number * size) + 7) >> 3)
-				       + sizeof (mach_msg_type_t) - 1)
-				      &~ (sizeof (mach_msg_type_t) - 1));
+		  clean_inlined_ports ((mach_port_name_inlined_t *) data);
+		  /* Move to the next argument.  */
+		  ty = (void *) PTR_ALIGN_UP (data + length, __alignof__ (uintptr_t));
 		}
 	      else
 		{
-		  clean_ports (*(void **) ty,
+		  clean_ports_and_memory (*(void **) data, length,
 			       ty->msgtl_header.msgt_deallocate);
-		  ty = (void *) ty + sizeof (void *);
+		  ty = (void *) data + sizeof (void *);
 		}
 	    }
-#else  /* Untyped Mach IPC flavor. */
-	  mach_msg_body_t *body = (void *) (msg + 1);
-	  mach_msg_descriptor_t *desc = (void *) (body + 1);
-	  mach_msg_descriptor_t *desc_end = desc + body->msgh_descriptor_count;
-	  for (; desc < desc_end; ++desc)
-	    switch (desc->type.type)
-	      {
-	      case MACH_MSG_PORT_DESCRIPTOR:
-		switch (desc->port.disposition)
-		  {
-		  case MACH_MSG_TYPE_MOVE_SEND:
-		    __mach_port_deallocate (mach_task_self (),
-					    desc->port.name);
-		    desc->port.disposition = MACH_MSG_TYPE_COPY_SEND;
-		    break;
-		  case MACH_MSG_TYPE_COPY_SEND:
-		  case MACH_MSG_TYPE_MOVE_RECEIVE:
-		    break;
-		  default:
-		    assert (! "unexpected port type in interruptible RPC");
-		  }
-		break;
-	      case MACH_MSG_OOL_DESCRIPTOR:
-		if (desc->out_of_line.deallocate)
-		  __vm_deallocate (__mach_task_self (),
-				   (vm_address_t) desc->out_of_line.address,
-				   desc->out_of_line.size);
-		break;
-	      case MACH_MSG_OOL_PORTS_DESCRIPTOR:
-		switch (desc->ool_ports.disposition)
-		  {
-		  case MACH_MSG_TYPE_MOVE_SEND:
-		    {
-		      mach_msg_size_t i;
-		      const mach_port_t *ports = desc->ool_ports.address;
-		      for (i = 0; i < desc->ool_ports.count; ++i)
-			__mach_port_deallocate (__mach_task_self (), ports[i]);
-		      desc->ool_ports.disposition = MACH_MSG_TYPE_COPY_SEND;
-		      break;
-		    }
-		  case MACH_MSG_TYPE_COPY_SEND:
-		  case MACH_MSG_TYPE_MOVE_RECEIVE:
-		    break;
-		  default:
-		    assert (! "unexpected port type in interruptible RPC");
-		  }
-		if (desc->ool_ports.deallocate)
-		  __vm_deallocate (__mach_task_self (),
-				   (vm_address_t) desc->ool_ports.address,
-				   desc->ool_ports.count
-				   * sizeof (mach_port_t));
-		break;
-	      default:
-		assert (! "unexpected descriptor type in interruptible RPC");
-	      }
-#endif
 	}
       break;
 
@@ -305,6 +272,7 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
 	{
 	  /* Make sure we have a valid reply port.  The one we were using
 	     may have been destroyed by interruption.  */
+	  __mig_dealloc_reply_port (rcv_name);
 	  m->header.msgh_local_port = rcv_name = __mig_get_reply_port ();
 	  m->header.msgh_bits = msgh_bits;
 	  option = user_option;
@@ -353,19 +321,21 @@ _hurd_intr_rpc_mach_msg (mach_msg_header_t *msg,
       {
 	/* We got a reply.  Was it EINTR?  */
 #ifdef MACH_MSG_TYPE_BIT
-	const union
-	{
-	  mach_msg_type_t t;
-	  int i;
-	} check =
-	  { t: { MACH_MSG_TYPE_INTEGER_T, sizeof (integer_t) * 8,
-		 1, TRUE, FALSE, FALSE, 0 } };
+	static const mach_msg_type_t type_check = {
+	  .msgt_name = MACH_MSG_TYPE_INTEGER_T,
+	  .msgt_size = sizeof (integer_t) * 8,
+	  .msgt_number = 1,
+	  .msgt_inline = TRUE,
+	  .msgt_longform = FALSE,
+	  .msgt_deallocate = FALSE,
+	  .msgt_unused = 0
+	};
 #endif
 
         if (m->reply.RetCode == EINTR
 	    && m->header.msgh_size == sizeof m->reply
 #ifdef MACH_MSG_TYPE_BIT
-	    && m->check.type == check.i
+	    && !BAD_TYPECHECK(&m->check.type, &type_check)
 #endif
 	    && !(m->header.msgh_bits & MACH_MSGH_BITS_COMPLEX))
 	  {

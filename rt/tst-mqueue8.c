@@ -1,6 +1,5 @@
-/* Copyright (C) 2004-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2004-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2004.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -24,6 +23,7 @@
 #include <unistd.h>
 #if _POSIX_THREADS
 # include <pthread.h>
+# include <support/check.h>
 
 static pthread_barrier_t b;
 
@@ -96,8 +96,11 @@ do_test (void)
 
   if (q == (mqd_t) -1)
     {
+      if (errno == ENOSYS)
+	FAIL_UNSUPPORTED ("mq_open not supported");
+
       printf ("mq_open failed with: %m\n");
-      return 0;
+      return 1;
     }
 
   if (mq_unlink (name) != 0)

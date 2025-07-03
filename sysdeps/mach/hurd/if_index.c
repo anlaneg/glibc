@@ -1,5 +1,5 @@
 /* Find network interface names and index numbers.  Hurd version.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -32,16 +32,13 @@ unsigned int
 __if_nametoindex (const char *ifname)
 {
   struct ifreq ifr;
-  int fd = __opensock ();
+  int fd = __socket (AF_INET, SOCK_DGRAM, 0);
 
   if (fd < 0)
     return 0;
 
   if (strlen (ifname) >= IFNAMSIZ)
-    {
-      __set_errno (ENODEV);
-      return 0;
-    }
+    return __hurd_fail (ENODEV), 0;
 
   strncpy (ifr.ifr_name, ifname, IFNAMSIZ);
   if (__ioctl (fd, SIOCGIFINDEX, &ifr) < 0)
@@ -49,7 +46,7 @@ __if_nametoindex (const char *ifname)
       int saved_errno = errno;
       __close (fd);
       if (saved_errno == EINVAL || saved_errno == ENOTTY)
-        __set_errno (ENOSYS);
+        __hurd_fail (ENOSYS);
       return 0;
     }
   __close (fd);
@@ -84,7 +81,7 @@ __if_nameindex (void)
   error_t err = 0;
   char data[2048];
   file_t server;
-  int fd = __opensock ();
+  int fd = __socket (AF_INET, SOCK_DGRAM, 0);
   struct ifconf ifc;
   unsigned int nifs, i;
   struct if_nameindex *idx = NULL;
@@ -99,7 +96,7 @@ __if_nameindex (void)
     nifs = 0;
   else
     {
-      size_t len = sizeof data;
+      mach_msg_type_number_t len = sizeof data;
       err = __pfinet_siocgifconf (server, -1, &ifc.ifc_buf, &len);
       if (err == MACH_SEND_INVALID_DEST || err == MIG_SERVER_DIED)
 	{
@@ -169,7 +166,7 @@ char *
 __if_indextoname (unsigned int ifindex, char ifname[IF_NAMESIZE])
 {
   struct ifreq ifr;
-  int fd = __opensock ();
+  int fd = __socket (AF_INET, SOCK_DGRAM, 0);
 
   if (fd < 0)
     return NULL;
@@ -180,9 +177,9 @@ __if_indextoname (unsigned int ifindex, char ifname[IF_NAMESIZE])
       int saved_errno = errno;
       __close (fd);
       if (saved_errno == EINVAL || saved_errno == ENOTTY)
-        __set_errno (ENOSYS);
+        __hurd_fail (ENOSYS);
       else if (saved_errno == ENODEV)
-	__set_errno (ENXIO);
+	__hurd_fail (ENXIO);
       return NULL;
     }
   __close (fd);

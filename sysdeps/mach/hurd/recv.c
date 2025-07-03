@@ -1,4 +1,4 @@
-/* Copyright (C) 1994-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -54,7 +54,8 @@ __recv (int fd, void *buf, size_t n, int flags)
   if (err)
     return __hurd_sockfail (fd, flags, err);
 
-  __mach_port_deallocate (__mach_task_self (), addrport);
+  if (MACH_PORT_VALID (addrport))
+    __mach_port_deallocate (__mach_task_self (), addrport);
   __vm_deallocate (__mach_task_self (), (vm_address_t) cdata, clen);
 
   if (bufp != buf)

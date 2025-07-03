@@ -1,7 +1,6 @@
 /* Mapping tables for CP932 handling.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by MORIYAMA Masayuki <msyk@mtg.biglobe.ne.jp>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -4560,7 +4559,7 @@ static const char from_ucs4_extra[229][2] =
 	if (! ignore_errors_p ())					      \
 	  {								      \
 	    /* This is an illegal character.  */			      \
-	    result = __GCONV_ILLEGAL_INPUT;				      \
+	    result = __gconv_mark_illegal_input (step_data);		      \
 	    break;							      \
 	  }								      \
 									      \
@@ -4573,7 +4572,7 @@ static const char from_ucs4_extra[229][2] =
 	/* Two-byte character.  First test whether the next character	      \
 	   is also available.  */					      \
 	uint32_t ch2;							      \
-	uint_fast32_t idx;						      \
+	uint32_t idx;						      \
 									      \
 	if (__glibc_unlikely (inptr + 1 >= inend))			      \
 	  {								      \
@@ -4600,7 +4599,7 @@ static const char from_ucs4_extra[229][2] =
 	    if (! ignore_errors_p ())					      \
 	      {								      \
 		/* This is an illegal character.  */			      \
-		result = __GCONV_ILLEGAL_INPUT;				      \
+		result = __gconv_mark_illegal_input (step_data);	      \
 		break;							      \
 	      }								      \
 									      \
@@ -4635,7 +4634,7 @@ static const char from_ucs4_extra[229][2] =
 	    if (! ignore_errors_p ())					      \
 	      {								      \
 		/* This is an illegal character.  */			      \
-		result = __GCONV_ILLEGAL_INPUT;				      \
+		result = __gconv_mark_illegal_input (step_data);	      \
 		break;							      \
 	      }								      \
 									      \

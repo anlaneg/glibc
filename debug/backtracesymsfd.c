@@ -1,7 +1,6 @@
 /* Write formatted list with names for addresses in backtrace to a file.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -96,8 +95,14 @@ __backtrace_symbols_fd (void *const *array, int size, int fd)
 				   - (char *) iov[last].iov_base);
 	      ++last;
 
-	      iov[last].iov_base = (void *) ")";
-	      iov[last].iov_len = 1;
+	      iov[last].iov_base = (void *) ") ";
+	      iov[last].iov_len = 2;
+	      ++last;
+	    }
+	  else
+	    {
+	      iov[last].iov_base = (void *) "() ";
+	      iov[last].iov_len = 3;
 	      ++last;
 	    }
 	}

@@ -2,13 +2,7 @@
 
    This module uses the Z9-109 variants of the Convert Unicode
    instructions.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
-
-   Author: Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
-   Based on the work by Ulrich Drepper  <drepper@cygnus.com>, 1997.
-
-   Thanks to Daniel Appich who covered the relevant performance work
-   in his diploma thesis.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
    This is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -176,8 +170,8 @@ gconv_end (struct __gconv_step *data)
   {									\
     register const unsigned char* pInput __asm__ ("8") = inptr;		\
     register size_t inlen __asm__ ("9") = inend - inptr;		\
-    register unsigned char* pOutput __asm__ ("10") = outptr;		\
-    register size_t outlen __asm__("11") = outend - outptr;		\
+    register unsigned char* pOutput __asm__ ("6") = outptr;		\
+    register size_t outlen __asm__("7") = outend - outptr;		\
     unsigned long cc = 0;						\
 									\
     __asm__ __volatile__ (".machine push       \n\t"			\
@@ -217,7 +211,7 @@ gconv_end (struct __gconv_step *data)
       if (__glibc_unlikely (outbuf + 2 > outend))			\
 	return __GCONV_FULL_OUTPUT;					\
 									\
-      put16u (outbuf, BOM_UTF16);					\
+      put16 (outbuf, BOM_UTF16);					\
       outbuf += 2;							\
     }
 
@@ -248,8 +242,8 @@ gconv_end (struct __gconv_step *data)
   {									\
     register const unsigned char* pInput asm ("8") = inptr;		\
     register size_t inlen asm ("9") = inend - inptr;			\
-    register unsigned char* pOutput asm ("10") = outptr;		\
-    register size_t outlen asm("11") = outend - outptr;			\
+    register unsigned char* pOutput asm ("6") = outptr;			\
+    register size_t outlen asm("7") = outend - outptr;			\
     unsigned long tmp, tmp2, tmp3;					\
     asm volatile (".machine push\n\t"					\
 		  ".machine \"z13\"\n\t"				\
@@ -299,7 +293,7 @@ gconv_end (struct __gconv_step *data)
 		  "    slgr %[R_OUTLEN],%[R_TMP3]\n\t"			\
 		  /* Handle multibyte utf8-char with convert instruction. */ \
 		  "20: cu12 %[R_OUT],%[R_IN],1\n\t"			\
-		  "    jo 0b\n\t" /* Try vector implemenation again.  */ \
+		  "    jo 0b\n\t" /* Try vector implementation again.  */ \
 		  "    lochil %[R_RES],%[RES_OUT_FULL]\n\t" /* cc == 1.  */ \
 		  "    lochih %[R_RES],%[RES_IN_ILL]\n\t" /* cc == 2.  */ \
 		  ".machine pop"					\
@@ -824,8 +818,8 @@ gconv_end (struct __gconv_step *data)
   {									\
     register const unsigned char* pInput asm ("8") = inptr;		\
     register size_t inlen asm ("9") = inend - inptr;			\
-    register unsigned char* pOutput asm ("10") = outptr;		\
-    register size_t outlen asm ("11") = outend - outptr;		\
+    register unsigned char* pOutput asm ("6") = outptr;			\
+    register size_t outlen asm ("7") = outend - outptr;			\
     unsigned long tmp, tmp2, tmp3;					\
     asm volatile (".machine push\n\t"					\
 		  ".machine \"z13\"\n\t"				\
@@ -879,7 +873,7 @@ gconv_end (struct __gconv_step *data)
 		  "    slgr %[R_OUTLEN],%[R_TMP3]\n\t"			\
 		  /* Handles UTF16 surrogates with convert instruction.  */ \
 		  "20: cu21 %[R_OUT],%[R_IN],1\n\t"			\
-		  "    jo 0b\n\t" /* Try vector implemenation again.  */ \
+		  "    jo 0b\n\t" /* Try vector implementation again.  */ \
 		  "    lochil %[R_RES],%[RES_OUT_FULL]\n\t" /* cc == 1.  */ \
 		  "    lochih %[R_RES],%[RES_IN_ILL]\n\t" /* cc == 2.  */ \
 		  ".machine pop"					\

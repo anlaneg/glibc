@@ -1,4 +1,4 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -78,7 +78,7 @@ __mpn_extract_long_double (mp_ptr res_ptr, mp_size_t size,
 
   /* The high double may be rounded and the low double reflects the
      difference between the long double and the rounded high double
-     value.  This is indicated by a differnce between the signs of the
+     value.  This is indicated by a difference between the signs of the
      high and low doubles.  */
   if (u.d[0].ieee.negative != u.d[1].ieee.negative
       && lo != 0)

@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,8 +30,10 @@
 #ifdef _LIBC
 # define HAVE_LOCALTIME_R 0
 # include "../locale/localeinfo.h"
-#endif
 
+# define time_t __time64_t
+# define __localtime_r(t, tp) __localtime64_r (t, tp)
+#endif
 
 #if ! HAVE_LOCALTIME_R && ! defined localtime_r
 # ifdef _LIBC

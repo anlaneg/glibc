@@ -1,5 +1,5 @@
 /* Helper functions for parsing printf format strings.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of th GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,6 +17,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,14 +57,17 @@ size_t
 attribute_hidden
 #ifdef COMPILE_WPRINTF
 __parse_one_specwc (const UCHAR_T *format, size_t posn,
-		    struct printf_spec *spec, size_t *max_ref_arg)
+		    struct printf_spec *spec, size_t *max_ref_arg,
+		    bool *failed)
 #else
 __parse_one_specmb (const UCHAR_T *format, size_t posn,
-		    struct printf_spec *spec, size_t *max_ref_arg)
+		    struct printf_spec *spec, size_t *max_ref_arg,
+		    bool *failed)
 #endif
 {
   unsigned int n;
   size_t nargs = 0;
+  bool is_fast;
 
   /* Skip the '%'.  */
   ++format;
@@ -80,6 +84,8 @@ __parse_one_specmb (const UCHAR_T *format, size_t posn,
   spec->info.pad = ' ';
   spec->info.wide = sizeof (UCHAR_T) > 1;
   spec->info.is_binary128 = 0;
+
+  *failed = false;
 
   /* Test for positional argument.  */
   if (ISDIGIT (*format))
@@ -298,6 +304,53 @@ __parse_one_specmb (const UCHAR_T *format, size_t posn,
 #endif
 	spec->info.is_long = sizeof (uintmax_t) > sizeof (unsigned int);
 	break;
+      case L_('w'):
+	is_fast = false;
+	if (*format == L_('f'))
+	  {
+	    ++format;
+	    is_fast = true;
+	  }
+	int bitwidth = 0;
+	if (ISDIGIT (*format))
+	  bitwidth = read_int (&format);
+	if (is_fast)
+	  switch (bitwidth)
+	    {
+	    case 8:
+	      bitwidth = INT_FAST8_WIDTH;
+	      break;
+	    case 16:
+	      bitwidth = INT_FAST16_WIDTH;
+	      break;
+	    case 32:
+	      bitwidth = INT_FAST32_WIDTH;
+	      break;
+	    case 64:
+	      bitwidth = INT_FAST64_WIDTH;
+	      break;
+	    }
+	switch (bitwidth)
+	  {
+	  case 8:
+	    spec->info.is_char = 1;
+	    break;
+	  case 16:
+	    spec->info.is_short = 1;
+	    break;
+	  case 32:
+	    break;
+	  case 64:
+	    spec->info.is_long_double = 1;
+	    spec->info.is_long = 1;
+	    break;
+	  default:
+	    /* ISO C requires this error to be detected.  */
+	    __set_errno (EINVAL);
+	    *failed = true;
+	    break;
+	  }
+	break;
       default:
 	/* Not a recognized modifier.  Backup.  */
 	--format;
@@ -328,6 +381,8 @@ __parse_one_specmb (const UCHAR_T *format, size_t posn,
 	case L'o':
 	case L'X':
 	case L'x':
+	case L'B':
+	case L'b':
 #if LONG_MAX != LONG_LONG_MAX
 	  if (spec->info.is_long_double)
 	    spec->data_arg_type = PA_INT|PA_FLAG_LONG_LONG;

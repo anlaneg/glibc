@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2021 Free Software Foundation, Inc.
+# Copyright (C) 2018-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -26,6 +26,18 @@ glibc {
     stack_cache_size {
       type: SIZE_T
       default: 41943040
+    }
+    rseq {
+      type: INT_32
+      minval: 0
+      maxval: 1
+      default: 1
+    }
+    stack_hugetlb {
+      type: INT_32
+      minval: 0
+      maxval: 1
+      default: 1
     }
   }
 }

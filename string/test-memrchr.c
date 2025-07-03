@@ -1,7 +1,6 @@
 /* Test and measure memrchr functions.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,11 +21,17 @@
 #include "test-string.h"
 
 typedef char *(*proto_t) (const char *, int, size_t);
-char *simple_memrchr (const char *, int, size_t);
 
-IMPL (simple_memrchr, 0)
 IMPL (memrchr, 1)
 
+/* Also check the generic implementation.  */
+#undef weak_alias
+#define weak_alias(a, b)
+#define MEMRCHR __memrchr_default
+#include "string/memrchr.c"
+IMPL (__memrchr_default, 1)
+
+/* Naive implementation to verify results.  */
 char *
 simple_memrchr (const char *s, int c, size_t n)
 {

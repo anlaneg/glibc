@@ -1,7 +1,6 @@
 /* Conversion module for ISO-2022-JP and ISO-2022-JP-2.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -250,7 +249,7 @@ gconv_end (struct __gconv_step *data)
 
 
 /* Since we might have to reset input pointer we must be able to save
-   and retore the state.  */
+   and restore the state.  */
 #define SAVE_RESET_STATE(Save) \
   if (Save)								      \
     save_set = *setp;							      \
@@ -680,7 +679,7 @@ static const cvlist_t conversion_lists[4] =
 	   the character is unknown.					      \
 	   The CJK character sets partially overlap when seen as subsets      \
 	   of ISO 10646; therefore there is no single correct result.	      \
-	   We use a preferrence order which depends on the language tag.  */  \
+	   We use a preference order which depends on the language tag.  */  \
 									      \
 	if (ch <= 0x7f)							      \
 	  {								      \

@@ -1,5 +1,5 @@
-/* strrchr -- find the last occurence of C in a nul-terminated string
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+/* strrchr -- find the last occurrence of C in a nul-terminated string
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ ENTRY (strrchr)
 	cmp	r2, #0			@ Find EOS
 	it	eq
 	bxeq	lr
-	tst	r3, #7			@ Find the aligment point
+	tst	r3, #7			@ Find the alignment point
 	bne	1b
 
 	@ So now we're aligned.  Now we actually need a stack frame.

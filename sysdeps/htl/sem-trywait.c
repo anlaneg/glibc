@@ -1,5 +1,5 @@
 /* Lock a semaphore if it does not require blocking.  Generic version.
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 #include <semaphore.h>
 #include <errno.h>
 
+#include <hurd.h>
 #include <pt-internal.h>
 
 int
@@ -29,8 +30,7 @@ __sem_trywait (sem_t *sem)
   if (__sem_waitfast (isem, 1) == 0)
     return 0;
 
-  errno = EAGAIN;
-  return -1;
+  return __hurd_fail (EAGAIN);
 }
 
 weak_alias (__sem_trywait, sem_trywait);

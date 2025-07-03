@@ -1,7 +1,6 @@
 /* Clear given exceptions in current floating-point environment.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by David Huggins-Daines <dhd@debian.org>, 2000
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,7 +26,7 @@ feclearexcept (int excepts)
   /* Get the current status word. */
   __asm__ ("fstd %%fr0,0(%1)" : "=m" (s.l) : "r" (&s.l) : "%r0");
   /* Clear all the relevant bits. */
-  s.sw[0] &= ~((excepts & FE_ALL_EXCEPT) << 27);
+  s.sw[0] &= ~(((unsigned int) excepts & FE_ALL_EXCEPT) << 27);
   __asm__ ("fldd 0(%0),%%fr0" : : "r" (&s.l), "m" (s.l) : "%r0");
 
   /* Success.  */

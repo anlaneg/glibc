@@ -1,5 +1,5 @@
 /* ptsname -- return the name of a pty slave given an FD to the pty master
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -49,11 +49,8 @@ __ptsname_internal (int fd, char *buf, size_t buflen, struct stat64 *stp)
   int ttype;
 
   if (HURD_DPORT_USE (fd, __term_get_bottom_type (port, &ttype)) == 0)
-    {
-      /* get_bottom_type suceeded, this is the slave side.  */
-      errno = ENOTTY;
-      return ENOTTY;
-    }
+    /* get_bottom_type succeeded, this is the slave side.  */
+    return __hurd_fail (ENOTTY), ENOTTY;
 
   if (err = HURD_DPORT_USE (fd, __term_get_peername (port, peername)))
     {
@@ -64,10 +61,7 @@ __ptsname_internal (int fd, char *buf, size_t buflen, struct stat64 *stp)
 
   len = __strnlen (peername, sizeof peername - 1) + 1;
   if (len > buflen)
-    {
-      errno = ERANGE;
-      return ERANGE;
-    }
+    return __hurd_fail (ERANGE), ERANGE;
 
   if (stp)
     {

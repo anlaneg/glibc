@@ -1,7 +1,6 @@
 /* Return arc hyperbolic tangent for a complex float type.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -76,7 +75,7 @@ M_DECL_FUNC (__catanh) (CFLOAT x)
 	  if (M_FABS (__real__ x) == 1
 	      && M_FABS (__imag__ x) < M_EPSILON * M_EPSILON)
 	    __real__ res = (M_COPYSIGN (M_LIT (0.5), __real__ x)
-			    * ((FLOAT) M_MLIT (M_LN2)
+			    * (M_MLIT (M_LN2)
 			       - M_LOG (M_FABS (__imag__ x))));
 	  else
 	    {

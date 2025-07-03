@@ -1,7 +1,6 @@
 /* Regular expression tests.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -178,7 +177,7 @@ main (int argc, char **argv)
 
       if (!rm_valid)
 	{
-	  printf ("%zd: No preceeding pattern or search string\n", linenum);
+	  printf ("%zd: No preceding pattern or search string\n", linenum);
 	  ret = 1;
 	  continue;
 	}

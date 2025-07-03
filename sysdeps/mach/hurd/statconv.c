@@ -1,5 +1,5 @@
 /* Convert between `struct stat' format, and `struct stat64' format.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <sys/stat.h>
+#include <hurd.h>
 
 static inline int
 stat64_conv (struct stat *buf, const struct stat64 *buf64)
@@ -55,10 +56,7 @@ stat64_conv (struct stat *buf, const struct stat64 *buf64)
 	  && buf->st_size != buf64->st_size)
       || (sizeof buf->st_blocks != sizeof buf64->st_blocks
 	  && buf->st_blocks != buf64->st_blocks))
-    {
-      __set_errno (EOVERFLOW);
-      return -1;
-    }
+    return __hurd_fail (EOVERFLOW);
 
   return 0;
 }

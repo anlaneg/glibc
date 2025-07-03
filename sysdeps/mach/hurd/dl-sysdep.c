@@ -1,5 +1,5 @@
 /* Operating system support for run-time dynamic linker.  Hurd version.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -30,8 +30,8 @@
 #include <sys/wait.h>
 #include <assert.h>
 #include <sysdep.h>
+#include <argz.h>
 #include <mach/mig_support.h>
-#include <mach/machine/vm_param.h>
 #include "hurdstartup.h"
 #include <hurd/lookup.h>
 #include <hurd/auth.h>
@@ -43,7 +43,6 @@
 
 #include <entry.h>
 #include <dl-machine.h>
-#include <dl-procinfo.h>
 
 #include <dl-tunables.h>
 #include <not-errno.h>
@@ -75,6 +74,7 @@ _dl_sysdep_start (void **start_argptr,
 {
   void go (intptr_t *argdata)
     {
+      char *orig_argv0;
       char **p;
 
       /* Cache the information in various global variables.  */
@@ -82,6 +82,8 @@ _dl_sysdep_start (void **start_argptr,
       _dl_argv = 1 + (char **) argdata;
       _environ = &_dl_argv[_dl_argc + 1];
       for (p = _environ; *p++;); /* Skip environ pointers and terminator.  */
+
+      orig_argv0 = _dl_argv[0];
 
       if ((void *) p == _dl_argv[0])
 	{
@@ -98,11 +100,13 @@ _dl_sysdep_start (void **start_argptr,
 
       __tunables_init (_environ);
 
+      /* Initialize DSO sorting algorithm after tunables.  */
+      _dl_sort_maps_init ();
+
 #ifdef DL_SYSDEP_INIT
       DL_SYSDEP_INIT;
 #endif
 
-#ifdef SHARED
 #ifdef DL_PLATFORM_INIT
       DL_PLATFORM_INIT;
 #endif
@@ -110,7 +114,6 @@ _dl_sysdep_start (void **start_argptr,
       /* Determine the length of the platform name.  */
       if (GLRO(dl_platform) != NULL)
 	GLRO(dl_platformlen) = strlen (GLRO(dl_platform));
-#endif
 
       if (_dl_hurd_data->flags & EXEC_STACK_ARGS
 	  && _dl_hurd_data->user_entry == 0)
@@ -134,7 +137,6 @@ _dl_sysdep_start (void **start_argptr,
 	    mach_port_t memobj;
 	    error_t err;
 
-	    ++_dl_skip_args;
 	    --_dl_argc;
 	    p = _dl_argv++[1] + 1;
 
@@ -171,30 +173,23 @@ _dl_sysdep_start (void **start_argptr,
 
       /* The call above might screw a few things up.
 
-	 First of all, if _dl_skip_args is nonzero, we are ignoring
-	 the first few arguments.  However, if we have no Hurd startup
-	 data, it is the magical convention that ARGV[0] == P.  The
+	 P is the location after the terminating NULL of the list of
+	 environment variables.  It has to point to the Hurd startup
+	 data or if that's missing then P == ARGV[0] must hold. The
 	 startup code in init-first.c will get confused if this is not
 	 the case, so we must rearrange things to make it so.  We'll
-	 overwrite the origional ARGV[0] at P with ARGV[_dl_skip_args].
+	 recompute P and move the Hurd data or the new ARGV[0] there.
 
-	 Secondly, if we need to be secure, it removes some dangerous
-	 environment variables.  If we have no Hurd startup date this
-	 changes P (since that's the location after the terminating
-	 NULL in the list of environment variables).  We do the same
-	 thing as in the first case but make sure we recalculate P.
-	 If we do have Hurd startup data, we have to move the data
-	 such that it starts just after the terminating NULL in the
-	 environment list.
+	 Note: directly invoked ld.so can move arguments and env vars.
 
 	 We use memmove, since the locations might overlap.  */
-      if (__libc_enable_secure || _dl_skip_args)
+
+      char **newp;
+      for (newp = _environ; *newp++;);
+
+      if (newp != p || _dl_argv[0] != orig_argv0)
 	{
-	  char **newp;
-
-	  for (newp = _environ; *newp++;);
-
-	  if (_dl_argv[-_dl_skip_args] == (char *) p)
+	  if (orig_argv0 == (char *) p)
 	    {
 	      if ((char *) newp != _dl_argv[0])
 		{
@@ -209,6 +204,8 @@ _dl_sysdep_start (void **start_argptr,
 		memmove (newp, _dl_hurd_data, sizeof (*_dl_hurd_data));
 	    }
 	}
+
+      _dl_init_first (argdata);
 
       {
 	extern void _dl_start_user (void);
@@ -233,13 +230,15 @@ _dl_sysdep_start (void **start_argptr,
   abort ();
 }
 
+RETURN_TO_TRAMPOLINE();
+
 void
 _dl_sysdep_start_cleanup (void)
 {
   /* Deallocate the reply port and task port rights acquired by
      __mach_init.  We are done with them now, and the user will
      reacquire them for himself when he wants them.  */
-  __mig_dealloc_reply_port (MACH_PORT_NULL);
+  __mig_dealloc_reply_port (__mig_get_reply_port ());
   __mach_port_deallocate (__mach_task_self (), __mach_host_self_);
   __mach_port_deallocate (__mach_task_self (), __mach_task_self_);
 }
@@ -267,7 +266,7 @@ open_file (const char *file_name, int flags,
 	   mach_port_t *port, struct stat64 *stat)
 {
   enum retry_type doretry;
-  char retryname[1024];		/* XXX string_t LOSES! */
+  string_t retryname;
   file_t startdir;
   error_t err;
 
@@ -286,11 +285,11 @@ open_file (const char *file_name, int flags,
 				MACH_PORT_RIGHT_SEND, +1);
 	  return _dl_hurd_data->dtable[fd];
 	}
-      errno = EBADF;
-      return MACH_PORT_NULL;
+      return __hurd_fail (EBADF), MACH_PORT_NULL;
     }
 
-  assert (!(flags & ~(O_READ | O_CLOEXEC)));
+  assert (!(flags & ~(O_READ | O_EXEC | O_CLOEXEC | O_IGNORE_CTTY)));
+  flags &= ~(O_CLOEXEC | O_IGNORE_CTTY);
 
   startdir = _dl_hurd_data->portarray[file_name[0] == '/'
 				      ? INIT_PORT_CRDIR : INIT_PORT_CWDIR];
@@ -298,13 +297,13 @@ open_file (const char *file_name, int flags,
   while (file_name[0] == '/')
     file_name++;
 
-  err = __dir_lookup (startdir, (char *)file_name, O_RDONLY, 0,
+  err = __dir_lookup (startdir, (char *)file_name, flags, 0,
 		      &doretry, retryname, port);
 
   if (!err)
     err = __hurd_file_name_lookup_retry (use_init_port, get_dtable_port,
 					 __dir_lookup, doretry, retryname,
-					 O_RDONLY, 0, port);
+					 flags, 0, port);
   if (!err && stat)
     {
       err = __io_stat (*port, stat);
@@ -384,7 +383,7 @@ __ssize_t weak_function
 __write (int fd, const void *buf, size_t nbytes)
 {
   error_t err;
-  mach_msg_type_number_t nwrote;
+  vm_size_t nwrote;
 
   assert (fd < _hurd_init_dtablesize);
 
@@ -403,10 +402,7 @@ __ssize_t weak_function
 __writev (int fd, const struct iovec *iov, int niov)
 {
   if (fd >= _hurd_init_dtablesize)
-    {
-      errno = EBADF;
-      return -1;
-    }
+    return __hurd_fail (EBADF);
 
   int i;
   size_t total = 0;
@@ -417,7 +413,7 @@ __writev (int fd, const struct iovec *iov, int niov)
     {
       char buf[total], *bufp = buf;
       error_t err;
-      mach_msg_type_number_t nwrote;
+      vm_size_t nwrote;
 
       for (i = 0; i < niov; ++i)
 	bufp = (memcpy (bufp, iov[i].iov_base, iov[i].iov_len)
@@ -451,7 +447,7 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
   error_t err;
   vm_prot_t vmprot;
-  vm_address_t mapaddr;
+  vm_address_t mapaddr, mask;
   mach_port_t memobj_rd, memobj_wr;
 
   vmprot = VM_PROT_NONE;
@@ -462,6 +458,13 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
   if (prot & PROT_EXEC)
     vmprot |= VM_PROT_EXECUTE;
 
+#ifdef __x86_64__
+  if ((addr == NULL) && (prot & PROT_EXEC)
+      && HAS_ARCH_FEATURE (Prefer_MAP_32BIT_EXEC))
+    flags |= MAP_32BIT;
+#endif
+  mask = (flags & MAP_32BIT) ? ~(vm_address_t) 0x7FFFFFFF : 0;
+
   if (flags & MAP_ANON)
     memobj_rd = MACH_PORT_NULL;
   else
@@ -470,13 +473,13 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
       err = __io_map ((mach_port_t) fd, &memobj_rd, &memobj_wr);
       if (err)
 	return __hurd_fail (err), MAP_FAILED;
-      if (memobj_wr != MACH_PORT_NULL)
+      if (MACH_PORT_VALID (memobj_wr))
 	__mach_port_deallocate (__mach_task_self (), memobj_wr);
     }
 
   mapaddr = (vm_address_t) addr;
   err = __vm_map (__mach_task_self (),
-		  &mapaddr, (vm_size_t) len, ELF_MACHINE_USER_ADDRESS_MASK,
+		  &mapaddr, (vm_size_t) len, mask,
 		  !(flags & MAP_FIXED),
 		  memobj_rd,
 		  (vm_offset_t) offset,
@@ -491,7 +494,7 @@ __mmap (void *addr, size_t len, int prot, int flags, int fd, off_t offset)
       if (! err)
 	err = __vm_map (__mach_task_self (),
 			&mapaddr, (vm_size_t) len,
-			ELF_MACHINE_USER_ADDRESS_MASK,
+			mask,
 			!(flags & MAP_FIXED),
 			memobj_rd, (vm_offset_t) offset,
 			flags & (MAP_COPY|MAP_PRIVATE),
@@ -539,22 +542,119 @@ __stat64 (const char *file, struct stat64 *buf)
 }
 libc_hidden_def (__stat64)
 
-/* This function is called by the dynamic linker (rtld.c) to check
-   whether debugging malloc is allowed even for SUID binaries.  This
-   stub will always fail, which means that malloc-debugging is always
-   disabled for SUID binaries.  */
+/* This function is called by the dynamic linker (rtld.c) to check for
+   existence of /etc/ld.so.preload.  This stub will always fail, which
+   means that /etc/ld.so.preload is unsupported.  */
 check_no_hidden(__access);
 int weak_function
 __access (const char *file, int type)
 {
-  errno = ENOSYS;
-  return -1;
+  return __hurd_fail (ENOSYS);
 }
-check_no_hidden(__access_noerrno);
-int weak_function
-__access_noerrno (const char *file, int type)
+
+int
+__rtld_execve (const char *file_name, char *const argv[],
+               char *const envp[])
 {
-  return -1;
+  file_t file;
+  error_t err;
+  char *args, *env;
+  size_t argslen, envlen;
+  mach_port_t *ports = _dl_hurd_data->portarray;
+  unsigned int portarraysize = _dl_hurd_data->portarraysize;
+  file_t *dtable = _dl_hurd_data->dtable;
+  unsigned int dtablesize = _dl_hurd_data->dtablesize;
+  int *intarray = _dl_hurd_data->intarray;
+  unsigned int i, j;
+  mach_port_t *please_dealloc, *pdp;
+  mach_port_t *portnames = NULL;
+  mach_msg_type_number_t nportnames = 0;
+  mach_port_type_t *porttypes = NULL;
+  mach_msg_type_number_t nporttypes = 0;
+  int flags;
+
+  err = open_file (file_name, O_EXEC, &file, NULL);
+  if (err)
+    goto out;
+
+  if (argv == NULL)
+    args = NULL, argslen = 0;
+  else if (err = __argz_create (argv, &args, &argslen))
+    goto outfile;
+  if (envp == NULL)
+    env = NULL, envlen = 0;
+  else if (err = __argz_create (envp, &env, &envlen))
+    goto outargs;
+
+  please_dealloc = __alloca ((portarraysize + dtablesize)
+			     * sizeof (mach_port_t));
+  pdp = please_dealloc;
+
+  /* Get all ports that we may not know about and we should thus destroy.  */
+  err = __mach_port_names (__mach_task_self (),
+			   &portnames, &nportnames,
+			   &porttypes, &nporttypes);
+  if (err)
+    goto outenv;
+  if (nportnames != nporttypes)
+    {
+      err = EGRATUITOUS;
+      goto outenv;
+    }
+
+  for (i = 0; i < portarraysize; ++i)
+    if (ports[i] != MACH_PORT_NULL)
+      {
+	*pdp++ = ports[i];
+	for (j = 0; j < nportnames; j++)
+	  if (portnames[j] == ports[i])
+	    portnames[j] = MACH_PORT_NULL;
+      }
+  for (i = 0; i < dtablesize; ++i)
+    if (dtable[i] != MACH_PORT_NULL)
+      {
+	*pdp++ = dtable[i];
+	for (j = 0; j < nportnames; j++)
+	  if (portnames[j] == dtable[i])
+	    portnames[j] = MACH_PORT_NULL;
+      }
+
+  /* Pack ports to be destroyed together.  */
+  for (i = 0, j = 0; i < nportnames; i++)
+    {
+      if (portnames[i] == MACH_PORT_NULL)
+	continue;
+      if (j != i)
+	portnames[j] = portnames[i];
+      j++;
+    }
+  nportnames = j;
+
+  flags = 0;
+#ifdef EXEC_SIGTRAP
+  if (__sigismember (&intarray[INIT_TRACEMASK], SIGKILL))
+    flags |= EXEC_SIGTRAP;
+#endif
+
+  err = __file_exec_paths (file, __mach_task_self (), flags,
+			   file_name, file_name[0] == '/' ? file_name : "",
+			   args, argslen,
+			   env, envlen,
+			   dtable, MACH_MSG_TYPE_COPY_SEND, dtablesize,
+			   ports, MACH_MSG_TYPE_COPY_SEND, portarraysize,
+			   intarray, INIT_INT_MAX,
+			   please_dealloc, pdp - please_dealloc,
+			   portnames, nportnames);
+
+  /* Oh well.  Might as well be tidy.  */
+outenv:
+  free (env);
+outargs:
+  free (args);
+outfile:
+  __mach_port_deallocate (__mach_task_self (), file);
+out:
+  return err;
 }
 
 check_no_hidden(__getpid);
@@ -585,8 +685,7 @@ check_no_hidden(__getcwd);
 char *weak_function
 __getcwd (char *buf, size_t size)
 {
-  errno = ENOSYS;
-  return NULL;
+  return __hurd_fail (ENOSYS), NULL;
 }
 
 /* This is used by dl-tunables.c to strdup strings.  We can just make this a
@@ -596,7 +695,8 @@ void *weak_function
 __sbrk (intptr_t increment)
 {
   vm_address_t addr;
-  __vm_allocate (__mach_task_self (), &addr, increment, 1);
+  if (__vm_allocate (__mach_task_self (), &addr, increment, 1))
+    return NULL;
   return (void *) addr;
 }
 
@@ -689,7 +789,7 @@ _dl_show_auxv (void)
 
 
 void weak_function
-_dl_init_first (int argc, ...)
+_dl_init_first (void *p)
 {
   /* This no-op definition only gets used if libc is not linked in.  */
 }

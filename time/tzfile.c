@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,13 +26,14 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <alloc_buffer.h>
+#include <set-freeres.h>
 
 #include <timezone/tzfile.h>
 
 int __use_tzfile;
 static dev_t tzfile_dev;
 static ino64_t tzfile_ino;
-static time_t tzfile_mtime;
+static __time64_t tzfile_mtime;
 
 struct ttinfo
   {
@@ -50,7 +51,7 @@ struct leap
   };
 
 static size_t num_transitions;
-libc_freeres_ptr (static __time64_t *transitions);
+static __time64_t *transitions;
 static unsigned char *type_idxs;
 static size_t num_types;
 static struct ttinfo *types;
@@ -60,6 +61,10 @@ static long int rule_dstoff;
 static size_t num_leaps;
 static struct leap *leaps;
 static char *tzspec;
+
+/* Used to restore the daylight variable during time conversion, as if
+   tzset had been called.  */
+static int daylight_saved;
 
 #include <endian.h>
 #include <byteswap.h>
@@ -125,12 +130,13 @@ __tzfile_read (const char *file, size_t extra, char **extrap)
     {
       /* We must not allow to read an arbitrary file in a setuid
 	 program.  So we fail for any file which is not in the
-	 directory hierachy starting at TZDIR
+	 directory hierarchy starting at TZDIR
 	 and which is not the system wide default TZDEFAULT.  */
       if (__libc_enable_secure
 	  && ((*file == '/'
-	       && memcmp (file, TZDEFAULT, sizeof TZDEFAULT)
-	       && memcmp (file, default_tzdir, sizeof (default_tzdir) - 1))
+	       && strcmp (file, TZDEFAULT) != 0
+	       && (strncmp (file, default_tzdir, sizeof (default_tzdir) - 1)
+		   != 0))
 	      || strstr (file, "../") != NULL))
 	/* This test is certainly a bit too restrictive but it should
 	   catch all critical cases.  */
@@ -403,7 +409,7 @@ __tzfile_read (const char *file, size_t extra, char **extrap)
 
   fclose (f);
 
-  /* First "register" all timezone names.  */
+  /* First "register" all time zone abbreviations.  */
   for (i = 0; i < num_types; ++i)
     if (__tzstring (&zone_names[types[i].idx]) == NULL)
       goto ret_free_transitions;
@@ -431,43 +437,42 @@ __tzfile_read (const char *file, size_t extra, char **extrap)
   if (__tzname[0] == NULL)
     {
       /* This should only happen if there are no transition rules.
-	 In this case there should be only one single type.  */
-      assert (num_types == 1);
+	 In this case there's usually only one single type, unless
+	 e.g. the data file has a truncated time-range.  */
       __tzname[0] = __tzstring (zone_names);
     }
   if (__tzname[1] == NULL)
     __tzname[1] = __tzname[0];
 
+  daylight_saved = 0;
   if (num_transitions == 0)
     /* Use the first rule (which should also be the only one).  */
     rule_stdoff = rule_dstoff = types[0].offset;
   else
     {
-      int stdoff_set = 0, dstoff_set = 0;
-      rule_stdoff = rule_dstoff = 0;
+      rule_stdoff = 0;
+
+      /* Search for the last rule with a standard time offset.  This
+	 will be used for the global timezone variable.  */
       i = num_transitions - 1;
       do
-	{
-	  if (!stdoff_set && !types[type_idxs[i]].isdst)
-	    {
-	      stdoff_set = 1;
-	      rule_stdoff = types[type_idxs[i]].offset;
-	    }
-	  else if (!dstoff_set && types[type_idxs[i]].isdst)
-	    {
-	      dstoff_set = 1;
-	      rule_dstoff = types[type_idxs[i]].offset;
-	    }
-	  if (stdoff_set && dstoff_set)
+	if (!types[type_idxs[i]].isdst)
+	  {
+	    rule_stdoff = types[type_idxs[i]].offset;
 	    break;
-	}
+	  }
+	else
+	  daylight_saved = 1;
       while (i-- > 0);
 
-      if (!dstoff_set)
-	rule_dstoff = rule_stdoff;
+      /* Keep searching to see if there is a DST rule.  This
+	 information will be used to set the global daylight
+	 variable.  */
+      while (i-- > 0 && !daylight_saved)
+	daylight_saved = types[type_idxs[i]].isdst;
     }
 
-  __daylight = rule_stdoff != rule_dstoff;
+  __daylight = daylight_saved;
   __timezone = -rule_stdoff;
 
  done:
@@ -561,7 +566,7 @@ __tzfile_default (const char *std, const char *dst,
   types[1].offset = dstoff;
   types[1].isdst = 1;
 
-  /* Reset the zone names to point to the user's names.  */
+  /* Reset time zone abbreviations to point to the user's abbreviations.  */
   __tzname[0] = (char *) std;
   __tzname[1] = (char *) dst;
 
@@ -731,7 +736,7 @@ __tzfile_compute (__time64_t timer, int use_localtime,
 	}
 
       struct ttinfo *info = &types[i];
-      __daylight = rule_stdoff != rule_dstoff;
+      __daylight = daylight_saved;
       __timezone = -rule_stdoff;
 
       if (__tzname[0] == NULL)
@@ -765,8 +770,7 @@ __tzfile_compute (__time64_t timer, int use_localtime,
   *leap_correct = leaps[i].change;
 
   if (timer == leaps[i].transition /* Exactly at the transition time.  */
-      && ((i == 0 && leaps[i].change > 0)
-	  || leaps[i].change > leaps[i - 1].change))
+      && (leaps[i].change > (i == 0 ? 0 : leaps[i - 1].change)))
     {
       *leap_hit = 1;
       while (i > 0
@@ -778,3 +782,5 @@ __tzfile_compute (__time64_t timer, int use_localtime,
 	}
     }
 }
+
+weak_alias (transitions, __libc_tzfile_freemem_ptr)

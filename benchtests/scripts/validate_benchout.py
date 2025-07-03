@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (C) 2014-2021 Free Software Foundation, Inc.
+# Copyright (C) 2014-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -73,10 +73,14 @@ def main(args):
 
     except bench.validator.ValidationError as e:
         return print_and_exit("Invalid benchmark output: %s" % e.message,
-            os.EX_DATAERR)
+                os.EX_DATAERR)
 
     except bench.validator.SchemaError as e:
         return print_and_exit("Invalid schema: %s" % e.message, os.EX_DATAERR)
+
+    except json.decoder.JSONDecodeError as e:
+        return print_and_exit("Benchmark output in %s is not JSON." % args[0],
+                os.EX_DATAERR)
 
     print("Benchmark output in %s is valid." % args[0])
     return os.EX_OK

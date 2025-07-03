@@ -1,7 +1,6 @@
 /* Prototypes for compatibility double == long double entry points.
-   Copyright (C) 2006-2021 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@cygnus.com>, 2006.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -79,6 +78,18 @@ NLDBL_DECL (__isoc99_swscanf);
 NLDBL_DECL (__isoc99_vwscanf);
 NLDBL_DECL (__isoc99_vfwscanf);
 NLDBL_DECL (__isoc99_vswscanf);
+NLDBL_DECL (__isoc23_scanf);
+NLDBL_DECL (__isoc23_fscanf);
+NLDBL_DECL (__isoc23_sscanf);
+NLDBL_DECL (__isoc23_vscanf);
+NLDBL_DECL (__isoc23_vfscanf);
+NLDBL_DECL (__isoc23_vsscanf);
+NLDBL_DECL (__isoc23_wscanf);
+NLDBL_DECL (__isoc23_fwscanf);
+NLDBL_DECL (__isoc23_swscanf);
+NLDBL_DECL (__isoc23_vwscanf);
+NLDBL_DECL (__isoc23_vfwscanf);
+NLDBL_DECL (__isoc23_vswscanf);
 NLDBL_DECL (argp_error);
 NLDBL_DECL (argp_failure);
 NLDBL_DECL (warn);

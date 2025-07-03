@@ -1,5 +1,5 @@
 /* Lightweight user references for ports.
-   Copyright (C) 1993-2021 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -96,7 +96,7 @@ _hurd_port_locked_get (struct hurd_port *port,
   if (result != MACH_PORT_NULL)
     {
       link->cleanup = &_hurd_port_cleanup;
-      link->cleanup_data = (void *) result;
+      link->cleanup_data = (void *) (uintptr_t) result;
       _hurd_userlink_link (&port->users, link);
     }
   __spin_unlock (&port->lock);

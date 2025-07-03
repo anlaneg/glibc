@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Jakub Jelinek <jakub@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -39,12 +38,15 @@ static char *semfilename;
 
 static sem_t *sem;
 
+static void do_cleanup (void);
+
 static void *
 tf (void *arg)
 {
   char *cmd = xasprintf ("%s --direct --sem %s --pidfile %s",
 			 command, semfilename, pidfilename);
-  system (cmd);
+  if (system (cmd))
+    FAIL_EXIT1("system call unexpectedly returned");
   /* This call should never return.  */
   return NULL;
 }
@@ -57,9 +59,6 @@ sl (void)
   fprintf (f, "%lld\n", (long long) getpid ());
   fflush (f);
 
-  if (sem_post (sem) != 0)
-    FAIL_EXIT1 ("sem_post: %m");
-
   struct flock fl =
     {
       .l_type = F_WRLCK,
@@ -69,6 +68,9 @@ sl (void)
     };
   if (fcntl (fileno (f), F_SETLK, &fl) != 0)
     FAIL_EXIT1 ("fcntl (F_SETFL): %m");
+
+  if (sem_post (sem) != 0)
+    FAIL_EXIT1 ("sem_post: %m");
 
   sigset_t ss;
   sigfillset (&ss);
@@ -108,6 +110,8 @@ do_prepare (int argc, char *argv[])
 
   xwrite (fd, " ", 1);
   xclose (fd);
+
+  atexit (do_cleanup);
 }
 
 
@@ -116,15 +120,12 @@ do_test (void)
 {
   pthread_t th = xpthread_create (NULL, tf, NULL);
 
-  do
-    nanosleep (&(struct timespec) { .tv_sec = 0, .tv_nsec = 100000000 }, NULL);
-  while (access (pidfilename, R_OK) != 0);
+  /* Wait to cancel until after the pid is written and file locked.  */
+  if (sem_wait (sem) != 0)
+    FAIL_EXIT1 ("sem_wait: %m");
 
   xpthread_cancel (th);
   void *r = xpthread_join (th);
-
-  if (sem_wait (sem) != 0)
-    FAIL_EXIT1 ("sem_wait: %m");
 
   FILE *f = xfopen (pidfilename, "r+");
 

@@ -1,6 +1,6 @@
 # Common functions and variables for testing the Python pretty printers.
 #
-# Copyright (C) 2016-2021 Free Software Foundation, Inc.
+# Copyright (C) 2016-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -98,7 +98,7 @@ try:
     # If everything's ok, spawn the gdb process we'll use for testing.
     gdb = pexpect.spawn(gdb_invocation, echo=False, timeout=timeout,
                         encoding=encoding)
-    gdb_prompt = u'\(gdb\)'
+    gdb_prompt = u'\\(gdb\\)'
     gdb.expect(gdb_prompt)
 
 except pexpect.ExceptionPexpect as exception:
@@ -160,6 +160,17 @@ def init_test(test_bin, printer_files, printer_names):
         pretty_printers (list of strings): A list with the names of the pretty
             printer files.
     """
+
+    # Disable debuginfod to avoid GDB messages like:
+    #
+    # This GDB supports auto-downloading debuginfo from the following URLs:
+    # https://debuginfod.fedoraproject.org/
+    # Enable debuginfod for this session? (y or [n])
+    #
+    try:
+        test('set debuginfod enabled off')
+    except Exception:
+        pass
 
     # Load all the pretty printer files.  We're assuming these are safe.
     for printer_file in printer_files:

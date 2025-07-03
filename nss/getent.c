@@ -1,6 +1,5 @@
-/* Copyright (c) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (c) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@suse.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -59,6 +58,8 @@ static const struct argp_option args_options[] =
   {
     { "service", 's', N_("CONFIG"), 0, N_("Service configuration to be used") },
     { "no-idn", 'i', NULL, 0, N_("disable IDN encoding") },
+    { "no-addrconfig", 'A', NULL, 0,
+      N_("do not filter out unsupported IPv4/IPv6 addresses (with ahosts*)") },
     { NULL, 0, NULL, 0, NULL },
   };
 
@@ -80,6 +81,9 @@ static struct argp argp =
 /* Additional getaddrinfo flags for IDN encoding.  */
 static int idn_flags = AI_IDN | AI_CANONIDN;
 
+/* Set to 0 by --no-addrconfig.  */
+static int addrconfig_flags = AI_ADDRCONFIG;
+
 /* Print the version information.  */
 static void
 print_version (FILE *stream, struct argp_state *state)
@@ -89,7 +93,7 @@ print_version (FILE *stream, struct argp_state *state)
 Copyright (C) %s Free Software Foundation, Inc.\n\
 This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
-"), "2021");
+"), "2024");
   fprintf (stream, gettext ("Written by %s.\n"), "Thorsten Kukuk");
 }
 
@@ -347,7 +351,7 @@ ahosts_keys_int (int af, int xflags, int number, char *key[])
 
   struct addrinfo hint;
   memset (&hint, '\0', sizeof (hint));
-  hint.ai_flags = (AI_V4MAPPED | AI_ADDRCONFIG | AI_CANONNAME
+  hint.ai_flags = (AI_V4MAPPED | addrconfig_flags | AI_CANONNAME
 		   | idn_flags | xflags);
   hint.ai_family = af;
 
@@ -904,6 +908,10 @@ parse_option (int key, char *arg, struct argp_state *state)
 
     case 'i':
       idn_flags = 0;
+      break;
+
+    case 'A':
+      addrconfig_flags = 0;
       break;
 
     default:

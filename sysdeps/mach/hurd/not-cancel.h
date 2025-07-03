@@ -1,7 +1,6 @@
 /* Uncancelable versions of cancelable interfaces.  Hurd version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2003.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,9 +21,11 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <sys/uio.h>
+#include <sys/random.h>
 #include <hurd.h>
 #include <hurd/fd.h>
 
@@ -74,6 +75,26 @@ __typeof (__fcntl) __fcntl_nocancel;
 /* fcntl64 is just the same as fcntl for us.  */
 #define __fcntl64_nocancel(...) \
   __fcntl_nocancel (__VA_ARGS__)
+
+/* Non cancellable getrandom syscall that does not also set errno in case of
+   failure.  */
+static inline ssize_t
+__getrandom_nocancel_nostatus_direct (void *buf, size_t buflen, unsigned int flags)
+{
+  int save_errno = errno;
+  ssize_t r = __getrandom (buf, buflen, flags);
+  r = r == -1 ? -errno : r;
+  __set_errno (save_errno);
+  return r;
+}
+
+#define __getrandom_nocancel(buf, size, flags) \
+  __getrandom (buf, size, flags)
+#define __getrandom_nocancel_direct(buf, size, flags) \
+  __getrandom (buf, size, flags)
+
+#define __poll_infinity_nocancel(fds, nfds) \
+  __poll (fds, nfds, -1)
 
 #if IS_IN (libc)
 hidden_proto (__close_nocancel)

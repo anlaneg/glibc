@@ -1,6 +1,6 @@
 /* futex operations for glibc-internal use.  Stub version; do not include
    this file directly.
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -236,8 +236,8 @@ futex_wake (unsigned int* futex_word, int processes_to_wake, int private)
    are done in descending priority order.
 
    The ABSTIME arguments provides an absolute timeout (measured against the
-   CLOCK_REALTIME clock).  If TIMEOUT is NULL, the operation will block
-   indefinitely.
+   CLOCK_REALTIME or CLOCK_MONOTONIC clock).  If TIMEOUT is NULL, the operation
+   will block indefinitely.
 
    Returns:
 
@@ -250,58 +250,8 @@ futex_wake (unsigned int* futex_word, int processes_to_wake, int private)
        futex.
      - ETIMEDOUT if the ABSTIME expires.
 */
-static __always_inline int
-futex_lock_pi64 (int *futex_word, const struct __timespec64 *abstime,
-                 int private)
-{
-  int err;
-#ifdef __ASSUME_TIME64_SYSCALLS
-  err = INTERNAL_SYSCALL_CALL (futex_time64, futex_word,
-			       __lll_private_flag (FUTEX_LOCK_PI, private), 0,
-			       abstime);
-#else
-  bool need_time64 = abstime != NULL && !in_time_t_range (abstime->tv_sec);
-  if (need_time64)
-    {
-      err = INTERNAL_SYSCALL_CALL (futex_time64, futex_word,
-				   __lll_private_flag (FUTEX_LOCK_PI, private),
-				   0, abstime);
-      if (err == -ENOSYS)
-	err = -EOVERFLOW;
-    }
-  else
-    {
-      struct timespec ts32;
-      if (abstime != NULL)
-        ts32 = valid_timespec64_to_timespec (*abstime);
-
-      err = INTERNAL_SYSCALL_CALL (futex, futex_word, __lll_private_flag
-                                   (FUTEX_LOCK_PI, private), 0,
-                                   abstime != NULL ? &ts32 : NULL);
-    }
-#endif
-  switch (err)
-    {
-    case 0:
-    case -EAGAIN:
-    case -EINTR:
-    case -ETIMEDOUT:
-    case -ESRCH:
-    case -EDEADLK:
-    case -EINVAL: /* This indicates either state corruption or that the kernel
-		     found a waiter on futex address which is waiting via
-		     FUTEX_WAIT or FUTEX_WAIT_BITSET.  This is reported on
-		     some futex_lock_pi usage (pthread_mutex_timedlock for
-		     instance).  */
-      return -err;
-
-    case -EFAULT: /* Must have been caused by a glibc or application bug.  */
-    case -ENOSYS: /* Must have been caused by a glibc bug.  */
-    /* No other errors are documented at this time.  */
-    default:
-      futex_fatal_error ();
-    }
-}
+int __futex_lock_pi64 (int *futex_word, clockid_t clockid,
+		       const struct __timespec64 *abstime, int private);
 
 /* Wakes the top priority waiter that called a futex_lock_pi operation on
    the futex.
@@ -369,7 +319,7 @@ __futex_clocklock64 (int *futex, clockid_t clockid,
 {
   if (__glibc_unlikely (atomic_compare_and_exchange_bool_acq (futex, 1, 0)))
     {
-      while (atomic_exchange_acq (futex, 2) != 0)
+      while (atomic_exchange_acquire (futex, 2) != 0)
         {
 	  int err = 0;
           err = __futex_abstimed_wait64 ((unsigned int *) futex, 2, clockid,

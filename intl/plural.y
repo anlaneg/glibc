@@ -1,6 +1,6 @@
 %{
 /* Expression parsing for plural form selection.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Written by Ulrich Drepper <drepper@cygnus.com>, 2000.
 
    This program is free software: you can redistribute it and/or modify
@@ -39,6 +39,11 @@
 #ifndef _LIBC
 # define __gettextparse PLURAL_PARSE
 #endif
+
+/* Later we provide those prototypes.  Without these macros, bison may
+   generate its own prototypes with possible conflicts.  */
+#define YYLEX_IS_DECLARED
+#define YYERROR_IS_DECLARED
 
 %}
 %parse-param {struct parse_args *arg}

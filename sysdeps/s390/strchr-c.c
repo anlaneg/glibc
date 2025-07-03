@@ -1,5 +1,5 @@
 /* Default strchr implementation for S/390.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,13 +21,14 @@
 #if HAVE_STRCHR_C
 # if HAVE_STRCHR_IFUNC
 #  define STRCHR STRCHR_C
-#  undef weak_alias
-#  if defined SHARED && IS_IN (libc)
-#   undef libc_hidden_builtin_def
-#   define libc_hidden_builtin_def(name)			\
-     __hidden_ver1 (__strchr_c, __GI_strchr, __strchr_c);
-#  endif
 # endif
 
 # include <string/strchr.c>
+
+# if HAVE_STRCHR_IFUNC
+#  if defined SHARED && IS_IN (libc)
+__hidden_ver1 (__strchr_c, __GI_strchr, __strchr_c);
+#  endif
+# endif
+
 #endif

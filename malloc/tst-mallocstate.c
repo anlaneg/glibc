@@ -1,7 +1,6 @@
 /* Emulate Emacs heap dumping to test malloc_set_state.
-   Copyright (C) 2001-2021 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Wolfram Gloger <wg@malloc.de>, 2001.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -46,7 +45,7 @@ enum allocation_action
     action_free,                /* Dumped and freed.  */
     action_realloc,             /* Dumped and realloc'ed.  */
     action_realloc_same,        /* Dumped and realloc'ed, same size.  */
-    action_realloc_smaller,     /* Dumped and realloc'ed, shrinked.  */
+    action_realloc_smaller,     /* Dumped and realloc'ed, shrunk.  */
     action_count
   };
 
@@ -367,7 +366,7 @@ full_heap_check (void)
 }
 
 /* Used as an optimization barrier to force a heap allocation.  */
-__attribute__ ((noinline, noclone))
+__attribute_optimization_barrier__
 static void
 my_free (void *ptr)
 {

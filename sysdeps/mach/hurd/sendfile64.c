@@ -1,5 +1,5 @@
 /* sendfile -- copy data directly from one file descriptor to another
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,14 +35,14 @@ __sendfile64 (int out_fd, int in_fd, off64_t *offset, size_t count)
      which might blow if it's huge or address space is real tight.  */
 
   char *data = 0;
-  size_t datalen = 0;
+  mach_msg_type_number_t datalen = 0;
   error_t err = HURD_DPORT_USE (in_fd,
 				__io_read (port, &data, &datalen,
 					   offset ? *offset : (off_t) -1,
 					   count));
   if (err == 0)
     {
-      size_t nwrote;
+      vm_size_t nwrote;
       if (datalen == 0)
 	return 0;
       err = HURD_DPORT_USE (out_fd, __io_write (port, data, datalen,

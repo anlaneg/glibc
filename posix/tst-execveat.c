@@ -1,5 +1,5 @@
 /* Test execveat at the various corner cases.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -111,14 +111,14 @@ do_test (void)
   call_execveat (AT_FDCWD, "/bin/sh", 0, 0, __LINE__);
   fd = xopen ("/usr", O_PATH | O_DIRECTORY, 0);
   /* Same check for absolute pathname, but with input file descriptor
-     openend with different flags.  The dirfd should be ignored.  */
+     opened with different flags.  The dirfd should be ignored.  */
   call_execveat (fd, "/bin/sh", 0, 0, __LINE__);
   xclose (fd);
 #endif
 
   fd = xopen ("/usr", O_RDONLY, 0);
   /* Same check for absolute pathname, but with input file descriptor
-     openend with different flags.  The dirfd should be ignored.  */
+     opened with different flags.  The dirfd should be ignored.  */
   call_execveat (fd, "/bin/sh", 0, 0, __LINE__);
   xclose (fd);
 
@@ -155,7 +155,7 @@ do_test (void)
   tmp_sh = xasprintf ("%s/tmp_sh", tmp_dir);
   add_temp_file (tmp_sh);
   fd_out = xopen (symlink_name, O_CREAT | O_WRONLY, 0);
-  xstat ("/bin/sh", &st);
+  xstat64 ("/bin/sh", &st);
   fd = xopen ("/bin/sh", O_RDONLY, 0);
   xcopy_file_range (fd, 0, fd_out, 0, st.st_size, 0);
   xfchmod (fd_out, 0700);

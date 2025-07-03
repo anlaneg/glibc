@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -19,15 +19,11 @@
 #include <limits.h>
 #include <termios.h>
 #include <stdlib.h>
-
+#include <set-freeres.h>
 #include "ttyname.h"
 
 static char *ttyname_buf = NULL;
-
-libc_freeres_fn (free_mem)
-{
-  free (ttyname_buf);
-}
+weak_alias (ttyname_buf, __ttyname_freemem_ptr)
 
 /* Return the pathname of the terminal FD is open on, or NULL on errors.
    The returned storage is good only until the next call to this function.  */

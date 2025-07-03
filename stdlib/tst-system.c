@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -21,11 +20,13 @@
 #include <string.h>
 #include <signal.h>
 #include <paths.h>
+#include <sys/resource.h>
 
 #include <support/capture_subprocess.h>
 #include <support/check.h>
 #include <support/temp_file.h>
 #include <support/support.h>
+#include <support/xthread.h>
 #include <support/xunistd.h>
 
 static char *tmpdir;
@@ -70,6 +71,20 @@ call_system (void *closure)
       TEST_VERIFY (WIFSIGNALED (ret) != 0);
       TEST_COMPARE (WTERMSIG (ret), args->term_sig);
     }
+}
+
+static void *
+sleep_and_check_sigchld (void *closure)
+{
+  double *seconds = (double *) closure;
+  char cmd[namemax];
+  sprintf (cmd, "sleep %lf" , *seconds);
+  TEST_COMPARE (system (cmd), 0);
+
+  sigset_t blocked = { };
+  TEST_COMPARE (sigprocmask (SIG_BLOCK, NULL, &blocked), 0);
+  TEST_COMPARE (sigismember (&blocked, SIGCHLD), 0);
+  return NULL;
 }
 
 static int
@@ -134,6 +149,20 @@ do_test (void)
 
   {
     struct support_capture_subprocess result;
+    const char *cmd = "-echo";
+    result = support_capture_subprocess (call_system,
+					 &(struct args) { cmd, 127 });
+    support_capture_subprocess_check (&result, "system", 0, sc_allow_stderr |
+			sc_allow_stdout);
+    char *returnerr = xasprintf ("%s: execing -echo failed: "
+				 "No such file or directory",
+				 basename(_PATH_BSHELL));
+    TEST_COMPARE_STRING (result.err.buffer, returnerr);
+    free (returnerr);
+  }
+
+  {
+    struct support_capture_subprocess result;
     result = support_capture_subprocess (call_system,
 					 &(struct args) { "exit 1", 1 });
     support_capture_subprocess_check (&result, "system", 0, sc_allow_none);
@@ -141,7 +170,7 @@ do_test (void)
 
   {
     struct stat64 st;
-    xstat (_PATH_BSHELL, &st);
+    xstat64 (_PATH_BSHELL, &st);
     mode_t mode = st.st_mode;
     xchmod (_PATH_BSHELL, mode & ~(S_IXUSR | S_IXGRP | S_IXOTH));
 
@@ -153,6 +182,37 @@ do_test (void)
     support_capture_subprocess_check (&result, "system", 0, sc_allow_none);
 
     xchmod (_PATH_BSHELL, st.st_mode);
+  }
+
+  {
+    pthread_t long_sleep_thread = xpthread_create (NULL,
+                                                   sleep_and_check_sigchld,
+                                                   &(double) { 0.2 });
+    pthread_t short_sleep_thread = xpthread_create (NULL,
+                                                    sleep_and_check_sigchld,
+                                                    &(double) { 0.1 });
+    xpthread_join (short_sleep_thread);
+    xpthread_join (long_sleep_thread);
+  }
+
+  {
+    struct rlimit rlimit_orig, rlimit_new;
+
+    if (getrlimit (RLIMIT_NPROC, &rlimit_orig) != 0)
+      FAIL_EXIT1 ("getrlimit (RLIMIT_NPROC) failed: %m");
+
+    /* Force failure for the system call */
+    rlimit_new.rlim_cur = 0;
+    rlimit_new.rlim_max = rlimit_orig.rlim_max;
+
+    if (setrlimit (RLIMIT_NPROC, &rlimit_new) != 0)
+      FAIL_EXIT1 ("setrlimit (RLIMIT_NPROC) failed: %m");
+
+    TEST_COMPARE (system (""), -1);
+
+    /* Restore NPROC limit */
+    if (setrlimit (RLIMIT_NPROC, &rlimit_orig) != 0)
+      FAIL_EXIT1 ("setrlimit (RLIMIT_NPROC) failed: %m");
   }
 
   TEST_COMPARE (system (""), 0);

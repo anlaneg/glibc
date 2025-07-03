@@ -1,5 +1,5 @@
 /* Minimal /bin/sh for in-container use.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -15,8 +15,6 @@
    You should have received a copy of the GNU Lesser General Public
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
-
-#define _FILE_OFFSET_BITS 64
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +37,7 @@
 #include <error.h>
 
 #include <support/support.h>
+#include <support/timespec.h>
 
 /* Design considerations
 
@@ -120,7 +119,7 @@ copy_func (char **argv)
       goto out;
     }
 
-  if (support_copy_file_range (sfd, 0, dfd, 0, st.st_size, 0) != st.st_size)
+  if (support_copy_file_range (sfd, NULL, dfd, NULL, st.st_size, 0) != st.st_size)
     {
       fprintf (stderr, "cp: cannot copy file %s to %s: %s\n",
 	       sname, dname, strerror (errno));
@@ -146,7 +145,7 @@ exit_func (char **argv)
 {
   int exit_val = 0;
 
-  if (argv[0] != 0)
+  if (argv[0] != NULL)
     exit_val = atoi (argv[0]) & 0xff;
   exit (exit_val);
   return 0;
@@ -171,6 +170,32 @@ kill_func (char **argv)
   return 0;
 }
 
+/* Emulate the "/bin/sleep" command.  No suffix support.  Options are
+   ignored.  */
+static int
+sleep_func (char **argv)
+{
+  if (argv[0] == NULL)
+    {
+      fprintf (stderr, "sleep: missing operand\n");
+      return 1;
+    }
+  char *endptr = NULL;
+  double sec = strtod (argv[0], &endptr);
+  if (endptr == argv[0] || errno == ERANGE || sec < 0)
+    {
+      fprintf (stderr, "sleep: invalid time interval '%s'\n", argv[0]);
+      return 1;
+    }
+  struct timespec ts = dtotimespec (sec);
+  if (nanosleep (&ts, NULL) < 0)
+    {
+      fprintf (stderr, "sleep: failed to nanosleep: %s\n", strerror (errno));
+      return 1;
+    }
+  return 0;
+}
+
 /* This is a list of all the built-in commands we understand.  */
 static struct {
   const char *name;
@@ -181,6 +206,7 @@ static struct {
   { "cp", copy_func },
   { "exit", exit_func },
   { "kill", kill_func },
+  { "sleep", sleep_func },
   { NULL, NULL }
 };
 
@@ -429,7 +455,12 @@ main (int argc, const char **argv)
     dprintf (stderr, "  argv[%d] is `%s'\n", i, argv[i]);
 
   if (strcmp (argv[1], "-c") == 0)
-    run_command_string (argv[2], argv+3);
+    {
+      if (strcmp (argv[2], "--") == 0)
+		run_command_string (argv[3], argv+4);
+      else
+		run_command_string (argv[2], argv+3);
+    }
   else
     run_script (argv[1], argv+2);
 

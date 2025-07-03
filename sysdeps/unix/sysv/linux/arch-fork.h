@@ -1,5 +1,5 @@
 /* arch_fork definition for Linux fork implementation.
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
    to store the child thread ID at its locationm, to erase it in child memory
    when the child exits, and do a wakeup on the futex at that address.
 
-   The architecture with non-default kernel abi semantic should correctlly
+   The architecture with non-default kernel abi semantic should correctly
    override it with one of the supported calling convention (check generic
    kernel-features.h for the clone abi variants).  */
 static inline pid_t
@@ -46,8 +46,6 @@ arch_fork (void *ctid)
   ret = INLINE_SYSCALL_CALL (clone, 0, flags, NULL, ctid, 0);
 #elif defined(__ASSUME_CLONE_BACKWARDS3)
   ret = INLINE_SYSCALL_CALL (clone, flags, 0, 0, NULL, ctid, 0);
-#elif defined(__ASSUME_CLONE2)
-  ret = INLINE_SYSCALL_CALL (clone2, flags, 0, 0, NULL, ctid, 0);
 #elif defined(__ASSUME_CLONE_DEFAULT)
   ret = INLINE_SYSCALL_CALL (clone, flags, 0, NULL, ctid, 0);
 #else

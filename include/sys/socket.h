@@ -44,7 +44,7 @@ extern ssize_t __libc_sendto (int __fd, const void *__buf, size_t __n,
 			      socklen_t __addr_len);
 
 /* Read N bytes into BUF through socket FD.
-   If ADDR is not NULL, fill in *ADDR_LEN bytes of it with tha address of
+   If ADDR is not NULL, fill in *ADDR_LEN bytes of it with the address of
    the sender, and store the actual size of the address in *ADDR_LEN.
    Returns the number of bytes read or -1 for errors.  */
 extern ssize_t __libc_recvfrom (int __fd, void *__restrict __buf, size_t __n,
@@ -78,7 +78,7 @@ extern ssize_t __sendto (int __fd, const void *__buf, size_t __n,
 			 socklen_t __addr_len) attribute_hidden;
 
 /* Read N bytes into BUF through socket FD.
-   If ADDR is not NULL, fill in *ADDR_LEN bytes of it with tha address of
+   If ADDR is not NULL, fill in *ADDR_LEN bytes of it with the address of
    the sender, and store the actual size of the address in *ADDR_LEN.
    Returns the number of bytes read or -1 for errors.  */
 extern ssize_t __recvfrom (int __fd, void *__restrict __buf, size_t __n,
@@ -98,15 +98,21 @@ extern int __sendmmsg (int __fd, struct mmsghdr *__vmessages,
 libc_hidden_proto (__sendmmsg)
 #endif
 
-/* Receive a message as described by MESSAGE from socket FD.
-   Returns the number of bytes read or -1 for errors.  */
 extern ssize_t __libc_recvmsg (int __fd, struct msghdr *__message,
 			       int __flags);
 extern ssize_t __recvmsg (int __fd, struct msghdr *__message,
 			  int __flags) attribute_hidden;
 #if __TIMESIZE == 64
+# define __libc_recvmsg64 __libc_recvmsg
+# define __recvmsg64  __recvmsg
 # define __recvmmsg64 __recvmmsg
 #else
+extern ssize_t __libc_recvmsg64 (int __fd, struct msghdr *__message,
+				 int __flags);
+extern ssize_t __recvmsg64 (int __fd, struct msghdr *__message,
+			    int __flags);
+/* Receive a message as described by MESSAGE from socket FD.
+   Returns the number of bytes read or -1 for errors.  */
 extern int __recvmmsg64 (int __fd, struct mmsghdr *vmessages,
 			 unsigned int vlen, int flags,
 			 struct __timespec64 *timeout);

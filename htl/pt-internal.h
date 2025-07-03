@@ -1,5 +1,5 @@
-/* Internal defenitions for pthreads library.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Internal definitions for pthreads library.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -48,8 +48,6 @@ enum pthread_state
   PTHREAD_DETACHED,
   /* A joinable thread exited and its return code is available.  */
   PTHREAD_EXITED,
-  /* The thread structure is unallocated and available for reuse.  */
-  PTHREAD_TERMINATED
 };
 
 #ifndef PTHREAD_KEY_MEMBERS
@@ -95,6 +93,8 @@ struct __pthread
   enum pthread_state state;
   pthread_mutex_t state_lock;	/* Locks the state.  */
   pthread_cond_t state_cond;	/* Signalled when the state changes.  */
+  bool terminated;		/* Whether the kernel thread is over
+				   and we can reuse this structure.  */
 
   /* Resolver state.  */
   struct __res_state res_state;
@@ -165,34 +165,26 @@ __pthread_dequeue (struct __pthread *thread)
 
 /* The total number of threads currently active.  */
 extern unsigned int __pthread_total;
-
-/* The total number of thread IDs currently in use, or on the list of
-   available thread IDs.  */
-extern int __pthread_num_threads;
+libc_hidden_proto (__pthread_total)
 
 /* Concurrency hint.  */
 extern int __pthread_concurrency;
 
-/* Array of __pthread structures and its lock.  Indexed by the pthread
-   id minus one.  (Why not just use the pthread id?  Because some
-   brain-dead users of the pthread interface incorrectly assume that 0
-   is an invalid pthread id.)  */
-extern struct __pthread **__pthread_threads;
+/* The size of the thread ID lookup table.  */
 extern int __pthread_max_threads;
-extern pthread_rwlock_t __pthread_threads_lock;
 
 #define __pthread_getid(thread) \
   ({ struct __pthread *__t = NULL;                                           \
-     __pthread_rwlock_rdlock (&__pthread_threads_lock);                      \
+     __libc_rwlock_rdlock (GL (dl_pthread_threads_lock));                    \
      if (thread <= __pthread_max_threads)                                    \
-       __t = __pthread_threads[thread - 1];                                  \
-     __pthread_rwlock_unlock (&__pthread_threads_lock);                      \
+       __t = GL (dl_pthread_threads)[thread - 1];                            \
+     __libc_rwlock_unlock (GL (dl_pthread_threads_lock));                    \
      __t; })
 
 #define __pthread_setid(thread, pthread) \
-  __pthread_rwlock_wrlock (&__pthread_threads_lock);                         \
-  __pthread_threads[thread - 1] = pthread;                                   \
-  __pthread_rwlock_unlock (&__pthread_threads_lock);
+  __libc_rwlock_wrlock (GL (dl_pthread_threads_lock));                       \
+  GL (dl_pthread_threads)[thread - 1] = pthread;                             \
+  __libc_rwlock_unlock (GL (dl_pthread_threads_lock));
 
 /* Similar to pthread_self, but returns the thread descriptor instead
    of the thread ID.  */
@@ -218,11 +210,17 @@ extern int __pthread_create_internal (struct __pthread **__restrict pthread,
    kernel thread or a stack).  THREAD has one reference.  */
 extern int __pthread_alloc (struct __pthread **thread);
 
-/* Deallocate the thread structure.  This is the dual of
+/* Deallocate the content of the thread structure.  This is the dual of
    __pthread_alloc (N.B. it does not call __pthread_stack_dealloc nor
-   __pthread_thread_terminate).  THREAD loses one reference and is
-   released if the reference counter drops to 0.  */
+   __pthread_thread_terminate).  THREAD loses one reference, and if
+   if the reference counter drops to 0 this returns 1, and the caller has
+   to call __pthread_dealloc_finish when it is really finished with using
+   THREAD.  */
 extern void __pthread_dealloc (struct __pthread *thread);
+
+/* Confirm deallocating the thread structure.  Before calling this
+   the structure will not be reused yet.  */
+extern void __pthread_dealloc_finish (struct __pthread *pthread);
 
 
 /* Allocate a stack of size STACKSIZE.  The stack base shall be
@@ -269,23 +267,25 @@ extern void __pthread_startup (void);
 
 /* Block THREAD.  */
 extern void __pthread_block (struct __pthread *thread);
+libc_hidden_proto (__pthread_block)
 
 /* Block THREAD until *ABSTIME is reached.  */
 extern error_t __pthread_timedblock (struct __pthread *__restrict thread,
 				     const struct timespec *__restrict abstime,
 				     clockid_t clock_id);
-
+libc_hidden_proto (__pthread_timedblock)
 /* Block THREAD with interrupts.  */
 extern error_t __pthread_block_intr (struct __pthread *thread);
+libc_hidden_proto (__pthread_block_intr)
 
 /* Block THREAD until *ABSTIME is reached, with interrupts.  */
 extern error_t __pthread_timedblock_intr (struct __pthread *__restrict thread,
 					  const struct timespec *__restrict abstime,
 					  clockid_t clock_id);
-
+libc_hidden_proto (__pthread_timedblock_intr)
 /* Wakeup THREAD.  */
 extern void __pthread_wakeup (struct __pthread *thread);
-
+libc_hidden_proto (__pthread_wakeup)
 
 /* Perform a cancelation.  The CANCEL_LOCK member of the given thread must
    be locked before calling this function, which must unlock it.  */
@@ -299,28 +299,33 @@ extern error_t __pthread_init_specific (struct __pthread *thread);
 /* Call the destructors on all of the thread specific data in THREAD.
    THREAD must be the calling thread.  */
 extern void __pthread_destroy_specific (struct __pthread *thread);
+libc_hidden_proto (__pthread_destroy_specific)
 
 
 /* Initialize newly create thread *THREAD's signal state data
    structures.  */
 extern error_t __pthread_sigstate_init (struct __pthread *thread);
 
-/* Destroy the signal state data structures associcated with thread
+/* Destroy the signal state data structures associated with thread
    *THREAD.  */
 extern void __pthread_sigstate_destroy (struct __pthread *thread);
+libc_hidden_proto (__pthread_sigstate_destroy)
 
 /* Modify thread *THREAD's signal state.  */
 extern error_t __pthread_sigstate (struct __pthread *__restrict thread, int how,
 				   const sigset_t *__restrict set,
 				   sigset_t *__restrict oset,
 				   int clear_pending);
+libc_hidden_proto (__pthread_sigstate)
 
 /* If supported, check that MUTEX is locked by the caller.  */
 extern int __pthread_mutex_checklocked (pthread_mutex_t *mtx);
+libc_hidden_proto (__pthread_mutex_checklocked)
 
 
 /* Default thread attributes.  */
 extern struct __pthread_attr __pthread_default_attr;
+libc_hidden_proto (__pthread_default_attr)
 
 /* Default barrier attributes.  */
 extern const struct __pthread_barrierattr __pthread_default_barrierattr;
@@ -330,6 +335,7 @@ extern const struct __pthread_rwlockattr __pthread_default_rwlockattr;
 
 /* Default condition attributes.  */
 extern const struct __pthread_condattr __pthread_default_condattr;
+libc_hidden_proto (__pthread_default_condattr)
 
 /* Semaphore encoding.
    See nptl implementation for the details.  */

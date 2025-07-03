@@ -28,6 +28,11 @@ tst-cache-ppc-static-dlopen-ENV = LD_LIBRARY_PATH=$(objpfx):$(common-objpfx):$(c
 $(objpfx)tst-cache-ppc-static-dlopen.out: $(objpfx)mod-cache-ppc.so
 
 $(objpfx)tst-cache-ppc: $(objpfx)mod-cache-ppc.so
+
+# The test checks if the __tls_get_addr does not clobber caller-saved
+# register, so disable the powerpc specific optimization to force a
+# __tls_get_addr call.
+LDFLAGS-tst-tls23-mod.so = -Wl,--no-tls-get-addr-optimize
 endif
 
 ifneq (no,$(multi-arch))
@@ -61,11 +66,6 @@ ifeq ($(subdir),misc)
 sysdep_headers += sys/platform/ppc.h
 tests += test-gettimebase
 tests += tst-set_ppr
-
-# This test is expected to run and exit with EXIT_UNSUPPORTED on
-# processors that do not implement the Power ISA 2.06 or greater.
-# But the test makes use of instructions from Power ISA 2.06 and 2.07.
-CFLAGS-tst-set_ppr.c += -Wa,-many
 endif
 
 ifeq ($(subdir),wcsmbs)

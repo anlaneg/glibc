@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,6 +21,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <support/xunistd.h>
 
 static int do_test (void);
 
@@ -52,7 +52,7 @@ do_test (void)
 
 	if (pthread_setspecific (keys[i], (const void *) (i + 100l)) != 0)
 	  {
-	    write (2, "setspecific failed\n", 19);
+	    xwrite (2, "setspecific failed\n", 19);
 	    _exit (1);
 	  }
       }
@@ -61,13 +61,13 @@ do_test (void)
     {
       if (pthread_getspecific (keys[i]) != (void *) (i + 100l))
 	{
-	  write (2, "getspecific failed\n", 19);
+	  xwrite (2, "getspecific failed\n", 19);
 	  _exit (1);
 	}
 
       if (pthread_key_delete (keys[i]) != 0)
 	{
-	  write (2, "key_delete failed\n", 18);
+	  xwrite (2, "key_delete failed\n", 18);
 	  _exit (1);
 	}
     }
@@ -75,13 +75,13 @@ do_test (void)
   /* Now it must be once again possible to allocate keys.  */
   if (pthread_key_create (&keys[0], NULL) != 0)
     {
-      write (2, "2nd key_create failed\n", 22);
+      xwrite (2, "2nd key_create failed\n", 22);
       _exit (1);
     }
 
   if (pthread_key_delete (keys[0]) != 0)
     {
-      write (2, "2nd key_delete failed\n", 22);
+      xwrite (2, "2nd key_delete failed\n", 22);
       _exit (1);
     }
 

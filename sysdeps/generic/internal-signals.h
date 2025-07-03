@@ -1,5 +1,5 @@
 /* Special use of signals internally.  Stub version.
-   Copyright (C) 2014-2021 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 # define __INTERNAL_SIGNALS_H
 
 #include <signal.h>
+#include <internal-sigset.h>
 #include <sigsetops.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -29,39 +30,42 @@
 #define RESERVED_SIGRT  0
 
 static inline bool
-__is_internal_signal (int sig)
+is_internal_signal (int sig)
 {
   return false;
 }
 
 static inline void
-__clear_internal_signals (sigset_t *set)
+clear_internal_signals (sigset_t *set)
 {
+}
+
+#define internal_sigemptyset(__s)            __sigemptyset (__s)
+#define internal_sigfillset(__s)             __sigfillset (__s)
+#define internal_sigaddset(__s, __i)         __sigaddset (__s, __i)
+#define internal_sigprocmask(__h, __s, __o)  __sigprocmask (__h, __s, __o)
+
+static inline void
+internal_signal_block_all (internal_sigset_t *oset)
+{
+  internal_sigset_t set;
+  internal_sigfillset (&set);
+  internal_sigprocmask (SIG_BLOCK, &set, oset);
 }
 
 static inline void
-__libc_signal_block_all (sigset_t *set)
+internal_signal_restore_set (const internal_sigset_t *set)
 {
-  sigset_t allset;
-  __sigfillset (&allset);
-  __sigprocmask (SIG_BLOCK, &allset, set);
+  internal_sigprocmask (SIG_SETMASK, set, NULL);
 }
 
 static inline void
-__libc_signal_block_app (sigset_t *set)
+internal_signal_unblock_signal (int sig)
 {
-  sigset_t allset;
-  __sigfillset (&allset);
-  __clear_internal_signals (&allset);
-  __sigprocmask (SIG_BLOCK, &allset, set);
+  internal_sigset_t set;
+  internal_sigemptyset (&set);
+  internal_sigaddset (&set, sig);
+  internal_sigprocmask (SIG_UNBLOCK, &set, NULL);
 }
-
-/* Restore current process signal mask.  */
-static inline void
-__libc_signal_restore_set (const sigset_t *set)
-{
-  __sigprocmask (SIG_SETMASK, set, NULL);
-}
-
 
 #endif /* __INTERNAL_SIGNALS_H  */

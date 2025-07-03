@@ -1,5 +1,5 @@
 /* libresolv interfaces for internal use across glibc.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,6 +26,29 @@
 #define RES_F_VC        0x00000001 /* Socket is TCP.  */
 #define RES_F_CONN      0x00000002 /* Socket is connected.  */
 #define RES_F_EDNS0ERR  0x00000004 /* EDNS0 caused errors.  */
+#define RES_F_SNGLKUP	0x00200000 /* Private version of RES_SNGLKUP.  */
+#define RES_F_SNGLKUPREOP 0x00400000 /* Private version of RES_SNGLKUPREOP.  */
+
+/* The structure HEADER is normally aligned on a word boundary.  In
+   some code, we need to access this structure when it may be aligned
+   on a byte boundary.  To avoid unaligned accesses, we need a typedef
+   with alignment one.  This ensures the fields are accessed with byte
+   loads and stores.  */
+typedef HEADER __attribute__ ((__aligned__(1))) UHEADER;
+
+/* List of known interfaces.  */
+struct netaddr
+{
+  int addrtype;
+  union
+  {
+    struct
+    {
+      uint32_t	addr;
+      uint32_t	mask;
+    } ipv4;
+  } u;
+};
 
 /* Legacy function.  This needs to be removed once all NSS modules
    have been adjusted.  */
@@ -37,7 +60,7 @@ res_use_inet6 (void)
 
 enum
   {
-    /* The advertized EDNS buffer size.  The value 1200 is derived
+    /* The advertised EDNS buffer size.  The value 1200 is derived
        from the IPv6 minimum MTU (1280 bytes) minus some arbitrary
        space for tunneling overhead.  If the DNS server does not react
        to ICMP Fragmentation Needed But DF Set messages, this should
@@ -77,6 +100,14 @@ int __res_context_send (struct resolv_context *, const unsigned char *, int,
                         int, unsigned char **, unsigned char **,
                         int *, int *, int *);
 libc_hidden_proto (__res_context_send)
+
+/* Return true if the query has been handled in RES_NOAAAA mode.  For
+   that, RES_NOAAAA must be active, and the question type must be AAAA.
+   The caller is expected to return *RESULT as the return value.  */
+bool __res_handle_no_aaaa (struct resolv_context *ctx,
+                           const unsigned char *buf, int buflen,
+                           unsigned char *ans, int anssiz, int *result)
+  attribute_hidden;
 
 /* Internal function similar to res_hostalias.  */
 const char *__res_context_hostalias (struct resolv_context *,

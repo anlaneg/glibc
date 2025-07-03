@@ -1,5 +1,5 @@
 /* Internal header for parsing printf format strings.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of th GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -44,29 +44,6 @@ struct printf_spec
     int size;
   };
 
-
-/* The various kinds off arguments that can be passed to printf.  */
-union printf_arg
-  {
-    wchar_t pa_wchar;
-    int pa_int;
-    long int pa_long_int;
-    long long int pa_long_long_int;
-    unsigned int pa_u_int;
-    unsigned long int pa_u_long_int;
-    unsigned long long int pa_u_long_long_int;
-    double pa_double;
-    long double pa_long_double;
-#if __HAVE_FLOAT128_UNLIKE_LDBL
-    _Float128 pa_float128;
-#endif
-    const char *pa_string;
-    const wchar_t *pa_wstring;
-    void *pa_pointer;
-    void *pa_user;
-  };
-
-
 #ifndef DONT_NEED_READ_INT
 /* Read a simple integer from a string and update the string pointer.
    It is assumed that the first character is a digit.  */
@@ -97,12 +74,6 @@ read_int (const UCHAR_T * *pstr)
 #endif
 
 
-/* These are defined in reg-printf.c.  */
-extern printf_arginfo_size_function **__printf_arginfo_table attribute_hidden;
-extern printf_function **__printf_function_table attribute_hidden;
-extern printf_va_arg_function **__printf_va_arg_table attribute_hidden;
-
-
 /* Find the next spec in FORMAT, or the end of the string.  Returns
    a pointer into FORMAT, to a '%' or a '\0'.  */
 __extern_always_inline const unsigned char *
@@ -122,14 +93,17 @@ __find_specwc (const unsigned int *format)
    with the parsed details.  POSN is the number of arguments already
    consumed.  At most MAXTYPES - POSN types are filled in TYPES.  Return
    the number of args consumed by this spec; *MAX_REF_ARG is updated so it
-   remains the highest argument index used.  */
+   remains the highest argument index used.  *FAILED is set to indicate
+   whether parsing failed and printf should return with an error status.  */
 extern size_t __parse_one_specmb (const unsigned char *format, size_t posn,
 				  struct printf_spec *spec,
-				  size_t *max_ref_arg) attribute_hidden;
+				  size_t *max_ref_arg,
+				  bool *failed) attribute_hidden;
 
 extern size_t __parse_one_specwc (const unsigned int *format, size_t posn,
 				  struct printf_spec *spec,
-				  size_t *max_ref_arg) attribute_hidden;
+				  size_t *max_ref_arg,
+				  bool *failed) attribute_hidden;
 
 
 

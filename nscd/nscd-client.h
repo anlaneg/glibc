@@ -1,6 +1,5 @@
-/* Copyright (c) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (c) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Thorsten Kukuk <kukuk@suse.de>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -390,7 +389,7 @@ extern int __nscd_open_socket (const char *key, size_t keylen,
 			       request_type type, void *response,
 			       size_t responselen) attribute_hidden;
 
-/* Try to get a file descriptor for the shared meory segment
+/* Try to get a file descriptor for the shared memory segment
    containing the database.  */
 extern struct mapped_database *__nscd_get_mapping (request_type type,
 						   const char *key,
@@ -422,7 +421,7 @@ __nscd_drop_map_ref (struct mapped_database *map, int *gc_cycle)
 	  return -1;
 	}
 
-      if (atomic_decrement_val (&map->counter) == 0)
+      if (atomic_fetch_add_relaxed (&map->counter, -1) == 1)
 	__nscd_unmap (map);
     }
 

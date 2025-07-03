@@ -1,5 +1,5 @@
 /* Initialization code run first thing by the ELF startup code.  Common version
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 
 #include <ldsodefs.h>
 
-/* Remember the command line argument and enviroment contents for
+/* Remember the command line argument and environment contents for
    later calls of initializers for dynamic libraries.  */
 int __libc_argc attribute_hidden;
 char **__libc_argv attribute_hidden;

@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,34 +26,57 @@
    than LEN bytes of BUF.  The contents are not null-terminated.
    Returns the number of characters read, or -1 for errors.  */
 ssize_t
-readlinkat (int fd, const char *file_name, char *buf, size_t len)
+__readlinkat (int fd, const char *file_name, char *buf, size_t len)
 {
   error_t err;
-  file_t file;
+  file_t file_stat;
   struct stat64 st;
+  enum retry_type doretry;
+  string_t retryname;
+  file_t file;
+  char *rbuf = buf;
+  mach_msg_type_number_t nread = len;
 
-  file = __file_name_lookup_at (fd, 0, file_name, O_READ | O_NOLINK, 0);
-  if (file == MACH_PORT_NULL)
+  file_stat = __file_name_lookup_at (fd, 0, file_name, O_NOLINK, 0);
+  if (file_stat == MACH_PORT_NULL)
     return -1;
 
-  err = __io_stat (file, &st);
-  if (! err)
-    if (S_ISLNK (st.st_mode))
-      {
-	char *rbuf = buf;
-
-	err = __io_read (file, &rbuf, &len, 0, len);
-	if (!err && rbuf != buf)
-	  {
-	    memcpy (buf, rbuf, len);
-	    __vm_deallocate (__mach_task_self (), (vm_address_t)rbuf, len);
-	  }
-      }
-    else
+  err = __io_stat (file_stat, &st);
+  if (err)
+    goto out;
+  if (!S_ISLNK (st.st_mode))
+    {
       err = EINVAL;
+      goto out;
+    }
 
+  err = __dir_lookup (file_stat, "", O_READ | O_NOLINK,
+                      0, &doretry, retryname, &file);
+  if (err)
+    goto out;
+  if (doretry != FS_RETRY_NORMAL || retryname[0] != '\0')
+    {
+      err = EGRATUITOUS;
+      goto out;
+    }
+
+  err = __io_read (file, &rbuf, &nread, 0, len);
   __mach_port_deallocate (__mach_task_self (), file);
+  if (err)
+    goto out;
+
+  len = nread;
+  if (rbuf != buf)
+    {
+      memcpy (buf, rbuf, len);
+      __vm_deallocate (__mach_task_self (), (vm_address_t) rbuf, nread);
+    }
+
+
+ out:
+  __mach_port_deallocate (__mach_task_self (), file_stat);
 
   return err ? __hurd_fail (err) : len;
 }
+weak_alias (__readlinkat, readlinkat)
 libc_hidden_def (readlinkat)

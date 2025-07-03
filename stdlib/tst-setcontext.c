@@ -1,4 +1,4 @@
-/* Copyright (C) 2001-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2001-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -58,7 +58,7 @@ f2 (void)
   puts ("start f2");
 
   printf ("&on_stack=%p\n", on_stack);
-  if (on_stack < st2 || on_stack >= st2 + sizeof (st2))
+  if (&on_stack[0] < &st2[0] || &on_stack[0] >= st2 + sizeof (st2))
     {
       printf ("%s: memory stack is not where it belongs!", __FUNCTION__);
       exit (1);
@@ -111,7 +111,7 @@ test_stack (volatile int a, volatile int b,
 
   if (e != 5)
     {
-      printf ("%s: getcontext clobbers varible e\n", __FUNCTION__);
+      printf ("%s: getcontext clobbers variable e\n", __FUNCTION__);
       exit (1);
     }
 

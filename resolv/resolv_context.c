@@ -1,5 +1,5 @@
 /* Temporary, thread-local resolver state.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -52,7 +52,7 @@
 static __thread struct resolv_context *current attribute_tls_model_ie;
 
 /* The resolv_conf handling will gives us a ctx->conf pointer even if
-   these fields do not match because a mis-match does not cause a loss
+   these fields do not match because a mismatch does not cause a loss
    of state (_res objects can store the full information).  This
    function checks to ensure that there is a full patch, to prevent
    overwriting a patched configuration.  */

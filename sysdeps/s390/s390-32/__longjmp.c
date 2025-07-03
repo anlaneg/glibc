@@ -1,6 +1,5 @@
-/* Copyright (C) 2000-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,11 +17,17 @@
 
 #include <errno.h>
 #include <sysdep.h>
+#include <pointer_guard.h>
 #include <setjmp.h>
 #include <bits/setjmp.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stap-probe.h>
+
+/* See sysdeps/unix/sysv/linux/s390/s390-32/pointer_guard.h.  */
+#if IS_IN (rtld)
+# undef PTR_DEMANGLE
+#endif
 
 /* Jump to the position specified by ENV, causing the
    setjmp call there to return VAL, or 1 if VAL is 0.  */

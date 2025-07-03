@@ -1,11 +1,6 @@
 GLIBC_PROVIDES dnl See aclocal.m4 in the top level source directory.
 # Local configure fragment for sysdeps/arm.
 
-dnl It is always possible to access static and hidden symbols in an
-dnl position independent way.  This has been true since GCC 4.1,
-dnl which is older than the minimum version required to build libc.
-AC_DEFINE(PI_STATIC_AND_HIDDEN)
-
 # We check to see if the compiler and flags are
 # selecting the hard-float ABI and if they are then
 # we set libc_cv_arm_pcs_vfp to yes which causes
@@ -24,6 +19,21 @@ if test $libc_cv_arm_pcs_vfp = yes; then
   LIBC_CONFIG_VAR([default-abi], [hard])
 else
   LIBC_CONFIG_VAR([default-abi], [soft])
+fi
+
+AC_CACHE_CHECK([whether VFP supports 32 registers],
+		libc_cv_arm_pcs_vfp_d32, [
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+void foo (void)
+{
+  asm volatile ("vldr d16,=17" : : : "d16");
+}
+]])],
+                [libc_cv_arm_pcs_vfp_d32=yes],
+                [libc_cv_arm_pcs_vfp_d32=no])])
+if test "$libc_cv_arm_pcs_vfp_d32" = yes ;
+then
+  AC_DEFINE(HAVE_ARM_PCS_VFP_D32)
 fi
 
 AC_CACHE_CHECK([whether PC-relative relocs in movw/movt work properly],
@@ -58,7 +68,7 @@ ${CC-cc} $CFLAGS $CPPFLAGS $LDFLAGS \
 LC_ALL=C $READELF -dr conftest.so > conftest.dr 2>&AS_MESSAGE_LOG_FD &&
 {
   cat conftest.dr 1>&AS_MESSAGE_LOG_FD
-  fgrep 'TEXTREL
+  grep -F 'TEXTREL
 R_ARM_NONE' conftest.dr > /dev/null || libc_cv_arm_pcrel_movw=yes
 }
 rm -f conftest*])

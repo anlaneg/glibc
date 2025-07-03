@@ -30,9 +30,8 @@
 
 #line 1 "locfile-kw.gperf"
 
-/* Copyright (C) 1996-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gnu.org>, 1996.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published
@@ -51,10 +50,10 @@
 #include <string.h>
 
 #include "locfile-token.h"
-#line 24 "locfile-kw.gperf"
+#line 23 "locfile-kw.gperf"
 struct keyword_t ;
 
-#define TOTAL_KEYWORDS 178
+#define TOTAL_KEYWORDS 179
 #define MIN_WORD_LENGTH 3
 #define MAX_WORD_LENGTH 22
 #define MIN_HASH_VALUE 3
@@ -131,14 +130,14 @@ locfile_hash (register const char *str, register size_t len)
   static const struct keyword_t wordlist[] =
     {
       {""}, {""}, {""},
-#line 31 "locfile-kw.gperf"
+#line 30 "locfile-kw.gperf"
       {"END",                    tok_end,                    0},
       {""}, {""},
 #line 70 "locfile-kw.gperf"
       {"IGNORE",                 tok_ignore,                 0},
 #line 129 "locfile-kw.gperf"
       {"LC_TIME",                tok_lc_time,                0},
-#line 30 "locfile-kw.gperf"
+#line 29 "locfile-kw.gperf"
       {"LC_CTYPE",               tok_lc_ctype,               0},
       {""},
 #line 168 "locfile-kw.gperf"
@@ -151,7 +150,7 @@ locfile_hash (register const char *str, register size_t len)
       {"LC_PAPER",               tok_lc_paper,               0},
 #line 186 "locfile-kw.gperf"
       {"LC_MEASUREMENT",         tok_lc_measurement,         0},
-#line 56 "locfile-kw.gperf"
+#line 55 "locfile-kw.gperf"
       {"LC_COLLATE",             tok_lc_collate,             0},
       {""},
 #line 188 "locfile-kw.gperf"
@@ -174,7 +173,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 141 "locfile-kw.gperf"
       {"era_year",               tok_era_year,               0},
       {""},
-#line 54 "locfile-kw.gperf"
+#line 53 "locfile-kw.gperf"
       {"translit_ignore",        tok_translit_ignore,        0},
 #line 156 "locfile-kw.gperf"
       {"yesstr",                 tok_yesstr,                 0},
@@ -187,18 +186,18 @@ locfile_hash (register const char *str, register size_t len)
 #line 159 "locfile-kw.gperf"
       {"height",                 tok_height,                 0},
       {""}, {""},
-#line 52 "locfile-kw.gperf"
+#line 51 "locfile-kw.gperf"
       {"translit_start",         tok_translit_start,         0},
 #line 136 "locfile-kw.gperf"
       {"d_fmt",                  tok_d_fmt,                  0},
       {""},
-#line 53 "locfile-kw.gperf"
+#line 52 "locfile-kw.gperf"
       {"translit_end",           tok_translit_end,           0},
 #line 94 "locfile-kw.gperf"
       {"n_cs_precedes",          tok_n_cs_precedes,          0},
 #line 144 "locfile-kw.gperf"
       {"era_t_fmt",              tok_era_t_fmt,              0},
-#line 39 "locfile-kw.gperf"
+#line 38 "locfile-kw.gperf"
       {"space",                  tok_space,                  0},
 #line 72 "locfile-kw.gperf"
       {"reorder-end",            tok_reorder_end,            0},
@@ -222,16 +221,16 @@ locfile_hash (register const char *str, register size_t len)
 #line 100 "locfile-kw.gperf"
       {"int_n_cs_precedes",      tok_int_n_cs_precedes,      0},
       {""}, {""}, {""},
-#line 26 "locfile-kw.gperf"
+#line 25 "locfile-kw.gperf"
       {"escape_char",            tok_escape_char,            0},
       {""},
-#line 28 "locfile-kw.gperf"
+#line 27 "locfile-kw.gperf"
       {"repertoiremap",          tok_repertoiremap,          0},
-#line 46 "locfile-kw.gperf"
+#line 45 "locfile-kw.gperf"
       {"charclass",              tok_charclass,              0},
-#line 43 "locfile-kw.gperf"
+#line 42 "locfile-kw.gperf"
       {"print",                  tok_print,                  0},
-#line 44 "locfile-kw.gperf"
+#line 43 "locfile-kw.gperf"
       {"xdigit",                 tok_xdigit,                 0},
 #line 110 "locfile-kw.gperf"
       {"duo_n_cs_precedes",      tok_duo_n_cs_precedes,      0},
@@ -239,7 +238,7 @@ locfile_hash (register const char *str, register size_t len)
       {"thousands_sep",          tok_thousands_sep,          0},
 #line 197 "locfile-kw.gperf"
       {"territory",              tok_territory,              0},
-#line 36 "locfile-kw.gperf"
+#line 35 "locfile-kw.gperf"
       {"digit",                  tok_digit,                  0},
       {""}, {""},
 #line 92 "locfile-kw.gperf"
@@ -247,7 +246,7 @@ locfile_hash (register const char *str, register size_t len)
       {""}, {""},
 #line 62 "locfile-kw.gperf"
       {"script",                 tok_script,                 0},
-#line 29 "locfile-kw.gperf"
+#line 28 "locfile-kw.gperf"
       {"include",                tok_include,                0},
       {""},
 #line 78 "locfile-kw.gperf"
@@ -257,7 +256,7 @@ locfile_hash (register const char *str, register size_t len)
       {""}, {""}, {""},
 #line 132 "locfile-kw.gperf"
       {"week",                   tok_week,                   0},
-#line 33 "locfile-kw.gperf"
+#line 32 "locfile-kw.gperf"
       {"upper",                  tok_upper,                  0},
       {""}, {""},
 #line 194 "locfile-kw.gperf"
@@ -270,7 +269,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 98 "locfile-kw.gperf"
       {"int_p_cs_precedes",      tok_int_p_cs_precedes,      0},
       {""}, {""},
-#line 41 "locfile-kw.gperf"
+#line 40 "locfile-kw.gperf"
       {"punct",                  tok_punct,                  0},
       {""}, {""},
 #line 101 "locfile-kw.gperf"
@@ -278,10 +277,10 @@ locfile_hash (register const char *str, register size_t len)
       {""}, {""}, {""},
 #line 108 "locfile-kw.gperf"
       {"duo_p_cs_precedes",      tok_duo_p_cs_precedes,      0},
-#line 48 "locfile-kw.gperf"
+#line 47 "locfile-kw.gperf"
       {"charconv",               tok_charconv,               0},
       {""},
-#line 47 "locfile-kw.gperf"
+#line 46 "locfile-kw.gperf"
       {"class",                  tok_class,                  0},
 #line 114 "locfile-kw.gperf"
       {"duo_int_n_cs_precedes",  tok_duo_int_n_cs_precedes,  0},
@@ -298,7 +297,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 185 "locfile-kw.gperf"
       {"int_prefix",             tok_int_prefix,             0},
       {""}, {""}, {""}, {""},
-#line 42 "locfile-kw.gperf"
+#line 41 "locfile-kw.gperf"
       {"graph",                  tok_graph,                  0},
       {""}, {""},
 #line 99 "locfile-kw.gperf"
@@ -342,7 +341,7 @@ locfile_hash (register const char *str, register size_t len)
       {"address",                tok_address,                0},
 #line 162 "locfile-kw.gperf"
       {"name_fmt",               tok_name_fmt,               0},
-#line 32 "locfile-kw.gperf"
+#line 31 "locfile-kw.gperf"
       {"copy",                   tok_copy,                   0},
 #line 103 "locfile-kw.gperf"
       {"int_n_sign_posn",        tok_int_n_sign_posn,        0},
@@ -366,20 +365,20 @@ locfile_hash (register const char *str, register size_t len)
       {""}, {""},
 #line 155 "locfile-kw.gperf"
       {"noexpr",                 tok_noexpr,                 0},
-#line 50 "locfile-kw.gperf"
+#line 49 "locfile-kw.gperf"
       {"tolower",                tok_tolower,                0},
 #line 198 "locfile-kw.gperf"
       {"audience",               tok_audience,               0},
       {""}, {""}, {""},
-#line 49 "locfile-kw.gperf"
+#line 48 "locfile-kw.gperf"
       {"toupper",                tok_toupper,                0},
 #line 68 "locfile-kw.gperf"
       {"position",               tok_position,               0},
       {""},
-#line 40 "locfile-kw.gperf"
+#line 39 "locfile-kw.gperf"
       {"cntrl",                  tok_cntrl,                  0},
       {""},
-#line 27 "locfile-kw.gperf"
+#line 26 "locfile-kw.gperf"
       {"comment_char",           tok_comment_char,           0},
 #line 88 "locfile-kw.gperf"
       {"positive_sign",          tok_positive_sign,          0},
@@ -404,13 +403,13 @@ locfile_hash (register const char *str, register size_t len)
       {"measurement",            tok_measurement,            0},
 #line 176 "locfile-kw.gperf"
       {"country_isbn",           tok_country_isbn,           0},
-#line 37 "locfile-kw.gperf"
+#line 36 "locfile-kw.gperf"
       {"outdigit",               tok_outdigit,               0},
       {""}, {""},
 #line 143 "locfile-kw.gperf"
       {"era_d_t_fmt",            tok_era_d_t_fmt,            0},
       {""}, {""}, {""},
-#line 34 "locfile-kw.gperf"
+#line 33 "locfile-kw.gperf"
       {"lower",                  tok_lower,                  0},
 #line 183 "locfile-kw.gperf"
       {"tel_dom_fmt",            tok_tel_dom_fmt,            0},
@@ -418,7 +417,8 @@ locfile_hash (register const char *str, register size_t len)
       {"country_post",           tok_country_post,           0},
 #line 148 "locfile-kw.gperf"
       {"cal_direction",          tok_cal_direction,          0},
-      {""},
+#line 56 "locfile-kw.gperf"
+      {"codepoint_collation",    tok_codepoint_collation,    0},
 #line 139 "locfile-kw.gperf"
       {"t_fmt_ampm",             tok_t_fmt_ampm,             0},
 #line 91 "locfile-kw.gperf"
@@ -463,7 +463,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 128 "locfile-kw.gperf"
       {"grouping",               tok_grouping,               0},
       {""},
-#line 45 "locfile-kw.gperf"
+#line 44 "locfile-kw.gperf"
       {"blank",                  tok_blank,                  0},
       {""}, {""},
 #line 196 "locfile-kw.gperf"
@@ -520,7 +520,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 172 "locfile-kw.gperf"
       {"country_ab2",            tok_country_ab2,            0},
       {""}, {""}, {""},
-#line 55 "locfile-kw.gperf"
+#line 54 "locfile-kw.gperf"
       {"default_missing",        tok_default_missing,        0},
       {""}, {""},
 #line 195 "locfile-kw.gperf"
@@ -529,7 +529,7 @@ locfile_hash (register const char *str, register size_t len)
 #line 174 "locfile-kw.gperf"
       {"country_num",            tok_country_num,            0},
       {""}, {""}, {""}, {""}, {""}, {""},
-#line 51 "locfile-kw.gperf"
+#line 50 "locfile-kw.gperf"
       {"map",                    tok_map,                    0},
 #line 65 "locfile-kw.gperf"
       {"from",                   tok_from,                   0},
@@ -574,13 +574,13 @@ locfile_hash (register const char *str, register size_t len)
       {"collating-symbol",       tok_collating_symbol,       0},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
-#line 35 "locfile-kw.gperf"
+#line 34 "locfile-kw.gperf"
       {"alpha",                  tok_alpha,                  0},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
       {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
       {""}, {""},
-#line 38 "locfile-kw.gperf"
+#line 37 "locfile-kw.gperf"
       {"alnum",                  tok_alnum,                  0},
       {""},
 #line 87 "locfile-kw.gperf"

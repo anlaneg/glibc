@@ -1,5 +1,5 @@
 /* Test the implementation of __ppc_set_ppr_* functions.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -44,7 +44,8 @@ get_thread_priority (void)
 {
   /* Read the PPR.  */
   ppr_t ppr;
-  asm volatile (MFPPR" %0" : "=r"(ppr));
+  asm volatile (".machine push; .machine power7; "MFPPR" %0; .machine pop"
+		: "=r"(ppr));
   /* Return the thread priority value.  */
   return EXTRACT_THREAD_PRIORITY (ppr);
 }

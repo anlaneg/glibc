@@ -1,5 +1,5 @@
 /* Catastrophic failure reports.  Generic POSIX.1 version.
-   Copyright (C) 1993-2021 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -16,21 +16,13 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-#include <atomic.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <assert.h>
 #include <ldsodefs.h>
-#include <paths.h>
+#include <setvmaname.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sysdep.h>
-#include <unistd.h>
-#include <sys/mman.h>
 #include <sys/uio.h>
-#include <not-cancel.h>
+#include <unistd.h>
 
 #ifdef FATAL_PREPARE_INCLUDE
 #include FATAL_PREPARE_INCLUDE
@@ -45,21 +37,16 @@ writev_for_fatal (int fd, const struct iovec *iov, size_t niov, size_t total)
 }
 #endif
 
-struct str_list
-{
-  const char *str;
-  size_t len;
-  struct str_list *next;
-};
+/* At most a substring before each conversion specification and the
+   trailing substring (the plus one).  */
+#define IOVEC_MAX (LIBC_MESSAGE_MAX_ARGS * 2 + 1)
 
 /* Abort with an error message.  */
 void
-__libc_message (enum __libc_message_action action, const char *fmt, ...)
+__libc_message_impl (const char *fmt, ...)
 {
   va_list ap;
   int fd = -1;
-
-  va_start (ap, fmt);
 
 #ifdef FATAL_PREPARE
   FATAL_PREPARE;
@@ -68,9 +55,11 @@ __libc_message (enum __libc_message_action action, const char *fmt, ...)
   if (fd == -1)
     fd = STDERR_FILENO;
 
-  struct str_list *list = NULL;
-  int nlist = 0;
+  struct iovec iov[IOVEC_MAX];
+  int iovcnt = 0;
+  ssize_t total = 0;
 
+  va_start (ap, fmt);
   const char *cp = fmt;
   while (*cp != '\0')
     {
@@ -100,59 +89,53 @@ __libc_message (enum __libc_message_action action, const char *fmt, ...)
 	  cp = next;
 	}
 
-      struct str_list *newp = alloca (sizeof (struct str_list));
-      newp->str = str;
-      newp->len = len;
-      newp->next = list;
-      list = newp;
-      ++nlist;
-    }
+      iov[iovcnt].iov_base = (char *) str;
+      iov[iovcnt].iov_len = len;
+      total += len;
+      iovcnt++;
 
-  if (nlist > 0)
-    {
-      struct iovec *iov = alloca (nlist * sizeof (struct iovec));
-      ssize_t total = 0;
-
-      for (int cnt = nlist - 1; cnt >= 0; --cnt)
+      if (__glibc_unlikely (iovcnt > IOVEC_MAX))
 	{
-	  iov[cnt].iov_base = (char *) list->str;
-	  iov[cnt].iov_len = list->len;
-	  total += list->len;
-	  list = list->next;
-	}
-
-      WRITEV_FOR_FATAL (fd, iov, nlist, total);
-
-      if ((action & do_abort))
-	{
-	  total = ((total + 1 + GLRO(dl_pagesize) - 1)
-		   & ~(GLRO(dl_pagesize) - 1));
-	  struct abort_msg_s *buf = __mmap (NULL, total,
-					    PROT_READ | PROT_WRITE,
-					    MAP_ANON | MAP_PRIVATE, -1, 0);
-	  if (__glibc_likely (buf != MAP_FAILED))
-	    {
-	      buf->size = total;
-	      char *wp = buf->msg;
-	      for (int cnt = 0; cnt < nlist; ++cnt)
-		wp = mempcpy (wp, iov[cnt].iov_base, iov[cnt].iov_len);
-	      *wp = '\0';
-
-	      /* We have to free the old buffer since the application might
-		 catch the SIGABRT signal.  */
-	      struct abort_msg_s *old = atomic_exchange_acq (&__abort_msg,
-							     buf);
-	      if (old != NULL)
-		__munmap (old, old->size);
-	    }
+	  len = IOVEC_MAX_ERR_MSG_LEN;
+	  iov[0].iov_base = (char *) IOVEC_MAX_ERR_MSG;
+	  iov[0].iov_len = len;
+	  total = len;
+	  iovcnt = 1;
+	  break;
 	}
     }
-
   va_end (ap);
 
-  if ((action & do_abort))
-    /* Kill the application.  */
-    abort ();
+  if (iovcnt > 0)
+    {
+      WRITEV_FOR_FATAL (fd, iov, iovcnt, total);
+
+      total = ALIGN_UP (total + sizeof (struct abort_msg_s) + 1,
+			GLRO(dl_pagesize));
+      struct abort_msg_s *buf = __mmap (NULL, total,
+					PROT_READ | PROT_WRITE,
+					MAP_ANON | MAP_PRIVATE, -1, 0);
+      if (__glibc_likely (buf != MAP_FAILED))
+	{
+	  buf->size = total;
+	  char *wp = buf->msg;
+	  for (int cnt = 0; cnt < iovcnt; ++cnt)
+	    wp = mempcpy (wp, iov[cnt].iov_base, iov[cnt].iov_len);
+	  *wp = '\0';
+
+	  __set_vma_name (buf, total, " glibc: fatal");
+
+	  /* We have to free the old buffer since the application might
+	     catch the SIGABRT signal.  */
+	  struct abort_msg_s *old = atomic_exchange_acquire (&__abort_msg,
+							     buf);
+	  if (old != NULL)
+	    __munmap (old, old->size);
+	}
+    }
+
+  /* Kill the application.  */
+  abort ();
 }
 
 
@@ -161,6 +144,6 @@ __libc_fatal (const char *message)
 {
   /* The loop is added only to keep gcc happy.  */
   while (1)
-    __libc_message (do_abort, "%s", message);
+    __libc_message ("%s", message);
 }
 libc_hidden_def (__libc_fatal)

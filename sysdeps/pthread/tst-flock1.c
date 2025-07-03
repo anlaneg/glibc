@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -22,6 +21,7 @@
 #include <unistd.h>
 #include <sys/file.h>
 
+#include <support/xunistd.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -57,7 +57,7 @@ do_test (void)
 
   unlink (tmp);
 
-  write (fd, "foobar xyzzy", 12);
+  xwrite (fd, "foobar xyzzy", 12);
 
   if (flock (fd, LOCK_EX | LOCK_NB) != 0)
     {

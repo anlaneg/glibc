@@ -1,8 +1,7 @@
 #!/usr/bin/awk -f
 # Generate sorted list of directories.  The sorting is stable but with
 # dependencies between directories resolved by moving dependees in front.
-# Copyright (C) 1998-2021 Free Software Foundation, Inc.
-# Written by Ulrich Drepper <drepper@cygnus.com>, 1998.
+# Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 BEGIN {
   cnt = split(subdirs, all) + 1

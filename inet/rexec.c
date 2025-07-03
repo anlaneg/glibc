@@ -40,9 +40,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <set-freeres.h>
 
 int	rexecoptions;
-libc_freeres_ptr (static char *ahostbuf);
+static char *ahostbuf;
 
 int
 rexec_af (char **ahost, int rport, const char *name, const char *pass,
@@ -102,7 +103,7 @@ retry:
 		perror(res0->ai_canonname);
 		goto bad;
 	}
-	if (fd2p == 0) {
+	if (fd2p == NULL) {
 		(void) __write(s, "", 1);
 		port = 0;
 	} else {
@@ -134,7 +135,7 @@ retry:
 		if (!getnameinfo(&sa2.sa, sa2len,
 				 NULL, 0, servbuff, sizeof(servbuff),
 				 NI_NUMERICSERV))
-			port = atoi(servbuff);
+			port = strtol(servbuff, NULL, 10);
 		(void) sprintf(num, "%u", port);
 		(void) __write(s, num, strlen(num)+1);
 		{ socklen_t len = sizeof (from);
@@ -153,7 +154,7 @@ retry:
 	struct iovec iov[3] =
 	  {
 	    [0] = { .iov_base = (void *) name, .iov_len = strlen (name) + 1 },
-	    /* should public key encypt the password here */
+	    /* should public key encrypt the password here */
 	    [1] = { .iov_base = (void *) pass, .iov_len = strlen (pass) + 1 },
 	    [2] = { .iov_base = (void *) cmd, .iov_len = strlen (cmd) + 1 }
 	  };
@@ -196,3 +197,5 @@ rexec (char **ahost, int rport, const char *name, const char *pass,
 {
 	return rexec_af(ahost, rport, name, pass, cmd, fd2p, AF_INET);
 }
+
+weak_alias (ahostbuf, __libc_rexec_freemem_ptr)

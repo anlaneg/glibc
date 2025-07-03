@@ -1,5 +1,5 @@
 /* Check recvmsg results for netlink sockets.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -83,7 +83,7 @@ __netlink_assert_response (int fd, ssize_t result)
           __libc_fatal (message);
         }
       else
-        /* Restore orignal errno value.  */
+        /* Restore original errno value.  */
         __set_errno (error_code);
     }
   else if (result < sizeof (struct nlmsghdr))

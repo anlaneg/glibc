@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -29,11 +28,32 @@ __pthread_setcanceltype (int type, int *oldtype)
 
   volatile struct pthread *self = THREAD_SELF;
 
-  if (oldtype != NULL)
-    *oldtype = self->canceltype;
-  self->canceltype = type;
-  if (type == PTHREAD_CANCEL_ASYNCHRONOUS)
-    __pthread_testcancel ();
+  int oldval = atomic_load_relaxed (&self->cancelhandling);
+  while (1)
+    {
+      int newval = (type == PTHREAD_CANCEL_ASYNCHRONOUS
+		    ? oldval | CANCELTYPE_BITMASK
+		    : oldval & ~CANCELTYPE_BITMASK);
+
+      if (oldtype != NULL)
+	*oldtype = ((oldval & CANCELTYPE_BITMASK)
+		    ? PTHREAD_CANCEL_ASYNCHRONOUS : PTHREAD_CANCEL_DEFERRED);
+
+      if (oldval == newval)
+	break;
+
+      if (atomic_compare_exchange_weak_acquire (&self->cancelhandling,
+						&oldval, newval))
+	{
+	  if (cancel_enabled_and_canceled_and_async (newval))
+	    {
+	      THREAD_SETMEM (self, result, PTHREAD_CANCELED);
+	      __do_cancel (PTHREAD_CANCELED);
+	    }
+
+	  break;
+	}
+    }
 
   return 0;
 }

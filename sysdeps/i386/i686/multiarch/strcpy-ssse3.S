@@ -1,6 +1,5 @@
 /* strcpy with SSSE3
-   Copyright (C) 2011-2021 Free Software Foundation, Inc.
-   Contributed by Intel Corporation.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -68,7 +67,7 @@
 	movl	- 4 byte
 	movlpd	- 8 byte
 	movaps	- 16 byte - requires 16 byte alignment
-	of	sourse and destination adresses.
+	          of source and destination addresses.
 */
 
 .text

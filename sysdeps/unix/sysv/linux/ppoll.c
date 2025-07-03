@@ -1,6 +1,5 @@
-/* Copyright (C) 2006-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2006.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -44,7 +43,7 @@ __ppoll64 (struct pollfd *fds, nfds_t nfds, const struct __timespec64 *timeout,
 			 __NSIG_BYTES);
 #else
   int ret;
-  bool need_time64 = timeout != NULL && !in_time_t_range (timeout->tv_sec);
+  bool need_time64 = timeout != NULL && !in_int32_t_range (timeout->tv_sec);
   if (need_time64)
     {
       ret = SYSCALL_CANCEL (ppoll_time64, fds, nfds, timeout, sigmask,
@@ -68,7 +67,7 @@ __ppoll64 (struct pollfd *fds, nfds_t nfds, const struct __timespec64 *timeout,
 libc_hidden_def (__ppoll64)
 
 int
-__ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
          const sigset_t *sigmask)
 {
   struct __timespec64 ts64;
@@ -78,5 +77,4 @@ __ppoll (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
   return __ppoll64 (fds, nfds, timeout ? &ts64 : NULL, sigmask);
 }
 #endif
-strong_alias (__ppoll, ppoll)
 libc_hidden_def (ppoll)

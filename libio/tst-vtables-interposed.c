@@ -1,5 +1,5 @@
 /* Test for libio vtables and their validation.  Enabled through interposition.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,8 +20,13 @@
 
 /* Provide an interposed definition of the standard file handles with
    our own vtable.  stdout/stdin/stderr will not work as a result, but
-   a succesful test does not print anything, so this is fine.  */
+   a successful test does not print anything, so this is fine.  */
+#include "libioP.h"
+#undef _IO_file_jumps
 #define _IO_file_jumps jumps
+#undef _IO_wfile_jumps
+extern const struct _IO_jump_t _IO_wfile_jumps;
+#define _IO_wfile_jumps _IO_wfile_jumps
 #include "stdfiles.c"
 
 static int

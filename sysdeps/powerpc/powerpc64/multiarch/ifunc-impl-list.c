@@ -1,5 +1,5 @@
 /* Enumerate available IFUNC implementations of a function.  PowerPC64 version.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,24 +17,20 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <assert.h>
+#include <cpu-features.h>
 #include <string.h>
 #include <wchar.h>
 #include <ldsodefs.h>
 #include <ifunc-impl-list.h>
 
-/* Maximum number of IFUNC implementations.  */
-#define MAX_IFUNC	6
-
 size_t
 __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
 			size_t max)
 {
-  assert (max >= MAX_IFUNC);
-
-  size_t i = 0;
-
-  unsigned long int hwcap = GLRO(dl_hwcap);
-  unsigned long int hwcap2 = GLRO(dl_hwcap2);
+  size_t i = max;
+  const struct cpu_features *features = &GLRO(dl_powerpc_cpu_features);
+  unsigned long int hwcap = features->hwcap;
+  unsigned long int hwcap2 = features->hwcap2;
 #ifdef SHARED
   int cacheline_size = GLRO(dl_cache_line_size);
 #endif
@@ -174,10 +170,6 @@ __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
 #endif
 	      IFUNC_IMPL_ADD (array, i, strncmp, hwcap2 & PPC_FEATURE2_ARCH_2_07,
 			      __strncmp_power8)
-	      IFUNC_IMPL_ADD (array, i, strncmp, hwcap & PPC_FEATURE_ARCH_2_06,
-			      __strncmp_power7)
-	      IFUNC_IMPL_ADD (array, i, strncmp, hwcap & PPC_FEATURE_POWER4,
-			      __strncmp_power4)
 	      IFUNC_IMPL_ADD (array, i, strncmp, 1,
 			      __strncmp_ppc))
 
@@ -222,40 +214,6 @@ __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
 	      IFUNC_IMPL_ADD (array, i, memcmp, hwcap & PPC_FEATURE_POWER4,
 			      __memcmp_power4)
 	      IFUNC_IMPL_ADD (array, i, memcmp, 1, __memcmp_ppc))
-
-  /* Support sysdeps/powerpc/powerpc64/multiarch/bzero.c.  */
-  IFUNC_IMPL (i, name, bzero,
-#ifdef __LITTLE_ENDIAN__
-	      IFUNC_IMPL_ADD (array, i, bzero,
-			      hwcap2 & PPC_FEATURE2_ARCH_3_1
-			      && hwcap2 & PPC_FEATURE2_HAS_ISEL
-			      && hwcap & PPC_FEATURE_HAS_VSX,
-			      __bzero_power10)
-#endif
-	      IFUNC_IMPL_ADD (array, i, bzero, hwcap2 & PPC_FEATURE2_ARCH_2_07
-			      && hwcap & PPC_FEATURE_HAS_ALTIVEC,
-			      __bzero_power8)
-	      IFUNC_IMPL_ADD (array, i, bzero, hwcap & PPC_FEATURE_HAS_VSX,
-			      __bzero_power7)
-	      IFUNC_IMPL_ADD (array, i, bzero, hwcap & PPC_FEATURE_ARCH_2_05
-			      && hwcap & PPC_FEATURE_HAS_ALTIVEC,
-			      __bzero_power6)
-	      IFUNC_IMPL_ADD (array, i, bzero, hwcap & PPC_FEATURE_POWER4,
-			      __bzero_power4)
-	      IFUNC_IMPL_ADD (array, i, bzero, 1, __bzero_ppc))
-
-  /* Support sysdeps/powerpc/powerpc64/multiarch/bcopy.c.  */
-  IFUNC_IMPL (i, name, bcopy,
-#ifdef __LITTLE_ENDIAN__
-	      IFUNC_IMPL_ADD (array, i, bcopy,
-			      hwcap2 & PPC_FEATURE2_ARCH_3_1
-			      && hwcap2 & PPC_FEATURE2_HAS_ISEL
-			      && hwcap & PPC_FEATURE_HAS_VSX,
-			      __bcopy_power10)
-#endif
-	      IFUNC_IMPL_ADD (array, i, bcopy, hwcap & PPC_FEATURE_HAS_VSX,
-			      __bcopy_power7)
-	      IFUNC_IMPL_ADD (array, i, bcopy, 1, __bcopy_ppc))
 
   /* Support sysdeps/powerpc/powerpc64/multiarch/mempcpy.c.  */
   IFUNC_IMPL (i, name, mempcpy,
@@ -344,18 +302,7 @@ __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
 			      hwcap2 & PPC_FEATURE2_ARCH_2_07
 			       && hwcap & PPC_FEATURE_HAS_ALTIVEC,
 			      __strncasecmp_power8)
-	      IFUNC_IMPL_ADD (array, i, strncasecmp,
-			      hwcap & PPC_FEATURE_ARCH_2_06,
-			      __strncasecmp_power7)
 	      IFUNC_IMPL_ADD (array, i, strncasecmp, 1, __strncasecmp_ppc))
-
-  /* Support sysdeps/powerpc/powerpc64/multiarch/strncase_l.c.  */
-  IFUNC_IMPL (i, name, strncasecmp_l,
-	      IFUNC_IMPL_ADD (array, i, strncasecmp_l,
-			      hwcap & PPC_FEATURE_ARCH_2_06,
-			      __strncasecmp_l_power7)
-	      IFUNC_IMPL_ADD (array, i, strncasecmp_l, 1,
-			      __strncasecmp_l_ppc))
 
   /* Support sysdeps/powerpc/powerpc64/multiarch/strrchr.c.  */
   IFUNC_IMPL (i, name, strrchr,
@@ -435,6 +382,11 @@ __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
 
   /* Support sysdeps/powerpc/powerpc64/multiarch/strcat.c.  */
   IFUNC_IMPL (i, name, strcat,
+#ifdef __LITTLE_ENDIAN__
+	      IFUNC_IMPL_ADD (array, i, strcat, hwcap2 & PPC_FEATURE2_ARCH_3_1
+			      && hwcap & PPC_FEATURE_HAS_VSX,
+			      __strcat_power10)
+#endif
 	      IFUNC_IMPL_ADD (array, i, strcat,
 			      hwcap2 & PPC_FEATURE2_ARCH_2_07
 			      && hwcap & PPC_FEATURE_HAS_VSX,
@@ -464,23 +416,5 @@ __libc_ifunc_impl_list (const char *name, struct libc_ifunc_impl *array,
              IFUNC_IMPL_ADD (array, i, strcspn, 1,
                              __strcspn_ppc))
 
-  /* Support sysdeps/powerpc/powerpc64/multiarch/strstr.c.  */
-  IFUNC_IMPL (i, name, strstr,
-             IFUNC_IMPL_ADD (array, i, strstr,
-                             hwcap & PPC_FEATURE_ARCH_2_06,
-                             __strstr_power7)
-             IFUNC_IMPL_ADD (array, i, strstr, 1,
-                             __strstr_ppc))
-
-
-  /* Support sysdeps/powerpc/powerpc64/multiarch/strcasestr.c.  */
-  IFUNC_IMPL (i, name, strcasestr,
-	      IFUNC_IMPL_ADD (array, i, strcasestr,
-			      hwcap2 & PPC_FEATURE2_ARCH_2_07
-			      && hwcap & PPC_FEATURE_HAS_ALTIVEC,
-			      __strcasestr_power8)
-             IFUNC_IMPL_ADD (array, i, strcasestr, 1,
-                             __strcasestr_ppc))
-
-  return i;
+  return 0;
 }

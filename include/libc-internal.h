@@ -1,5 +1,5 @@
 /* Internal prototype declarations that don't fit anywhere else.
-   Copyright (C) 2000-2021 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,9 +20,6 @@
 # define _LIBC_INTERNAL 1
 
 #include <hp-timing.h>
-
-/* Initialize the `__libc_enable_secure' flag.  */
-extern void __libc_init_secure (void);
 
 /* Discover the tick frequency of the machine if something goes wrong,
    we return 0, an impossible hertz.  */
@@ -56,6 +53,9 @@ extern __typeof (__profile_frequency) __profile_frequency attribute_hidden;
    is not for an audit module, not loaded via dlmopen, and not loaded
    via static dlopen either).  */
 extern _Bool __libc_initial attribute_hidden;
+#else
+/* The static libc is always the initial namespace.  */
+# define __libc_initial ((_Bool) 1)
 #endif
 
 #endif /* _LIBC_INTERNAL  */

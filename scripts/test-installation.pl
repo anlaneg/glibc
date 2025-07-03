@@ -1,7 +1,6 @@
 #!/usr/bin/perl -w
-# Copyright (C) 1997-2021 Free Software Foundation, Inc.
+# Copyright (C) 1997-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
-# Contributed by Andreas Jaeger <aj@arthur.rhein-neckar.de>, 1997.
 
 # The GNU C Library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -59,7 +58,7 @@ arglist: while (@ARGV) {
       $ARGV[0] eq "--vers" || $ARGV[0] eq "--versi" ||
       $ARGV[0] eq "--versio" || $ARGV[0] eq "--version") {
     print "test-installation (GNU $PACKAGE)\n";
-    print "Copyright (C) 2021 Free Software Foundation, Inc.\n";
+    print "Copyright (C) 2025 Free Software Foundation, Inc.\n";
     print "This is free software; see the source for copying conditions.  There is NO\n";
     print "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n";
     print "Written by Andreas Jaeger <aj\@arthur.rhein-neckar.de>\n";

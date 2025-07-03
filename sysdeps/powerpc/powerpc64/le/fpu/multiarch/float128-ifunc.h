@@ -1,5 +1,5 @@
 /* _Float128 ifunc ABI/ifunc generation macros.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -27,7 +27,11 @@
 
 /* Include the real math.h to avoid optimizations caused by include/math.h
    (e.x fabsf128 prototype is masked by an inline definition).*/
+#define f64xfmaf128 __hide_f64xfmaf128
+#define f64xsqrtf128 __hide_f64xsqrtf128
 #include <math/math.h>
+#undef f64xfmaf128
+#undef f64xsqrtf128
 #include <math_private.h>
 #include <complex.h>
 #include <first-versions.h>
@@ -36,6 +40,7 @@
 
 #include <libm-alias-float128.h>
 #include <libm-alias-finite.h>
+#include <math-narrow-alias.h>
 
 /* _F128_IFUNC2(func, from, r)
       Generate an ifunc symbol func ## r from the symbols
@@ -63,7 +68,7 @@
         _F128_IFUNC2 (__ ## func ## f128, pfx2 ## func ## f128, r);
 
 /* GEN_COMPAT_R_e(f)
-     Generate a compatability symbol for finite alias of ieee function.  */
+     Generate a compatibility symbol for finite alias of ieee function.  */
 #define GEN_COMPAT_R_e(f, r) \
 	libm_alias_finite (__ieee754_ ## f ## f128 ## r, __ ## f ## f128 ## r)
 
@@ -133,7 +138,9 @@
 
 /* Ensure the wrapper functions get exposed via IFUNC, not the
    wrappee (e.g __w_log1pf128_power8 instead of __log1pf128_power8.  */
-#define DECL_ALIAS_w_log1p(x) MAKE_IFUNCP_WRAP_R(w_,x,)
+#define DECL_ALIAS_w_log1p(x)			\
+  MAKE_IFUNCP_WRAP_R (w_, x, )			\
+  MAKE_IFUNCP_WRAP_R (w_, logp1, )
 #define DECL_ALIAS_w_scalbln(x) MAKE_IFUNCP_WRAP_R(w_,x,)
 
 /* These are declared in their respective jX objects.  */
@@ -148,6 +155,12 @@
 
 /* scalbnf128 is an alias of ldexpf128.  */
 #define DECL_ALIAS_s_ldexp(f) MAKE_IFUNCP_R (f,) MAKE_IFUNCP_WRAP_R (wrap_, scalbn,)
+
+/* f64xfmaf128 is an alias of fmaf128.  */
+#define DECL_ALIAS_s_fma(f) MAKE_IFUNCP_R (f,) libm_alias_float128_narrow (__fma, fma)
+
+/* f64xsqrtf128 is an alias of sqrtf128.  */
+#define DECL_ALIAS_w_sqrt(f) MAKE_IFUNCP_R (f,) libm_alias_float128_narrow (__sqrt, sqrt)
 
 /* Declare an IFUNC for a symbol which only exists
    to provide long double == ieee128 ABI.  */

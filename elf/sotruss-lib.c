@@ -1,7 +1,6 @@
 /* Trace calls through PLTs and show caller, callee, and parameters.
-   Copyright (C) 2011-2021 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@gmail.com>, 2011.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -17,6 +16,7 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
+#include <err.h>
 #include <error.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -90,7 +90,7 @@ init (void)
 	  if (which_process == NULL || which_process[0] == '\0')
 	    snprintf (endp, 13, ".%ld", (long int) pid);
 
-	  out_fd = open (fullname, O_RDWR | O_CREAT | O_TRUNC, 0666);
+	  out_fd = open64 (fullname, O_RDWR | O_CREAT | O_TRUNC, 0666);
 	  if (out_fd != -1)
 	    print_pid = 0;
 	}
@@ -103,7 +103,7 @@ init (void)
      program.  */
   if (out_fd == -1)
     {
-      out_fd = fcntl (STDERR_FILENO, F_DUPFD, 1000);
+      out_fd = fcntl64 (STDERR_FILENO, F_DUPFD, 1000);
       if (out_fd == -1)
 	out_fd = dup (STDERR_FILENO);
     }
@@ -232,6 +232,12 @@ uintptr_t
 la_symbind (Elf_Sym *sym, unsigned int ndx, uintptr_t *refcook,
 	    uintptr_t *defcook, unsigned int *flags, const char *symname)
 {
+  if (*flags & LA_SYMB_NOPLTENTER)
+    warnx ("cannot trace PLT enter (bind-now enabled)");
+
+  if (do_exit && *flags & LA_SYMB_NOPLTEXIT)
+    warnx ("cannot trace PLT exit (bind-now enabled)");
+
   if (!do_exit)
     *flags = LA_SYMB_NOPLTEXIT;
 

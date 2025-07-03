@@ -1,5 +1,5 @@
 /* Support for GNU properties.  Generic version.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -47,7 +47,14 @@ static inline int __attribute__ ((always_inline))
 _dl_process_gnu_property (struct link_map *l, int fd, uint32_t type,
 			  uint32_t datasz, void *data)
 {
-  return 0;
+  /* Continue until GNU_PROPERTY_1_NEEDED is found.  */
+  if (type == GNU_PROPERTY_1_NEEDED)
+    {
+      if (datasz == 4)
+	l->l_1_needed = *(unsigned int *) data;
+      return 0;
+    }
+  return 1;
 }
 
 #endif /* _DL_PROP_H */

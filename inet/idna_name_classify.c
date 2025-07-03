@@ -1,5 +1,5 @@
 /* Classify a domain name for IDNA purposes.
-   Copyright (C) 2018-2021 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -40,7 +40,7 @@ __idna_name_classify (const char *name)
         break;
       else if (result == (size_t) -2)
         /* Incomplete trailing multi-byte character.  This is an
-           encoding error becaue we received the full name.  */
+           encoding error because we received the full name.  */
         return idna_name_encoding_error;
       else if (result == (size_t) -1)
         {

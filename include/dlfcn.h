@@ -4,6 +4,8 @@
 #include <link.h>		/* For ElfW.  */
 #include <stdbool.h>
 
+rtld_hidden_proto (_dl_find_object)
+
 /* Internally used flag.  */
 #define __RTLD_DLOPEN	0x80000000
 #define __RTLD_SPROF	0x40000000
@@ -12,6 +14,8 @@
 #define __RTLD_AUDIT	0x08000000
 #define __RTLD_SECURE	0x04000000 /* Apply additional security checks.  */
 #define __RTLD_NOIFUNC	0x02000000 /* Suppress calling ifunc functions.  */
+#define __RTLD_VDSO	0x01000000 /* Tell _dl_new_object the object is
+				      system-loaded.  */
 
 #define __LM_ID_CALLER	-2
 
@@ -130,6 +134,11 @@ extern int __dladdr1 (const void *address, Dl_info *info,
 		      void **extra_info, int flags);
 extern int __dlinfo (void *handle, int request, void *arg);
 extern char *__dlerror (void);
+
+#ifndef SHARED
+# undef DL_CALL_FCT
+# define DL_CALL_FCT(fctp, args) ((fctp) args)
+#endif
 
 #endif
 #endif

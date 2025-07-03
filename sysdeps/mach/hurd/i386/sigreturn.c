@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -15,57 +15,83 @@
    License along with the GNU C Library; if not, see
    <https://www.gnu.org/licenses/>.  */
 
-register int *sp asm ("%esp");
-
 #include <hurd.h>
 #include <hurd/signal.h>
-#include <hurd/threadvar.h>
 #include <hurd/msg.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <cpuid.h>
+
 /* This is run on the thread stack after restoring it, to be able to
    unlock SS off sigstack.  */
 static void
-__sigreturn2 (int *usp)
+__sigreturn2 (int *usp, struct sigcontext *scp)
 {
-  struct hurd_sigstate *ss = _hurd_self_sigstate ();
+  mach_port_t reply_port;
+  struct hurd_sigstate *ss;
+
+  /* We know the sigstate must be initialized by the call below, but the
+     compiler does not.  Help it out a little bit by eliding the check that
+     _hurd_self_sigstate makes otherwise.  */
+  ss = THREAD_GETMEM (THREAD_SELF, _hurd_sigstate);
   _hurd_sigstate_unlock (ss);
 
-  sp = usp;
-#define A(line) asm volatile (#line)
-  /* The members in the sigcontext are arranged in this order
-     so we can pop them easily.  */
+  /* Destroy the MiG reply port used by the signal handler, and restore the
+     reply port in use by the thread when interrupted.
 
-  /* Pop the segment registers (except %cs and %ss, done last).  */
-  A (popl %gs);
-  A (popl %fs);
-  A (popl %es);
-  A (popl %ds);
-  /* Pop the general registers.  */
-  A (popa);
-  /* Pop the processor flags.  */
-  A (popf);
-  /* Return to the saved PC.  */
-  A (ret);
+     We cannot use the original reply port for our RPCs that we do here, since
+     we could unexpectedly receive/consume a reply message meant for the user
+     (in particular, msg_sig_post_reply), and also since we would deallocate
+     the port if *our* RPC fails, which we don't want to do since the user
+     still has the old name.  And so, temporarily set MACH_PORT_DEAD as our
+     reply name, and make sure destroying the port is the very last RPC we
+     do.  */
+  reply_port = THREAD_GETMEM (THREAD_SELF, reply_port);
+  THREAD_SETMEM (THREAD_SELF, reply_port, MACH_PORT_DEAD);
+  if (__glibc_likely (MACH_PORT_VALID (reply_port)))
+    (void) __mach_port_mod_refs (__mach_task_self (), reply_port,
+                                 MACH_PORT_RIGHT_RECEIVE, -1);
+  THREAD_SETMEM (THREAD_SELF, reply_port, scp->sc_reply_port);
 
-  /* Firewall.  */
-  A (hlt);
-#undef A
+  void sigreturn2_trampoline (int *usp) __attribute__ ((__noreturn__));
+  sigreturn2_trampoline (usp);
 }
+
+asm("sigreturn2_trampoline:\n"
+
+    /* Restore thread stack */
+    "movl 4(%esp),%esp\n"
+
+    /* The members in the sigcontext are arranged in this order
+       so we can pop them easily.  */
+
+    /* Pop the segment registers (except %cs and %ss, done last).  */
+    "popl %gs\n"
+    "popl %fs\n"
+    "popl %es\n"
+    "popl %ds\n"
+
+    /* Pop the general registers.  */
+    "popa\n"
+
+    /* Pop the processor flags.  */
+    "popf\n"
+
+    /* Return to the saved PC.  */
+    "ret\n"
+
+    /* Firewall.  */
+    "hlt\n");
 
 int
 __sigreturn (struct sigcontext *scp)
 {
   struct hurd_sigstate *ss;
   struct hurd_userlink *link = (void *) &scp[1];
-  mach_port_t *reply_port;
 
-  if (scp == NULL || (scp->sc_mask & _SIG_CANT_MASK))
-    {
-      errno = EINVAL;
-      return -1;
-    }
+  if (__glibc_unlikely (scp == NULL || (scp->sc_mask & _SIG_CANT_MASK)))
+    return __hurd_fail (EINVAL);
 
   ss = _hurd_self_sigstate ();
   _hurd_sigstate_lock (ss);
@@ -99,56 +125,70 @@ __sigreturn (struct sigcontext *scp)
   if (scp->sc_onstack)
     ss->sigaltstack.ss_flags &= ~SS_ONSTACK;
 
-  /* Destroy the MiG reply port used by the signal handler, and restore the
-     reply port in use by the thread when interrupted.  */
-  reply_port = &__hurd_local_reply_port;
-  if (*reply_port)
+#ifdef i386_XFLOAT_STATE
+  if (scp->xstate)
     {
-      mach_port_t port = *reply_port;
-
-      /* Assigning MACH_PORT_DEAD here tells libc's mig_get_reply_port not to
-	 get another reply port, but avoids mig_dealloc_reply_port trying to
-	 deallocate it after the receive fails (which it will, because the
-	 reply port will be bogus, whether we do this or not).  */
-      *reply_port = MACH_PORT_DEAD;
-
-      __mach_port_destroy (__mach_task_self (), port);
+      if (scp->xstate->initialized)
+	{
+	  unsigned eax, ebx, ecx, edx;
+	  __cpuid_count(0xd, 0, eax, ebx, ecx, edx);
+	  switch (scp->xstate->fp_save_kind)
+	    {
+	    case 0: // FNSAVE
+	      asm volatile("frstor %0" : : "m" (scp->xstate->hw_state));
+	      break;
+	    case 1: // FXSAVE
+	      asm volatile("fxrstor %0" : : "m" (scp->xstate->hw_state),    \
+			   "a" (eax), "d" (edx));
+	      break;
+	    default: // XSAVE, XSAVEOPT, XSAVEC, XSAVES
+	      asm volatile("xrstor %0" : : "m" (scp->xstate->hw_state),     \
+			   "a" (eax), "d" (edx));
+	      break;
+	    }
+	}
     }
-  *reply_port = scp->sc_reply_port;
-
-  if (scp->sc_fpused)
-    /* Restore the FPU state.  Mach conveniently stores the state
-       in the format the i387 `frstor' instruction uses to restore it.  */
-    asm volatile ("frstor %0" : : "m" (scp->sc_fpsave));
+  else
+#endif
+    if (scp->sc_fpused)
+      /* Restore the FPU state.  Mach conveniently stores the state
+         in the format the i387 `frstor' instruction uses to restore it.  */
+      asm volatile ("frstor %0" : : "m" (scp->sc_fpsave));
 
   {
     /* There are convenient instructions to pop state off the stack, so we
        copy the registers onto the user's stack, switch there, pop and
        return.  */
 
-    int *usp = (int *) scp->sc_uesp;
+    int usp_arg, *usp = (int *) scp->sc_uesp;
 
     *--usp = scp->sc_eip;
     *--usp = scp->sc_efl;
     memcpy (usp -= 12, &scp->sc_i386_thread_state, 12 * sizeof (int));
+    usp_arg = (int) usp;
 
+    *--usp = (int) scp;
     /* Pass usp to __sigreturn2 so it can unwind itself easily.  */
-    *(usp-1) = (int) usp;
-    --usp;
+    *--usp = usp_arg;
     /* Bogus return address for __sigreturn2 */
     *--usp = 0;
     *--usp = (int) __sigreturn2;
 
-    /* Restore thread stack */
-    sp = usp;
-    /* Return into __sigreturn2.  */
-    asm volatile ("ret");
-    /* Firewall.  */
-    asm volatile ("hlt");
-  }
 
-  /* NOTREACHED */
-  return -1;
+    void sigreturn_trampoline (int *usp) __attribute__ ((__noreturn__));
+    sigreturn_trampoline (usp);
+  }
 }
+
+asm("sigreturn_trampoline:\n"
+
+    /* Restore thread stack */
+    "movl 4(%esp),%esp\n"
+
+    /* Return into __sigreturn2.  */
+    "ret\n"
+
+    /* Firewall.  */
+    "hlt\n");
 
 weak_alias (__sigreturn, sigreturn)

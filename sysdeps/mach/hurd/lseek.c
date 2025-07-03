@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <hurd.h>
 
 /* Seek to OFFSET on FD, starting from WHENCE.  */
 off_t
@@ -27,10 +28,7 @@ __libc_lseek (int fd, off_t offset, int whence)
   off_t res = (off_t) res64;
 
   if (sizeof res != sizeof res64 && res != res64)
-    {
-      __set_errno (EOVERFLOW);
-      return (off_t) -1;
-    }
+    return (off_t) __hurd_fail (EOVERFLOW);
 
   return res;
 }

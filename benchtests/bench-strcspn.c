@@ -1,5 +1,5 @@
 /* Measure strcspn functions.
-   Copyright (C) 2013-2021 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,29 +26,8 @@
 #endif /* WIDE */
 #include "bench-string.h"
 
-#ifndef WIDE
-# define SIMPLE_STRCSPN simple_strcspn
-#else
-# define SIMPLE_STRCSPN simple_wcscspn
-#endif /* WIDE */
-
 typedef size_t (*proto_t) (const CHAR *, const CHAR *);
-size_t SIMPLE_STRCSPN (const CHAR *, const CHAR *);
 
-IMPL (SIMPLE_STRCSPN, 0)
 IMPL (STRCSPN, 1)
-
-size_t
-SIMPLE_STRCSPN (const CHAR *s, const CHAR *rej)
-{
-  const CHAR *r, *str = s;
-  CHAR c;
-
-  while ((c = *s++) != '\0')
-    for (r = rej; *r != '\0'; ++r)
-      if (*r == c)
-	return s - str - 1;
-  return s - str - 1;
-}
 
 #include "bench-strpbrk.c"

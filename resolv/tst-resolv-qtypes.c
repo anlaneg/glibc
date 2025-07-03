@@ -1,5 +1,5 @@
 /* Exercise low-level query functions with different QTYPEs.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 #include <support/test-driver.h>
 #include <support/xmemstream.h>
 
-/* If ture, the response function will send the actual response packet
+/* If true, the response function will send the actual response packet
    over TCP instead of UDP.  */
 static volatile bool force_tcp;
 
@@ -154,8 +154,8 @@ test_function (const char *fname,
         }
     }
 
-  TEST_VERIFY (func (-1, buf, sizeof (buf) == -1));
-  TEST_VERIFY (func (65536, buf, sizeof (buf) == -1));
+  TEST_VERIFY (func (-1, buf, sizeof (buf)) == -1);
+  TEST_VERIFY (func (65536, buf, sizeof (buf)) == -1);
 }
 
 static int

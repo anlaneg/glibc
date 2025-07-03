@@ -1,7 +1,6 @@
 /* Mapping tables for GBK handling.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Sean Chen <sean.chen@turbolinux.com>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -5544,7 +5543,7 @@ static const uint16_t __gbk_to_ucs[] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x00' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x00' | perl tab.pl
 
    where tab.pl is
 
@@ -5575,7 +5574,7 @@ static const char __gbk_from_ucs4_tab1[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x03' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x03' | perl tab.pl
 
    where tab.pl is
 
@@ -5615,7 +5614,7 @@ static const char __gbk_from_ucs4_tab2[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x04' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x04' | perl tab.pl
 
    where tab.pl is
 
@@ -5661,7 +5660,7 @@ static const char __gbk_from_ucs4_tab3[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x20' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x20' | perl tab.pl
 
    where tab.pl is
 
@@ -5691,7 +5690,7 @@ static const char __gbk_from_ucs4_tab4[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x2[12]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x2[12]' | perl tab.pl
 
    where tab.pl is
 
@@ -5739,7 +5738,7 @@ static const char __gbk_from_ucs4_tab5[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x2[4-6]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x2[4-6]' | perl tab.pl
 
    where tab.pl is
 
@@ -5830,7 +5829,7 @@ static const char __gbk_from_ucs4_tab6[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x3[0-3]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x3[0-3]' | perl tab.pl
 
    where tab.pl is
 
@@ -5944,7 +5943,7 @@ static const char __gbk_from_ucs4_tab7[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0x[4-9]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0x[4-9]' | perl tab.pl
 
    where tab.pl is
 
@@ -12936,7 +12935,7 @@ static const char __gbk_from_ucs4_tab8[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0xE[78]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0xE[78]' | perl tab.pl
 
    where tab.pl is
 
@@ -12994,7 +12993,7 @@ static const char __gbk_from_ucs4_tab9[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0xFA[0-2]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0xFA[0-2]' | perl tab.pl
 
    where tab.pl is
 
@@ -13024,7 +13023,7 @@ static const char __gbk_from_ucs4_tab10[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0xFE[3-6]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0xFE[3-6]' | perl tab.pl
 
    where tab.pl is
 
@@ -13066,7 +13065,7 @@ static const char __gbk_from_ucs4_tab11[][2] =
 
 /* The table can be created using
 
-   awk '{ print $2, $1 }' gbk.txt | sort | egrep '^0xFF[0-5]' | perl tab.pl
+   awk '{ print $2, $1 }' gbk.txt | sort | grep -E '^0xFF[0-5]' | perl tab.pl
 
    where tab.pl is
 

@@ -1,5 +1,5 @@
 /* Deallocation functions for the resolver state.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -140,5 +140,3 @@ __res_thread_freeres (void)
   /* Make sure we do a full re-initialization the next time.  */
   _res.options = 0;
 }
-/* Also must be called when the main thread exits.  */
-text_set_element (__libc_subfreeres, __res_thread_freeres);

@@ -1,5 +1,5 @@
 /* Common database open/close routines for nss_db.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@ struct nss_db_map
 };
 
 
-/* Open the database stored in FILE.  If succesful, store the database
+/* Open the database stored in FILE.  If successful, store the database
    handle in *MAPPINGP or a file descriptor for the file in *FDP and
    return NSS_STATUS_SUCCESS.  On failure, return the appropriate
    lookup status.  */

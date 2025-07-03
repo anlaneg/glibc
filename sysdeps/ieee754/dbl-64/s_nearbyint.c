@@ -1,4 +1,3 @@
-/* Adapted for use as nearbyint by Ulrich Drepper <drepper@cygnus.com>.  */
 /*
  * ====================================================
  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
@@ -73,4 +72,6 @@ __nearbyint (double x)
   return t;
 #endif /* ! USE_NEARBYINT_BUILTIN  */
 }
+#ifndef __nearbyint
 libm_alias_double (__nearbyint, nearbyint)
+#endif

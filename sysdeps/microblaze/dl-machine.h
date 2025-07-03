@@ -1,4 +1,4 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
 
@@ -23,6 +23,8 @@
 
 #include <sys/param.h>
 #include <tls.h>
+#include <dl-static-tls.h>
+#include <dl-machine-rel.h>
 
 /* Return nonzero iff ELF header is compatible with the running host.  */
 static inline int
@@ -69,7 +71,8 @@ elf_machine_load_address (void)
    entries will jump to the on-demand fixup code in dl-runtime.c.  */
 
 static inline int __attribute__ ((always_inline))
-elf_machine_runtime_setup (struct link_map *l, int lazy, int profile)
+elf_machine_runtime_setup (struct link_map *l, struct r_scope_elem *scope[],
+			   int lazy, int profile)
 {
   extern void _dl_runtime_resolve (Elf32_Word);
   extern void _dl_runtime_profile (Elf32_Word);
@@ -114,12 +117,7 @@ _start:\n\
 _dl_start_user:\n\
 	mfs   r20,rpc\n\
 	addik r20,r20,_GLOBAL_OFFSET_TABLE_+8\n\
-	lwi   r4,r20,_dl_skip_args@GOTOFF\n\
 	lwi   r5,r1,24\n\
-	rsubk r5,r4,r5\n\
-	addk  r4,r4,r4\n\
-	addk  r4,r4,r4\n\
-	addk  r1,r1,r4\n\
 	swi   r5,r1,24\n\
 	swi   r3,r1,20\n\
 	addk  r6,r5,r0\n\
@@ -168,10 +166,6 @@ _dl_start_user:\n\
 /* A reloc type used for ld.so cmdline arg lookups to reject PLT entries.  */
 #define ELF_MACHINE_JMP_SLOT	R_MICROBLAZE_JUMP_SLOT
 
-/* The microblaze never uses Elf32_Rel relocations.  */
-#define ELF_MACHINE_NO_REL 1
-#define ELF_MACHINE_NO_RELA 0
-
 static inline Elf32_Addr
 elf_machine_fixup_plt (struct link_map *map, lookup_t t,
 		       const ElfW(Sym) *refsym, const ElfW(Sym) *sym,
@@ -207,9 +201,10 @@ elf_machine_plt_value (struct link_map *map, const Elf32_Rela *reloc,
     ((unsigned short *)(rel_addr))[3] = (val) & 0xffff; \
   } while (0)
 
-auto inline void __attribute__ ((always_inline))
-elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
-		  const Elf32_Sym *sym, const struct r_found_version *version,
+static inline void __attribute__ ((always_inline))
+elf_machine_rela (struct link_map *map, struct r_scope_elem *scope[],
+		  const Elf32_Rela *reloc, const Elf32_Sym *sym,
+		  const struct r_found_version *version,
 		  void *const reloc_addr_arg, int skip_ifunc)
 {
   Elf32_Addr *const reloc_addr = reloc_addr_arg;
@@ -222,7 +217,8 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
   else
     {
       const Elf32_Sym *const refsym = sym;
-      struct link_map *sym_map = RESOLVE_MAP (&sym, version, r_type);
+      struct link_map *sym_map = RESOLVE_MAP (map, scope, &sym, version,
+					      r_type);
       Elf32_Addr value = SYMBOL_ADDRESS (sym_map, sym, true);
 
       value += reloc->r_addend;
@@ -277,7 +273,7 @@ elf_machine_rela (struct link_map *map, const Elf32_Rela *reloc,
     }
 }
 
-auto inline void
+static inline void
 elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
 			   void *const reloc_addr_arg)
 {
@@ -285,8 +281,8 @@ elf_machine_rela_relative (Elf32_Addr l_addr, const Elf32_Rela *reloc,
   PUT_REL_64 (reloc_addr, l_addr + reloc->r_addend);
 }
 
-auto inline void
-elf_machine_lazy_rel (struct link_map *map,
+static inline void
+elf_machine_lazy_rel (struct link_map *map, struct r_scope_elem *scope[],
 		      Elf32_Addr l_addr, const Elf32_Rela *reloc,
 		      int skip_ifunc)
 {

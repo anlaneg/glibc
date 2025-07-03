@@ -1,4 +1,4 @@
-@node Arithmetic, Date and Time, Mathematics, Top
+@node Arithmetic, Bit Manipulation, Mathematics, Top
 @c %MENU% Low level arithmetic functions
 @chapter Arithmetic Functions
 
@@ -111,7 +111,7 @@ minimum possible values for each integer data type.  The macro names
 follow these examples: @code{INT32_MAX}, @code{UINT8_MAX},
 @code{INT_FAST32_MIN}, @code{INT_LEAST64_MIN}, @code{UINTMAX_MAX},
 @code{INTMAX_MAX}, @code{INTMAX_MIN}.  Note that there are no macros for
-unsigned integer minima.  These are always zero.  Similiarly, there
+unsigned integer minima.  These are always zero.  Similarly, there
 are macros such as @code{INTMAX_WIDTH} for the width of these types.
 Those macros for integer type widths come from TS 18661-1:2014.
 @cindex maximum possible integer
@@ -1176,6 +1176,12 @@ enabled, the status of the other exceptions is not changed.
 
 The function returns the previous enabled exceptions in case the
 operation was successful, @code{-1} otherwise.
+
+Note: Enabling traps for an exception for which the exception flag is
+currently already set (@pxref{Status bit operations}) has unspecified
+consequences: it may or may not trigger a trap immediately.
+@c It triggers a trap immediately on powerpc*, at the next floating-
+@c instruction on i386, and not at all on the other CPUs.
 @end deftypefun
 
 @deftypefun int fedisableexcept (int @var{excepts})
@@ -1227,25 +1233,33 @@ whose imaginary part is @var{y}, the absolute value is @w{@code{sqrt
 
 @pindex math.h
 @pindex stdlib.h
-Prototypes for @code{abs}, @code{labs} and @code{llabs} are in @file{stdlib.h};
-@code{imaxabs} is declared in @file{inttypes.h};
+Prototypes for @code{abs}, @code{labs}, @code{llabs},
+@code{uabs}, @code{ulabs} and @code{ullabs} are in @file{stdlib.h};
+@code{imaxabs} and @code{uimaxabs} are declared in @file{inttypes.h};
 the @code{fabs} functions are declared in @file{math.h};
 the @code{cabs} functions are declared in @file{complex.h}.
 
 @deftypefun int abs (int @var{number})
 @deftypefunx {long int} labs (long int @var{number})
 @deftypefunx {long long int} llabs (long long int @var{number})
+@deftypefunx {unsigned int} uabs (int @var{number})
+@deftypefunx {unsigned long int} ulabs (long int @var{number})
+@deftypefunx {unsigned long long int} ullabs (long long int @var{number})
 @deftypefunx intmax_t imaxabs (intmax_t @var{number})
+@deftypefunx uintmax_t uimaxabs (intmax_t @var{number})
 @standards{ISO, stdlib.h}
 @standardsx{imaxabs, ISO, inttypes.h}
+@standardsx{uimaxabs, ISO, inttypes.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 These functions return the absolute value of @var{number}.
 
 Most computers use a two's complement integer representation, in which
 the absolute value of @code{INT_MIN} (the smallest possible @code{int})
 cannot be represented; thus, @w{@code{abs (INT_MIN)}} is not defined.
+Using @code{uabs} avoids this.
 
 @code{llabs} and @code{imaxdiv} are new to @w{ISO C99}.
+@code{uabs}, @code{ulabs}, @code{ullabs} and @code{uimaxabs} are new to @w{ISO C2Y}.
 
 See @ref{Integers} for a description of the @code{intmax_t} type.
 
@@ -1389,7 +1403,7 @@ The @code{scalb} function is the BSD name for @code{ldexp}.
 @standards{BSD, math.h}
 @safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
 @code{significand} returns the mantissa of @var{x} scaled to the range
-@math{[1, 2)}.
+@math{[1, @code{FLT_RADIX})}.
 It is equivalent to @w{@code{scalb (@var{x}, (double) -ilogb (@var{x}))}}.
 
 This function exists mainly for use in certain standardized tests
@@ -1898,7 +1912,7 @@ operation.  These functions, defined by TS 18661-1:2014 and TS
 floating-point number); if @var{x} is not a NaN, they return
 @minus{}1.  They raise no floating-point exceptions even for signaling
 NaNs.  (The return value of @minus{}1 for an argument that is not a
-NaN is specified in C2x; the value was unspecified in TS 18661.)
+NaN is specified in C23; the value was unspecified in TS 18661.)
 @end deftypefun
 
 @deftypefun int setpayload (double *@var{x}, double @var{payload})
@@ -2097,8 +2111,8 @@ and @var{y}.  It is similar to the expression
 @end smallexample
 except that @var{x} and @var{y} are only evaluated once.
 
-If an argument is NaN, the other argument is returned.  If both arguments
-are NaN, NaN is returned.
+If an argument is a quiet NaN, the other argument is returned.  If both arguments
+are NaN, or either is a signaling NaN, NaN is returned.
 @end deftypefun
 
 @deftypefun double fmax (double @var{x}, double @var{y})
@@ -2113,8 +2127,58 @@ are NaN, NaN is returned.
 The @code{fmax} function returns the greater of the two values @var{x}
 and @var{y}.
 
-If an argument is NaN, the other argument is returned.  If both arguments
-are NaN, NaN is returned.
+If an argument is a quiet NaN, the other argument is returned.  If both arguments
+are NaN, or either is a signaling NaN, NaN is returned.
+@end deftypefun
+
+@deftypefun double fminimum (double @var{x}, double @var{y})
+@deftypefunx float fminimumf (float @var{x}, float @var{y})
+@deftypefunx {long double} fminimuml (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fminimumfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fminimumfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+The @code{fminimum} function returns the lesser of the two values @var{x}
+and @var{y}.  Unlike @code{fmin}, if either argument is a NaN, NaN is returned.
+Positive zero is treated as greater than negative zero.
+@end deftypefun
+
+@deftypefun double fmaximum (double @var{x}, double @var{y})
+@deftypefunx float fmaximumf (float @var{x}, float @var{y})
+@deftypefunx {long double} fmaximuml (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fmaximumfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fmaximumfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+The @code{fmaximum} function returns the greater of the two values @var{x}
+and @var{y}.  Unlike @code{fmax}, if either argument is a NaN, NaN is returned.
+Positive zero is treated as greater than negative zero.
+@end deftypefun
+
+@deftypefun double fminimum_num (double @var{x}, double @var{y})
+@deftypefunx float fminimum_numf (float @var{x}, float @var{y})
+@deftypefunx {long double} fminimum_numl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fminimum_numfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fminimum_numfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+The @code{fminimum_num} function returns the lesser of the two values
+@var{x} and @var{y}.  If one argument is a number and the other is a
+NaN, even a signaling NaN, the number is returned.  Positive zero is
+treated as greater than negative zero.
+@end deftypefun
+
+@deftypefun double fmaximum_num (double @var{x}, double @var{y})
+@deftypefunx float fmaximum_numf (float @var{x}, float @var{y})
+@deftypefunx {long double} fmaximum_numl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fmaximum_numfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fmaximum_numfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+The @code{fmaximum_num} function returns the greater of the two values
+@var{x} and @var{y}.  If one argument is a number and the other is a
+NaN, even a signaling NaN, the number is returned.  Positive zero is
+treated as greater than negative zero.
 @end deftypefun
 
 @deftypefun double fminmag (double @var{x}, double @var{y})
@@ -2145,6 +2209,58 @@ These functions, from TS 18661-1:2014, return whichever of the two
 values @var{x} and @var{y} has the greater absolute value.  If both
 have the same absolute value, or either is NaN, they behave the same
 as the @code{fmax} functions.
+@end deftypefun
+
+@deftypefun double fminimum_mag (double @var{x}, double @var{y})
+@deftypefunx float fminimum_magf (float @var{x}, float @var{y})
+@deftypefunx {long double} fminimum_magl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fminimum_magfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fminimum_magfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return whichever of the two values @var{x} and @var{y}
+has the smaller absolute value.  If both have the same absolute value,
+or either is NaN, they behave the same as the @code{fminimum}
+functions.
+@end deftypefun
+
+@deftypefun double fmaximum_mag (double @var{x}, double @var{y})
+@deftypefunx float fmaximum_magf (float @var{x}, float @var{y})
+@deftypefunx {long double} fmaximum_magl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fmaximum_magfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fmaximum_magfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return whichever of the two values @var{x} and @var{y}
+has the greater absolute value.  If both have the same absolute value,
+or either is NaN, they behave the same as the @code{fmaximum}
+functions.
+@end deftypefun
+
+@deftypefun double fminimum_mag_num (double @var{x}, double @var{y})
+@deftypefunx float fminimum_mag_numf (float @var{x}, float @var{y})
+@deftypefunx {long double} fminimum_mag_numl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fminimum_mag_numfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fminimum_mag_numfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return whichever of the two values @var{x} and @var{y}
+has the smaller absolute value.  If both have the same absolute value,
+or either is NaN, they behave the same as the @code{fminimum_num}
+functions.
+@end deftypefun
+
+@deftypefun double fmaximum_mag_num (double @var{x}, double @var{y})
+@deftypefunx float fmaximum_mag_numf (float @var{x}, float @var{y})
+@deftypefunx {long double} fmaximum_mag_numl (long double @var{x}, long double @var{y})
+@deftypefunx _FloatN fmaximum_mag_numfN (_Float@var{N} @var{x}, _Float@var{N} @var{y})
+@deftypefunx _FloatNx fmaximum_mag_numfNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y})
+@standards{C23, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions return whichever of the two values @var{x} and @var{y}
+has the greater absolute value.  If both have the same absolute value,
+or either is NaN, they behave the same as the @code{fmaximum_num}
+functions.
 @end deftypefun
 
 @deftypefun double fdim (double @var{x}, double @var{y})
@@ -2268,6 +2384,46 @@ These functions, from TS 18661-1:2014 and TS 18661-3:2015, return
 @math{@var{x} / @var{y}}, rounded once to the return type of the
 function without any intermediate rounding to the type of the
 arguments.
+@end deftypefun
+
+@deftypefun float fsqrt (double @var{x})
+@deftypefunx float fsqrtl (long double @var{x})
+@deftypefunx double dsqrtl (long double @var{x})
+@deftypefunx _FloatM fMsqrtfN (_Float@var{N} @var{x})
+@deftypefunx _FloatM fMsqrtfNx (_Float@var{N}x @var{x})
+@deftypefunx _FloatMx fMxsqrtfN (_Float@var{N} @var{x})
+@deftypefunx _FloatMx fMxsqrtfNx (_Float@var{N}x @var{x})
+@standards{TS 18661-1:2014, math.h}
+@standardsx{fMsqrtfN, TS 18661-3:2015, math.h}
+@standardsx{fMsqrtfNx, TS 18661-3:2015, math.h}
+@standardsx{fMxsqrtfN, TS 18661-3:2015, math.h}
+@standardsx{fMxsqrtfNx, TS 18661-3:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+These functions, from TS 18661-1:2014 and TS 18661-3:2015, return the
+square root of @var{x}, rounded once to the return type of the
+function without any intermediate rounding to the type of the
+arguments.
+@end deftypefun
+
+@deftypefun float ffma (double @var{x}, double @var{y}, double @var{z})
+@deftypefunx float ffmal (long double @var{x}, long double @var{y}, long double @var{z})
+@deftypefunx double dfmal (long double @var{x}, long double @var{y}, long double @var{z})
+@deftypefunx _FloatM fMfmafN (_Float@var{N} @var{x}, _Float@var{N} @var{y}, _Float@var{N} @var{z})
+@deftypefunx _FloatM fMfmafNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y}, _Float@var{N}x @var{z})
+@deftypefunx _FloatMx fMxfmafN (_Float@var{N} @var{x}, _Float@var{N} @var{y}, _Float@var{N} @var{z})
+@deftypefunx _FloatMx fMxfmafNx (_Float@var{N}x @var{x}, _Float@var{N}x @var{y}, _Float@var{N}x @var{z})
+@standards{TS 18661-1:2014, math.h}
+@standardsx{fMfmafN, TS 18661-3:2015, math.h}
+@standardsx{fMfmafNx, TS 18661-3:2015, math.h}
+@standardsx{fMxfmafN, TS 18661-3:2015, math.h}
+@standardsx{fMxfmafNx, TS 18661-3:2015, math.h}
+@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
+
+These functions, from TS 18661-1:2014 and TS 18661-3:2015, return
+@math{(@var{x} @mul{} @var{y}) + @var{z}}, rounded once to the return
+type of the function without any intermediate rounding to the type of
+the arguments and without any intermediate rounding of result of the
+multiplication.
 @end deftypefun
 
 @node Complex Numbers
@@ -2514,12 +2670,15 @@ A nonempty sequence of digits in the radix specified by @var{base}.
 
 If @var{base} is zero, decimal radix is assumed unless the series of
 digits begins with @samp{0} (specifying octal radix), or @samp{0x} or
-@samp{0X} (specifying hexadecimal radix); in other words, the same
-syntax used for integer constants in C.
+@samp{0X} (specifying hexadecimal radix), or @samp{0b} or @samp{0B}
+(specifying binary radix; only supported when C23 features are
+enabled); in other words, the same syntax used for integer constants in C.
 
 Otherwise @var{base} must have a value between @code{2} and @code{36}.
 If @var{base} is @code{16}, the digits may optionally be preceded by
-@samp{0x} or @samp{0X}.  If base has no legal value the value returned
+@samp{0x} or @samp{0X}.  If @var{base} is @code{2}, and C23 features
+are enabled, the digits may optionally be preceded by
+@samp{0b} or @samp{0B}.  If base has no legal value the value returned
 is @code{0l} and the global variable @code{errno} is set to @code{EINVAL}.
 
 @item

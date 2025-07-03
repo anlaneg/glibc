@@ -1,7 +1,6 @@
 /* Generic implementation of __explicit_bzero_chk.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Torbjorn Granlund (tege@sics.se).
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -19,7 +18,7 @@
 
 /* This is the generic definition of __explicit_bzero_chk.  The
    __explicit_bzero_chk symbol is used as the implementation of
-   explicit_bzero throughout glibc.  If this file is overriden by an
+   explicit_bzero throughout glibc.  If this file is overridden by an
    architecture, both __explicit_bzero_chk and
    __explicit_bzero_chk_internal have to be defined (the latter not as
    an IFUNC).  */

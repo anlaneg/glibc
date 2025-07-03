@@ -1,5 +1,5 @@
 /* Support for chains recording users of a resource; `struct hurd_userlink'.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -98,13 +98,16 @@ _hurd_userlink_link (struct hurd_userlink **chainp,
   link->resource.prevp = chainp;
   *chainp = link;
 
-  /* Also chain it on the current thread's list of active resources.  */
-  thread_chainp = &_hurd_self_sigstate ()->active_resources;
-  link->thread.next = *thread_chainp;
-  if (link->thread.next)
-    link->thread.next->thread.prevp = &link->thread.next;
-  link->thread.prevp = thread_chainp;
-  *thread_chainp = link;
+  if (!__LIBC_NO_TLS ())
+    {
+      /* Also chain it on the current thread's list of active resources.  */
+      thread_chainp = &_hurd_self_sigstate ()->active_resources;
+      link->thread.next = *thread_chainp;
+      if (link->thread.next)
+	link->thread.next->thread.prevp = &link->thread.next;
+      link->thread.prevp = thread_chainp;
+      *thread_chainp = link;
+    }
 }
 # endif
 #endif
@@ -131,11 +134,14 @@ _hurd_userlink_unlink (struct hurd_userlink *link)
   if (link->resource.next)
     link->resource.next->resource.prevp = link->resource.prevp;
 
-  /* Remove our link from the chain of currently active resources
-     for this thread.  */
-  *link->thread.prevp = link->thread.next;
-  if (link->thread.next)
-    link->thread.next->thread.prevp = link->thread.prevp;
+  if (!__LIBC_NO_TLS ())
+    {
+      /* Remove our link from the chain of currently active resources
+	 for this thread.  */
+      *link->thread.prevp = link->thread.next;
+      if (link->thread.next)
+	link->thread.next->thread.prevp = link->thread.prevp;
+    }
 
   return dealloc;
 }
@@ -160,9 +166,12 @@ _hurd_userlink_move (struct hurd_userlink *new_link,
     new_link->resource.next->resource.prevp = &new_link->resource.next;
   *new_link->resource.prevp = new_link;
 
-  if (new_link->thread.next != NULL)
-    new_link->thread.next->thread.prevp = &new_link->thread.next;
-  *new_link->thread.prevp = new_link;
+  if (!__LIBC_NO_TLS ())
+    {
+      if (new_link->thread.next != NULL)
+	new_link->thread.next->thread.prevp = &new_link->thread.next;
+      *new_link->thread.prevp = new_link;
+    }
 }
 # endif
 #endif

@@ -1,5 +1,5 @@
 /* pthread initialization called from __libc_early_init.  NPTL version.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -53,9 +53,7 @@ __pthread_early_init (void)
   __default_pthread_attr.internal.stacksize = limit.rlim_cur;
   __default_pthread_attr.internal.guardsize = GLRO (dl_pagesize);
 
-#if HAVE_TUNABLES
   __pthread_tunables_init ();
-#endif
 }
 
 #endif  /* _PTHREAD_EARLY_INIT_H */

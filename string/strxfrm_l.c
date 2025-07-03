@@ -1,6 +1,5 @@
-/* Copyright (C) 1995-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Ulrich Drepper <drepper@gnu.org>, 1995.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -50,7 +49,7 @@
 /* Group locale data for shorter parameter lists.  */
 typedef struct
 {
-  uint_fast32_t nrules;
+  uint32_t nrules;
   unsigned char *rulesets;
   USTRING_TYPE *weights;
   int32_t *table;
@@ -136,7 +135,7 @@ do_xfrm (const USTRING_TYPE *usrc, STRING_TYPE *dest, size_t n,
 {
   int32_t weight_idx;
   unsigned char rule_idx;
-  uint_fast32_t pass;
+  uint32_t pass;
   size_t needed = 0;
   size_t last_needed;
 
@@ -405,10 +404,10 @@ static size_t
 do_xfrm_cached (STRING_TYPE *dest, size_t n, const locale_data_t *l_data,
 		size_t idxmax, int32_t *idxarr, const unsigned char *rulearr)
 {
-  uint_fast32_t nrules = l_data->nrules;
+  uint32_t nrules = l_data->nrules;
   unsigned char *rulesets = l_data->rulesets;
   USTRING_TYPE *weights = l_data->weights;
-  uint_fast32_t pass;
+  uint32_t pass;
   size_t needed = 0;
   size_t last_needed;
   size_t idxcnt;

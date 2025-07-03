@@ -1,8 +1,6 @@
 /* Test and measure STRLEN functions.
-   Copyright (C) 1999-2021 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Written by Jakub Jelinek <jakub@redhat.com>, 1999.
-   Added wcslen support by Liubov Dmitrieva <liubov.dmitrieva@gmail.com>, 2011
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -39,26 +37,23 @@
 
 typedef size_t (*proto_t) (const CHAR *);
 
-size_t
-simple_STRLEN (const CHAR *s)
-{
-  const CHAR *p;
-
-  for (p = s; *p; ++p);
-  return p - s;
-}
-
-#ifndef WIDE
-size_t
-builtin_strlen (const CHAR *p)
-{
-  return __builtin_strlen (p);
-}
-IMPL (builtin_strlen, 0)
-#endif
-
-IMPL (simple_STRLEN, 0)
 IMPL (STRLEN, 1)
+
+/* Also check the generic implementation.  */
+#undef STRLEN
+#undef weak_alias
+#define weak_alias(a, b)
+#undef libc_hidden_builtin_def
+#define libc_hidden_builtin_def(a)
+#ifndef WIDE
+# define STRLEN __strlen_default
+# include "string/strlen.c"
+IMPL (__strlen_default, 1)
+#else
+# define WCSLEN __wcslen_default
+# include "wcsmbs/wcslen.c"
+IMPL (__wcslen_default, 1)
+#endif
 
 
 static void

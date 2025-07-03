@@ -1,7 +1,6 @@
 /* Return cosine of a complex type.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -33,7 +32,7 @@ M_DECL_FUNC (__cacos) (CFLOAT x)
     {
       y = M_SUF (__casin) (x);
 
-      __real__ res = (FLOAT) M_MLIT (M_PI_2) - __real__ y;
+      __real__ res = M_MLIT (M_PI_2) - __real__ y;
       if (__real__ res == 0)
 	__real__ res = 0;
       __imag__ res = -__imag__ y;

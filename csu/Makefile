@@ -1,5 +1,5 @@
 # Makefile for csu code for GNU C library.
-# Copyright (C) 1995-2021 Free Software Foundation, Inc.
+# Copyright (C) 1995-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 
 # The GNU C Library is free software; you can redistribute it and/or
@@ -26,20 +26,37 @@ subdir := csu
 
 include ../Makeconfig
 
-routines = init-first libc-start $(libc-init) sysdep version check_fds \
-	   libc-tls dso_handle
+routines = \
+  $(libc-init) \
+  check_fds \
+  dso_handle \
+  init-first \
+  libc-start \
+  libc-tls \
+  sysdep \
+  version \
+  # routines
 aux	 = errno
 elide-routines.os = libc-tls
 csu-dummies = $(filter-out $(start-installed-name),crt1.o Mcrt1.o)
-extra-objs = start.o \
-	     $(start-installed-name) g$(start-installed-name) $(csu-dummies) \
-	     S$(start-installed-name)
+extra-objs = \
+  $(csu-dummies) \
+  $(start-installed-name) \
+  $(start-name-2.0) \
+  S$(start-installed-name) \
+  g$(start-installed-name) \
+  start.o \
+  # extra-objs
 omit-deps = $(patsubst %.o,%,$(start-installed-name) g$(start-installed-name) \
 			     b$(start-installed-name) $(csu-dummies) \
 			     S$(start-installed-name) \
 			     r$(start-installed-name) \
 			     gr$(start-installed-name))
-install-lib = $(start-installed-name) g$(start-installed-name) $(csu-dummies)
+install-lib = \
+  $(csu-dummies) \
+  $(start-installed-name) \
+  g$(start-installed-name) \
+  # install-lib
 
 # No tests are allowed in the csu/ subdirectory because the startup
 # code is compiled with special flags.
@@ -50,18 +67,27 @@ tests =
 # applications, so that build flags matter.
 # See <https://sourceware.org/ml/libc-alpha/2018-07/msg00101.html>.
 #
+# The function is called prior the thread pointer setup, and if stack
+# protector is enabled the compiler might still generate the stack check
+# (which requires the thread pointer correctly set).
+extra-no-ssp = static-reloc
+
 # libc-start.os is safe to be built with stack protector since
 # __libc_start_main is called after stack canary setup is done.
-ssp-safe.os = static-reloc libc-start
+ssp-safe.os = libc-start
 
-CFLAGS-.o += $(call elide-stack-protector,.o,$(routines))
-CFLAGS-.op += $(call elide-stack-protector,.op,$(routines))
-CFLAGS-.oS += $(call elide-stack-protector,.oS,$(routines))
+CFLAGS-.o += $(call elide-stack-protector,.o,$(routines) $(extra-no-ssp))
+CFLAGS-.op += $(call elide-stack-protector,.op,$(routines) $(extra-no-ssp))
+CFLAGS-.oS += $(call elide-stack-protector,.oS,$(routines) $(extra-no-ssp))
 CFLAGS-.os += $(call elide-stack-protector,.os,$(filter-out \
-						 $(ssp-safe.os),$(routines)))
+						 $(ssp-safe.os), \
+						 $(routines) $(extra-no-ssp)))
 
 ifeq (yes,$(build-shared))
-extra-objs += S$(start-installed-name) gmon-start.os
+extra-objs += \
+  S$(start-installed-name) \
+  gmon-start.os \
+  # extra-objs
 ifneq ($(start-installed-name),$(static-start-installed-name))
 extra-objs += gmon-start.o
 endif
@@ -71,27 +97,55 @@ else
 extra-objs += gmon-start.o
 endif
 
+ifeq (yes,$(enable-static-pie))
+extra-objs += \
+  gr$(start-installed-name) \
+  r$(start-installed-name) \
+  # extra-objs
+install-lib += \
+  gr$(start-installed-name) \
+  r$(start-installed-name) \
+  # install-lib
+endif
+
 ifneq ($(start-installed-name),$(static-start-installed-name))
-# FIXME: Only Hurd defines static-start-installed-name.  Hurd needs to
-# provide special rules to support static PIE.
-extra-objs += $(static-start-installed-name) g$(static-start-installed-name)
+extra-objs += \
+  $(static-start-installed-name) \
+  g$(static-start-installed-name) \
+  # extra-objs
 omit-deps += $(patsubst %.o,%,$(static-start-installed-name) \
 			     g$(static-start-installed-name))
-install-lib += $(static-start-installed-name) g$(static-start-installed-name)
-else
+install-lib += \
+  $(static-start-installed-name) \
+  g$(static-start-installed-name) \
+  # install-lib
 ifeq (yes,$(enable-static-pie))
-extra-objs += r$(start-installed-name) gr$(start-installed-name)
-install-lib += r$(start-installed-name) gr$(start-installed-name)
+extra-objs += \
+  gr$(static-start-installed-name) \
+  r$(static-start-installed-name) \
+  # extra-objs
+omit-deps += $(patsubst %.o,%,r$(static-start-installed-name) \
+			     gr$(static-start-installed-name))
+install-lib += \
+  gr$(static-start-installed-name) \
+  r$(static-start-installed-name) \
+  # install-lib
 endif
 endif
 
 before-compile += $(objpfx)abi-tag.h
 generated += abi-tag.h
 
+# Put it here to generate it earlier.
+gen-as-const-headers += rtld-sizes.sym
+
 # These are the special initializer/finalizer files.  They are always the
 # first and last file in the link.  crti.o ... crtn.o define the global
 # "functions" _init and _fini to run the .init and .fini sections.
-crtstuff = crti crtn
+crtstuff = \
+  crti \
+  crtn \
+  # crtstuff
 
 install-lib += $(crtstuff:=.o)
 extra-objs += $(crtstuff:=.o)
@@ -101,7 +155,11 @@ multilib-extra-objs = $(addprefix $(multidir)/, $(install-lib))
 extra-objs += $(multilib-extra-objs)
 endif
 
-extra-objs += abi-note.o init.o static-reloc.o
+extra-objs += \
+  abi-note.o \
+  init.o \
+  static-reloc.o \
+  # extra-objs
 ifeq (yes,$(build-shared))
 extra-objs += static-reloc.os
 endif
@@ -125,6 +183,9 @@ ifndef start-installed-name-rule
 $(objpfx)$(start-installed-name): $(objpfx)start.o $(objpfx)abi-note.o \
 				  $(objpfx)init.o $(objpfx)static-reloc.o
 	$(link-relocatable)
+$(objpfx)$(start-name-2.0): $(objpfx)start.o $(objpfx)abi-note.o \
+			    $(objpfx)static-reloc.o
+	$(link-relocatable)
 $(objpfx)r$(start-installed-name): $(objpfx)start.o $(objpfx)abi-note.o \
 				  $(objpfx)init.o
 	$(link-relocatable)
@@ -146,6 +207,9 @@ $(objpfx)gr$(start-installed-name): \
 ifneq ($(start-installed-name),$(static-start-installed-name))
 $(objpfx)g$(static-start-installed-name): \
   $(objpfx)g%: $(objpfx)% $(objpfx)gmon-start.o
+	$(link-relocatable)
+$(objpfx)gr$(static-start-installed-name): \
+  $(objpfx)gr%: $(objpfx)r% $(objpfx)gmon-start.o
 	$(link-relocatable)
 endif
 else

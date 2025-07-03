@@ -1,5 +1,5 @@
 /* Create a symbolic link named relative to an open directory.  Hurd version.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 
 /* Make a link to FROM called TO relative to FD.  */
 int
-symlinkat (const char *from, int fd, const char *to)
+__symlinkat (const char *from, int fd, const char *to)
 {
   error_t err;
   file_t dir, node;
@@ -45,8 +45,12 @@ symlinkat (const char *from, int fd, const char *to)
   if (dir == MACH_PORT_NULL)
     return -1;
 
-  /* Create a new, unlinked node in the target directory.  */
-  err = __dir_mkfile (dir, O_WRITE, 0777 & ~_hurd_umask, &node);
+  if (! *name)
+    /* Can't link to the existing directory itself.  */
+    err = EEXIST;
+  else
+    /* Create a new, unlinked node in the target directory.  */
+    err = __dir_mkfile (dir, O_WRITE, 0777 & ~_hurd_umask, &node);
 
   if (! err)
     {
@@ -70,3 +74,5 @@ symlinkat (const char *from, int fd, const char *to)
     return __hurd_fail (err);
   return 0;
 }
+
+weak_alias (__symlinkat, symlinkat)

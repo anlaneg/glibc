@@ -1,5 +1,5 @@
 /* siginfo_t constants.  Stub version.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -93,7 +93,7 @@ enum
 {
   BUS_ADRALN = 1,		/* Invalid address alignment.  */
 #  define BUS_ADRALN	BUS_ADRALN
-  BUS_ADRERR,			/* Non-existant physical address.  */
+  BUS_ADRERR,			/* Non-existent physical address.  */
 #  define BUS_ADRERR	BUS_ADRERR
   BUS_OBJERR			/* Object specific hardware error.  */
 #  define BUS_OBJERR	BUS_OBJERR

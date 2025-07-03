@@ -1,5 +1,5 @@
 /* Legacy libresolv random number generator.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -84,9 +84,10 @@
 
 #include <resolv.h>
 #include <unistd.h>
+#include <random-bits.h>
 
 unsigned int
 res_randomid (void) {
-  return 0xffff & __getpid ();
+  return 0xffff & random_bits ();
 }
 libc_hidden_def (__res_randomid)

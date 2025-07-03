@@ -1,5 +1,5 @@
 /* Basic tests for getitimer and setitimer.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <support/check.h>
+#include <support/support.h>
 #include <support/xsignal.h>
 #include <unistd.h>
 #include <time.h>
@@ -61,7 +62,7 @@ do_test (void)
       it.it_interval.tv_usec = 20;
       TEST_COMPARE (setitimer (timers[i], &it, NULL), 0);
 
-      TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { 0 }, &it_old),
+      TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { }, &it_old),
 		    0);
       /* ITIMER_REAL returns { 0, 0 } for single-shot timers, while
 	 other timers returns setitimer value.  */
@@ -73,7 +74,9 @@ do_test (void)
       else
 	{
 	  TEST_COMPARE (it_old.it_interval.tv_sec, 10);
-	  TEST_COMPARE (it_old.it_interval.tv_usec, 20);
+	  /* Some systems might use a different precision for ITIMER_VIRTUAL
+	     and ITIMER_IPROF and thus the value might be adjusted.  To avoid
+	     trying to guess the resolution, we do not check it.  */
 	}
 
       /* Create a periodic timer and check if the return value is the one
@@ -84,10 +87,11 @@ do_test (void)
       it.it_value.tv_usec = 40;
       TEST_COMPARE (setitimer (timers[i], &it, NULL), 0);
 
-      TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { 0 }, &it_old),
+      TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { }, &it_old),
 		    0);
       TEST_COMPARE (it.it_interval.tv_sec, it_old.it_interval.tv_sec);
-      TEST_COMPARE (it.it_interval.tv_usec, it_old.it_interval.tv_usec);
+      if (timers[i] == ITIMER_REAL)
+	TEST_COMPARE (it.it_interval.tv_usec, it_old.it_interval.tv_usec);
 
       if (sizeof (time_t) == 4)
 	continue;
@@ -100,10 +104,10 @@ do_test (void)
 
       /* Linux does not provide 64 bit time_t support for getitimer and
 	 setitimer on architectures with 32 bit time_t support.  */
-      if (__KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64)
+      if (support_itimer_support_time64())
 	{
 	  TEST_COMPARE (setitimer (timers[i], &it, NULL), 0);
-	  TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { 0 },
+	  TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { },
 				   &it_old),
 			0);
 	  /* ITIMER_REAL returns { 0, 0 } for single-sort timers, while other
@@ -112,11 +116,6 @@ do_test (void)
 	    {
 	      TEST_COMPARE (it_old.it_interval.tv_sec, 0ull);
 	      TEST_COMPARE (it_old.it_interval.tv_usec, 0);
-	    }
-	  else
-	    {
-	      TEST_COMPARE (it_old.it_interval.tv_sec, 0x1ffffffffull);
-	      TEST_COMPARE (it_old.it_interval.tv_usec, 20);
 	    }
 	}
       else
@@ -131,15 +130,18 @@ do_test (void)
       it.it_interval.tv_usec = 20;
       it.it_value.tv_sec = 30;
       it.it_value.tv_usec = 40;
-      if (__KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64)
+      if (support_itimer_support_time64())
 	{
 	  TEST_COMPARE (setitimer (timers[i], &it, NULL), 0);
 
-	  TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { 0 },
+	  TEST_COMPARE (setitimer (timers[i], &(struct itimerval) { },
 				   &it_old),
 			0);
-	  TEST_COMPARE (it.it_interval.tv_sec, it_old.it_interval.tv_sec);
-	  TEST_COMPARE (it.it_interval.tv_usec, it_old.it_interval.tv_usec);
+	  if (timers[i] == ITIMER_REAL)
+	    {
+	      TEST_COMPARE (it.it_interval.tv_sec, it_old.it_interval.tv_sec);
+	      TEST_COMPARE (it.it_interval.tv_usec, it_old.it_interval.tv_usec);
+	    }
 	}
       else
 	{
@@ -167,7 +169,7 @@ do_test (void)
   TEST_COMPARE (setitimer (ITIMER_REAL, &it, NULL), 0);
   intr_sleep (1);
   TEST_COMPARE (cnt, 3);
-  TEST_COMPARE (setitimer (ITIMER_REAL, &(struct itimerval) { 0 }, NULL), 0);
+  TEST_COMPARE (setitimer (ITIMER_REAL, &(struct itimerval) { }, NULL), 0);
 
   return 0;
 }

@@ -1,6 +1,4 @@
-/* Verify longjmp fortify checking does not reject signal stacks.
-
-   Test case mostly written by Paolo Bonzini <pbonzini@redhat.com>.  */
+/* Verify longjmp fortify checking does not reject signal stacks.  */
 #include <assert.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -12,9 +10,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-static int do_test (void);
-#define TEST_FUNCTION do_test ()
-#include "../test-skeleton.c"
+#include <support/support.h>
 
 static jmp_buf mainloop;
 static sigset_t mainsigset;
@@ -128,3 +124,5 @@ do_test (void)
 
   return 0;
 }
+
+#include <support/test-driver.c>

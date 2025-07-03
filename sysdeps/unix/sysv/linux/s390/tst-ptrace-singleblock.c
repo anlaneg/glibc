@@ -1,5 +1,5 @@
 /* Testing s390x PTRACE_SINGLEBLOCK ptrace request.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <elf.h>
+#include <support/xstdlib.h>
 #include <support/xunistd.h>
 #include <support/check.h>
 #include <string.h>
@@ -44,7 +45,7 @@ tracee_func (int pid)
   char str[80];
   sprintf (str, "cat /proc/%d/maps", pid);
   puts (str);
-  system (str);
+  xsystem (str);
   fflush (stdout);
 
   TEST_VERIFY_EXIT (ptrace (PTRACE_TRACEME) == 0);

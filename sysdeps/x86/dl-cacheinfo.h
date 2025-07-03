@@ -1,5 +1,5 @@
 /* Initialize x86 cache info.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -187,7 +187,7 @@ intel_check_word (int name, unsigned int value, bool *has_level_2,
 	      ++round;
 	    }
 	  /* There is no other cache information anywhere else.  */
-	  break;
+	  return -1;
 	}
       else
 	{
@@ -257,28 +257,23 @@ handle_intel (int name, const struct cpu_features *cpu_features)
 
   /* OK, we can use the CPUID instruction to get all info about the
      caches.  */
-  unsigned int cnt = 0;
-  unsigned int max = 1;
   long int result = 0;
   bool no_level_2_or_3 = false;
   bool has_level_2 = false;
+  unsigned int eax;
+  unsigned int ebx;
+  unsigned int ecx;
+  unsigned int edx;
+  __cpuid (2, eax, ebx, ecx, edx);
 
-  while (cnt++ < max)
+  /* The low byte of EAX of CPUID leaf 2 should always return 1 and it
+     should be ignored.  If it isn't 1, use CPUID leaf 4 instead.  */
+  if ((eax & 0xff) != 1)
+    return intel_check_word (name, 0xff, &has_level_2, &no_level_2_or_3,
+			     cpu_features);
+  else
     {
-      unsigned int eax;
-      unsigned int ebx;
-      unsigned int ecx;
-      unsigned int edx;
-      __cpuid (2, eax, ebx, ecx, edx);
-
-      /* The low byte of EAX in the first round contain the number of
-	 rounds we have to make.  At least one, the one we are already
-	 doing.  */
-      if (cnt == 1)
-	{
-	  max = eax & 0xff;
-	  eax &= 0xffffff00;
-	}
+      eax &= 0xffffff00;
 
       /* Process the individual registers' value.  */
       result = intel_check_word (name, eax, &has_level_2,
@@ -315,16 +310,64 @@ handle_amd (int name)
 {
   unsigned int eax;
   unsigned int ebx;
-  unsigned int ecx;
+  unsigned int ecx = 0;
   unsigned int edx;
-  __cpuid (0x80000000, eax, ebx, ecx, edx);
+  unsigned int max_cpuid = 0;
+  unsigned int fn = 0;
 
   /* No level 4 cache (yet).  */
   if (name > _SC_LEVEL3_CACHE_LINESIZE)
     return 0;
 
-  unsigned int fn = 0x80000005 + (name >= _SC_LEVEL2_CACHE_SIZE);
-  if (eax < fn)
+  __cpuid (0x80000000, max_cpuid, ebx, ecx, edx);
+
+  if (max_cpuid >= 0x8000001D)
+    /* Use __cpuid__ '0x8000_001D' to compute cache details.  */
+    {
+      unsigned int count = 0x1;
+
+      if (name >= _SC_LEVEL3_CACHE_SIZE)
+        count = 0x3;
+      else if (name >= _SC_LEVEL2_CACHE_SIZE)
+        count = 0x2;
+      else if (name >= _SC_LEVEL1_DCACHE_SIZE)
+        count = 0x0;
+
+      __cpuid_count (0x8000001D, count, eax, ebx, ecx, edx);
+
+      if (ecx != 0)
+        {
+          switch (name)
+            {
+            case _SC_LEVEL1_ICACHE_ASSOC:
+            case _SC_LEVEL1_DCACHE_ASSOC:
+            case _SC_LEVEL2_CACHE_ASSOC:
+            case _SC_LEVEL3_CACHE_ASSOC:
+              return ((ebx >> 22) & 0x3ff) + 1;
+            case _SC_LEVEL1_ICACHE_LINESIZE:
+            case _SC_LEVEL1_DCACHE_LINESIZE:
+            case _SC_LEVEL2_CACHE_LINESIZE:
+            case _SC_LEVEL3_CACHE_LINESIZE:
+              return (ebx & 0xfff) + 1;
+            case _SC_LEVEL1_ICACHE_SIZE:
+            case _SC_LEVEL1_DCACHE_SIZE:
+            case _SC_LEVEL2_CACHE_SIZE:
+            case _SC_LEVEL3_CACHE_SIZE:
+              return (((ebx >> 22) & 0x3ff) + 1) * ((ebx & 0xfff) + 1) * (ecx + 1);
+            default:
+              __builtin_unreachable ();
+            }
+          return -1;
+        }
+    }
+
+  /* Legacy cache computation for CPUs prior to Bulldozer family.
+     This is also a fail-safe mechanism for some hypervisors that
+     accidentally configure __cpuid__ '0x8000_001D' to Zero.  */
+
+  fn = 0x80000005 + (name >= _SC_LEVEL2_CACHE_SIZE);
+
+  if (max_cpuid < fn)
     return 0;
 
   __cpuid (fn, eax, ebx, ecx, edx);
@@ -337,91 +380,138 @@ handle_amd (int name)
 
   switch (name)
     {
-    case _SC_LEVEL1_DCACHE_SIZE:
-      return (ecx >> 14) & 0x3fc00;
+      case _SC_LEVEL1_DCACHE_SIZE:
+        return (ecx >> 14) & 0x3fc00;
 
-    case _SC_LEVEL1_DCACHE_ASSOC:
-      ecx >>= 16;
-      if ((ecx & 0xff) == 0xff)
-	/* Fully associative.  */
-	return (ecx << 2) & 0x3fc00;
-      return ecx & 0xff;
+      case _SC_LEVEL1_DCACHE_ASSOC:
+        ecx >>= 16;
+        if ((ecx & 0xff) == 0xff)
+        {
+          /* Fully associative.  */
+          return (ecx << 2) & 0x3fc00;
+        }
+        return ecx & 0xff;
 
-    case _SC_LEVEL1_DCACHE_LINESIZE:
-      return ecx & 0xff;
+      case _SC_LEVEL1_DCACHE_LINESIZE:
+        return ecx & 0xff;
 
-    case _SC_LEVEL2_CACHE_SIZE:
-      return (ecx & 0xf000) == 0 ? 0 : (ecx >> 6) & 0x3fffc00;
+      case _SC_LEVEL2_CACHE_SIZE:
+        return (ecx & 0xf000) == 0 ? 0 : (ecx >> 6) & 0x3fffc00;
 
-    case _SC_LEVEL2_CACHE_ASSOC:
-      switch ((ecx >> 12) & 0xf)
-	{
-	case 0:
-	case 1:
-	case 2:
-	case 4:
-	  return (ecx >> 12) & 0xf;
-	case 6:
-	  return 8;
-	case 8:
-	  return 16;
-	case 10:
-	  return 32;
-	case 11:
-	  return 48;
-	case 12:
-	  return 64;
-	case 13:
-	  return 96;
-	case 14:
-	  return 128;
-	case 15:
-	  return ((ecx >> 6) & 0x3fffc00) / (ecx & 0xff);
-	default:
-	  return 0;
-	}
-      /* NOTREACHED */
+      case _SC_LEVEL2_CACHE_ASSOC:
+        switch ((ecx >> 12) & 0xf)
+          {
+            case 0:
+            case 1:
+            case 2:
+            case 4:
+              return (ecx >> 12) & 0xf;
+            case 6:
+              return 8;
+            case 8:
+              return 16;
+            case 10:
+              return 32;
+            case 11:
+              return 48;
+            case 12:
+              return 64;
+            case 13:
+              return 96;
+            case 14:
+              return 128;
+            case 15:
+              return ((ecx >> 6) & 0x3fffc00) / (ecx & 0xff);
+            default:
+              return 0;
+          }
 
-    case _SC_LEVEL2_CACHE_LINESIZE:
-      return (ecx & 0xf000) == 0 ? 0 : ecx & 0xff;
+      case _SC_LEVEL2_CACHE_LINESIZE:
+        return (ecx & 0xf000) == 0 ? 0 : ecx & 0xff;
 
-    case _SC_LEVEL3_CACHE_SIZE:
-      return (edx & 0xf000) == 0 ? 0 : (edx & 0x3ffc0000) << 1;
+      case _SC_LEVEL3_CACHE_SIZE:
+        {
+        long int total_l3_cache = 0, l3_cache_per_thread = 0;
+        unsigned int threads = 0;
+        const struct cpu_features *cpu_features;
+
+        if ((edx & 0xf000) == 0)
+          return 0;
+
+        total_l3_cache = (edx & 0x3ffc0000) << 1;
+        cpu_features = __get_cpu_features ();
+
+        /* Figure out the number of logical threads that share L3.  */
+        if (max_cpuid >= 0x80000008)
+          {
+            /* Get width of APIC ID.  */
+            __cpuid (0x80000008, eax, ebx, ecx, edx);
+            threads = (ecx & 0xff) + 1;
+          }
+
+        if (threads == 0)
+          {
+            /* If APIC ID width is not available, use logical
+            processor count.  */
+            __cpuid (0x00000001, eax, ebx, ecx, edx);
+            if ((edx & (1 << 28)) != 0)
+              threads = (ebx >> 16) & 0xff;
+          }
+
+        /* Cap usage of highest cache level to the number of
+           supported threads.  */
+        if (threads > 0)
+          l3_cache_per_thread = total_l3_cache/threads;
+
+        /* Get shared cache per ccx for Zen architectures.  */
+        if (cpu_features->basic.family >= 0x17)
+          {
+            long int l3_cache_per_ccx = 0;
+            /* Get number of threads share the L3 cache in CCX.  */
+            __cpuid_count (0x8000001D, 0x3, eax, ebx, ecx, edx);
+            unsigned int threads_per_ccx = ((eax >> 14) & 0xfff) + 1;
+            l3_cache_per_ccx = l3_cache_per_thread * threads_per_ccx;
+            return l3_cache_per_ccx;
+          }
+        else
+          {
+            return l3_cache_per_thread;
+          }
+      }
 
     case _SC_LEVEL3_CACHE_ASSOC:
       switch ((edx >> 12) & 0xf)
-	{
-	case 0:
-	case 1:
-	case 2:
-	case 4:
-	  return (edx >> 12) & 0xf;
-	case 6:
-	  return 8;
-	case 8:
-	  return 16;
-	case 10:
-	  return 32;
-	case 11:
-	  return 48;
-	case 12:
-	  return 64;
-	case 13:
-	  return 96;
-	case 14:
-	  return 128;
-	case 15:
-	  return ((edx & 0x3ffc0000) << 1) / (edx & 0xff);
-	default:
-	  return 0;
-	}
-      /* NOTREACHED */
+      {
+        case 0:
+        case 1:
+        case 2:
+        case 4:
+          return (edx >> 12) & 0xf;
+        case 6:
+          return 8;
+        case 8:
+          return 16;
+        case 10:
+          return 32;
+        case 11:
+          return 48;
+        case 12:
+          return 64;
+        case 13:
+          return 96;
+        case 14:
+          return 128;
+        case 15:
+          return ((edx & 0x3ffc0000) << 1) / (edx & 0xff);
+        default:
+          return 0;
+      }
 
     case _SC_LEVEL3_CACHE_LINESIZE:
       return (edx & 0xf000) == 0 ? 0 : edx & 0xff;
 
     default:
-      assert (! "cannot happen");
+      __builtin_unreachable ();
     }
   return -1;
 }
@@ -477,8 +567,50 @@ handle_zhaoxin (int name)
   return 0;
 }
 
+static long int __attribute__ ((noinline))
+handle_hygon (int name)
+{
+  unsigned int eax;
+  unsigned int ebx;
+  unsigned int ecx;
+  unsigned int edx;
+  unsigned int count = 0x1;
+
+  if (name >= _SC_LEVEL3_CACHE_SIZE)
+    count = 0x3;
+  else if (name >= _SC_LEVEL2_CACHE_SIZE)
+    count = 0x2;
+  else if (name >= _SC_LEVEL1_DCACHE_SIZE)
+    count = 0x0;
+
+  /* Use __cpuid__ '0x8000_001D' to compute cache details.  */
+  __cpuid_count (0x8000001D, count, eax, ebx, ecx, edx);
+
+  switch (name)
+    {
+    case _SC_LEVEL1_ICACHE_ASSOC:
+    case _SC_LEVEL1_DCACHE_ASSOC:
+    case _SC_LEVEL2_CACHE_ASSOC:
+    case _SC_LEVEL3_CACHE_ASSOC:
+      return ((ebx >> 22) & 0x3ff) + 1;
+    case _SC_LEVEL1_ICACHE_LINESIZE:
+    case _SC_LEVEL1_DCACHE_LINESIZE:
+    case _SC_LEVEL2_CACHE_LINESIZE:
+    case _SC_LEVEL3_CACHE_LINESIZE:
+      return (ebx & 0xfff) + 1;
+    case _SC_LEVEL1_ICACHE_SIZE:
+    case _SC_LEVEL1_DCACHE_SIZE:
+    case _SC_LEVEL2_CACHE_SIZE:
+    case _SC_LEVEL3_CACHE_SIZE:
+      return (((ebx >> 22) & 0x3ff) + 1) * ((ebx & 0xfff) + 1) * (ecx + 1);
+    default:
+      __builtin_unreachable ();
+    }
+  return -1;
+}
+
 static void
-get_common_cache_info (long int *shared_ptr, unsigned int *threads_ptr,
+get_common_cache_info (long int *shared_ptr, long int * shared_per_thread_ptr, unsigned int *threads_ptr,
                 long int core)
 {
   unsigned int eax;
@@ -497,6 +629,7 @@ get_common_cache_info (long int *shared_ptr, unsigned int *threads_ptr,
   unsigned int family = cpu_features->basic.family;
   unsigned int model = cpu_features->basic.model;
   long int shared = *shared_ptr;
+  long int shared_per_thread = *shared_per_thread_ptr;
   unsigned int threads = *threads_ptr;
   bool inclusive_cache = true;
   bool support_count_mask = true;
@@ -512,6 +645,7 @@ get_common_cache_info (long int *shared_ptr, unsigned int *threads_ptr,
       /* Try L2 otherwise.  */
       level  = 2;
       shared = core;
+      shared_per_thread = core;
       threads_l2 = 0;
       threads_l3 = -1;
     }
@@ -668,29 +802,27 @@ get_common_cache_info (long int *shared_ptr, unsigned int *threads_ptr,
         }
       else
         {
-intel_bug_no_cache_info:
-          /* Assume that all logical threads share the highest cache
-             level.  */
-          threads
-            = ((cpu_features->features[CPUID_INDEX_1].cpuid.ebx >> 16)
-	       & 0xff);
-        }
-
-        /* Cap usage of highest cache level to the number of supported
-           threads.  */
-        if (shared > 0 && threads > 0)
-          shared /= threads;
+	intel_bug_no_cache_info:
+	  /* Assume that all logical threads share the highest cache
+	     level.  */
+	  threads = ((cpu_features->features[CPUID_INDEX_1].cpuid.ebx >> 16)
+		     & 0xff);
+	}
+      /* Get per-thread size of highest level cache.  */
+      if (shared_per_thread > 0 && threads > 0)
+	shared_per_thread /= threads;
     }
 
   /* Account for non-inclusive L2 and L3 caches.  */
   if (!inclusive_cache)
     {
-      if (threads_l2 > 0)
-        core /= threads_l2;
+      long int core_per_thread = threads_l2 > 0 ? (core / threads_l2) : core;
+      shared_per_thread += core_per_thread;
       shared += core;
     }
 
   *shared_ptr = shared;
+  *shared_per_thread_ptr = shared_per_thread;
   *threads_ptr = threads;
 }
 
@@ -698,13 +830,9 @@ static void
 dl_init_cacheinfo (struct cpu_features *cpu_features)
 {
   /* Find out what brand of processor.  */
-  unsigned int ebx;
-  unsigned int ecx;
-  unsigned int edx;
-  int max_cpuid_ex;
   long int data = -1;
   long int shared = -1;
-  long int core = -1;
+  long int shared_per_thread = -1;
   unsigned int threads = 0;
   unsigned long int level1_icache_size = -1;
   unsigned long int level1_icache_linesize = -1;
@@ -722,8 +850,8 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
   if (cpu_features->basic.kind == arch_kind_intel)
     {
       data = handle_intel (_SC_LEVEL1_DCACHE_SIZE, cpu_features);
-      core = handle_intel (_SC_LEVEL2_CACHE_SIZE, cpu_features);
       shared = handle_intel (_SC_LEVEL3_CACHE_SIZE, cpu_features);
+      shared_per_thread = shared;
 
       level1_icache_size
 	= handle_intel (_SC_LEVEL1_ICACHE_SIZE, cpu_features);
@@ -734,7 +862,8 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
 	= handle_intel (_SC_LEVEL1_DCACHE_ASSOC, cpu_features);
       level1_dcache_linesize
 	= handle_intel (_SC_LEVEL1_DCACHE_LINESIZE, cpu_features);
-      level2_cache_size = core;
+      level2_cache_size
+	= handle_intel (_SC_LEVEL2_CACHE_SIZE, cpu_features);
       level2_cache_assoc
 	= handle_intel (_SC_LEVEL2_CACHE_ASSOC, cpu_features);
       level2_cache_linesize
@@ -747,32 +876,33 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
       level4_cache_size
 	= handle_intel (_SC_LEVEL4_CACHE_SIZE, cpu_features);
 
-      get_common_cache_info (&shared, &threads, core);
+      get_common_cache_info (&shared, &shared_per_thread, &threads,
+			     level2_cache_size);
     }
   else if (cpu_features->basic.kind == arch_kind_zhaoxin)
     {
       data = handle_zhaoxin (_SC_LEVEL1_DCACHE_SIZE);
-      core = handle_zhaoxin (_SC_LEVEL2_CACHE_SIZE);
       shared = handle_zhaoxin (_SC_LEVEL3_CACHE_SIZE);
+      shared_per_thread = shared;
 
       level1_icache_size = handle_zhaoxin (_SC_LEVEL1_ICACHE_SIZE);
       level1_icache_linesize = handle_zhaoxin (_SC_LEVEL1_ICACHE_LINESIZE);
       level1_dcache_size = data;
       level1_dcache_assoc = handle_zhaoxin (_SC_LEVEL1_DCACHE_ASSOC);
       level1_dcache_linesize = handle_zhaoxin (_SC_LEVEL1_DCACHE_LINESIZE);
-      level2_cache_size = core;
+      level2_cache_size = handle_zhaoxin (_SC_LEVEL2_CACHE_SIZE);
       level2_cache_assoc = handle_zhaoxin (_SC_LEVEL2_CACHE_ASSOC);
       level2_cache_linesize = handle_zhaoxin (_SC_LEVEL2_CACHE_LINESIZE);
       level3_cache_size = shared;
       level3_cache_assoc = handle_zhaoxin (_SC_LEVEL3_CACHE_ASSOC);
       level3_cache_linesize = handle_zhaoxin (_SC_LEVEL3_CACHE_LINESIZE);
 
-      get_common_cache_info (&shared, &threads, core);
+      get_common_cache_info (&shared, &shared_per_thread, &threads,
+			     level2_cache_size);
     }
   else if (cpu_features->basic.kind == arch_kind_amd)
     {
-      data  = handle_amd (_SC_LEVEL1_DCACHE_SIZE);
-      core = handle_amd (_SC_LEVEL2_CACHE_SIZE);
+      data = handle_amd (_SC_LEVEL1_DCACHE_SIZE);
       shared = handle_amd (_SC_LEVEL3_CACHE_SIZE);
 
       level1_icache_size = handle_amd (_SC_LEVEL1_ICACHE_SIZE);
@@ -780,61 +910,44 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
       level1_dcache_size = data;
       level1_dcache_assoc = handle_amd (_SC_LEVEL1_DCACHE_ASSOC);
       level1_dcache_linesize = handle_amd (_SC_LEVEL1_DCACHE_LINESIZE);
-      level2_cache_size = core;
+      level2_cache_size = handle_amd (_SC_LEVEL2_CACHE_SIZE);;
       level2_cache_assoc = handle_amd (_SC_LEVEL2_CACHE_ASSOC);
       level2_cache_linesize = handle_amd (_SC_LEVEL2_CACHE_LINESIZE);
       level3_cache_size = shared;
       level3_cache_assoc = handle_amd (_SC_LEVEL3_CACHE_ASSOC);
       level3_cache_linesize = handle_amd (_SC_LEVEL3_CACHE_LINESIZE);
-
-      /* Get maximum extended function. */
-      __cpuid (0x80000000, max_cpuid_ex, ebx, ecx, edx);
+      level4_cache_size = handle_amd (_SC_LEVEL4_CACHE_SIZE);
 
       if (shared <= 0)
-	/* No shared L3 cache.  All we have is the L2 cache.  */
-	shared = core;
-      else
-	{
-	  /* Figure out the number of logical threads that share L3.  */
-	  if (max_cpuid_ex >= 0x80000008)
-	    {
-	      /* Get width of APIC ID.  */
-	      __cpuid (0x80000008, max_cpuid_ex, ebx, ecx, edx);
-	      threads = 1 << ((ecx >> 12) & 0x0f);
-	    }
+        {
+           /* No shared L3 cache.  All we have is the L2 cache.  */
+           shared = level2_cache_size;
+        }
+      else if (cpu_features->basic.family < 0x17)
+        {
+           /* Account for exclusive L2 and L3 caches.  */
+           shared += level2_cache_size;
+        }
 
-	  if (threads == 0 || cpu_features->basic.family >= 0x17)
-	    {
-	      /* If APIC ID width is not available, use logical
-		 processor count.  */
-	      __cpuid (0x00000001, max_cpuid_ex, ebx, ecx, edx);
+      shared_per_thread = shared;
+    }
+  else if (cpu_features->basic.kind == arch_kind_hygon)
+    {
+      data = handle_hygon (_SC_LEVEL1_DCACHE_SIZE);
+      shared = handle_hygon (_SC_LEVEL3_CACHE_SIZE);
+      shared_per_thread = shared;
 
-	      if ((edx & (1 << 28)) != 0)
-		threads = (ebx >> 16) & 0xff;
-	    }
-
-	  /* Cap usage of highest cache level to the number of
-	     supported threads.  */
-	  if (threads > 0)
-	    shared /= threads;
-
-	  /* Get shared cache per ccx for Zen architectures.  */
-	  if (cpu_features->basic.family >= 0x17)
-	    {
-	      unsigned int eax;
-
-	      /* Get number of threads share the L3 cache in CCX.  */
-	      __cpuid_count (0x8000001D, 0x3, eax, ebx, ecx, edx);
-
-	      unsigned int threads_per_ccx = ((eax >> 14) & 0xfff) + 1;
-	      shared *= threads_per_ccx;
-	    }
-	  else
-	    {
-	      /* Account for exclusive L2 and L3 caches.  */
-	      shared += core;
-            }
-	}
+      level1_icache_size = handle_hygon (_SC_LEVEL1_ICACHE_SIZE);
+      level1_icache_linesize = handle_hygon (_SC_LEVEL1_ICACHE_LINESIZE);
+      level1_dcache_size = data;
+      level1_dcache_assoc = handle_hygon (_SC_LEVEL1_DCACHE_ASSOC);
+      level1_dcache_linesize = handle_hygon (_SC_LEVEL1_DCACHE_LINESIZE);
+      level2_cache_size = handle_hygon (_SC_LEVEL2_CACHE_SIZE);;
+      level2_cache_assoc = handle_hygon (_SC_LEVEL2_CACHE_ASSOC);
+      level2_cache_linesize = handle_hygon (_SC_LEVEL2_CACHE_LINESIZE);
+      level3_cache_size = shared;
+      level3_cache_assoc = handle_hygon (_SC_LEVEL3_CACHE_ASSOC);
+      level3_cache_linesize = handle_hygon (_SC_LEVEL3_CACHE_LINESIZE);
     }
 
   cpu_features->level1_icache_size = level1_icache_size;
@@ -850,68 +963,100 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
   cpu_features->level3_cache_linesize = level3_cache_linesize;
   cpu_features->level4_cache_size = level4_cache_size;
 
-  /* The default setting for the non_temporal threshold is 3/4 of one
-     thread's share of the chip's cache. For most Intel and AMD processors
-     with an initial release date between 2017 and 2020, a thread's typical
-     share of the cache is from 500 KBytes to 2 MBytes. Using the 3/4
-     threshold leaves 125 KBytes to 500 KBytes of the thread's data
-     in cache after a maximum temporal copy, which will maintain
-     in cache a reasonable portion of the thread's stack and other
-     active data. If the threshold is set higher than one thread's
-     share of the cache, it has a substantial risk of negatively
-     impacting the performance of other threads running on the chip. */
-  unsigned long int non_temporal_threshold = shared * 3 / 4;
+  unsigned long int cachesize_non_temporal_divisor
+      = cpu_features->cachesize_non_temporal_divisor;
+  if (cachesize_non_temporal_divisor <= 0)
+    cachesize_non_temporal_divisor = 4;
 
-#if HAVE_TUNABLES
+  /* The default setting for the non_temporal threshold is [1/8, 1/2] of size
+     of the chip's cache (depending on `cachesize_non_temporal_divisor` which
+     is microarch specific. The default is 1/4). For most Intel processors
+     with an initial release date between 2017 and 2023, a thread's
+     typical share of the cache is from 18-64MB. Using a reasonable size
+     fraction of L3 is meant to estimate the point where non-temporal stores
+     begin out-competing REP MOVSB. As well the point where the fact that
+     non-temporal stores are forced back to main memory would already occurred
+     to the majority of the lines in the copy. Note, concerns about the entire
+     L3 cache being evicted by the copy are mostly alleviated by the fact that
+     modern HW detects streaming patterns and provides proper LRU hints so that
+     the maximum thrashing capped at 1/associativity. */
+  unsigned long int non_temporal_threshold
+      = shared / cachesize_non_temporal_divisor;
+
+  /* If the computed non_temporal_threshold <= 3/4 * per-thread L3, we most
+     likely have incorrect/incomplete cache info in which case, default to
+     3/4 * per-thread L3 to avoid regressions.  */
+  unsigned long int non_temporal_threshold_lowbound
+      = shared_per_thread * 3 / 4;
+  if (non_temporal_threshold < non_temporal_threshold_lowbound)
+    non_temporal_threshold = non_temporal_threshold_lowbound;
+
+  /* If no ERMS, we use the per-thread L3 chunking. Normal cacheable stores run
+     a higher risk of actually thrashing the cache as they don't have a HW LRU
+     hint. As well, their performance in highly parallel situations is
+     noticeably worse. Zhaoxin processors are an exception, the lowbound is not
+     suitable for them based on actual test data.  */
+  if (!CPU_FEATURE_USABLE_P (cpu_features, ERMS)
+      && cpu_features->basic.kind != arch_kind_zhaoxin)
+    non_temporal_threshold = non_temporal_threshold_lowbound;
+  /* SIZE_MAX >> 4 because memmove-vec-unaligned-erms right-shifts the value of
+     'x86_non_temporal_threshold' by `LOG_4X_MEMCPY_THRESH` (4) and it is best
+     if that operation cannot overflow. Minimum of 0x4040 (16448) because the
+     L(large_memset_4x) loops need 64-byte to cache align and enough space for
+     at least 1 iteration of 4x PAGE_SIZE unrolled loop.  Both values are
+     reflected in the manual.  */
+  unsigned long int maximum_non_temporal_threshold = SIZE_MAX >> 4;
+  unsigned long int minimum_non_temporal_threshold = 0x4040;
+
+  /* If `non_temporal_threshold` less than `minimum_non_temporal_threshold`
+     it most likely means we failed to detect the cache info. We don't want
+     to default to `minimum_non_temporal_threshold` as such a small value,
+     while correct, has bad performance. We default to 64MB as reasonable
+     default bound. 64MB is likely conservative in that most/all systems would
+     choose a lower value so it should never forcing non-temporal stores when
+     they otherwise wouldn't be used.  */
+  if (non_temporal_threshold < minimum_non_temporal_threshold)
+    non_temporal_threshold = 64 * 1024 * 1024;
+  else if (non_temporal_threshold > maximum_non_temporal_threshold)
+    non_temporal_threshold = maximum_non_temporal_threshold;
+
   /* NB: The REP MOVSB threshold must be greater than VEC_SIZE * 8.  */
-  unsigned int minimum_rep_movsb_threshold;
-#endif
-  /* NB: The default REP MOVSB threshold is 2048 * (VEC_SIZE / 16).  */
-  unsigned int rep_movsb_threshold;
+  unsigned long int minimum_rep_movsb_threshold;
+  /* NB: The default REP MOVSB threshold is 4096 * (VEC_SIZE / 16) for
+     VEC_SIZE == 64 or 32.  For VEC_SIZE == 16, the default REP MOVSB
+     threshold is 2048 * (VEC_SIZE / 16).  */
+  unsigned long int rep_movsb_threshold;
   if (CPU_FEATURE_USABLE_P (cpu_features, AVX512F)
       && !CPU_FEATURE_PREFERRED_P (cpu_features, Prefer_No_AVX512))
     {
-      rep_movsb_threshold = 2048 * (64 / 16);
-#if HAVE_TUNABLES
+      rep_movsb_threshold = 4096 * (64 / 16);
       minimum_rep_movsb_threshold = 64 * 8;
-#endif
     }
   else if (CPU_FEATURE_PREFERRED_P (cpu_features,
 				    AVX_Fast_Unaligned_Load))
     {
-      rep_movsb_threshold = 2048 * (32 / 16);
-#if HAVE_TUNABLES
+      rep_movsb_threshold = 4096 * (32 / 16);
       minimum_rep_movsb_threshold = 32 * 8;
-#endif
     }
   else
     {
       rep_movsb_threshold = 2048 * (16 / 16);
-#if HAVE_TUNABLES
       minimum_rep_movsb_threshold = 16 * 8;
-#endif
     }
   /* NB: The default REP MOVSB threshold is 2112 on processors with fast
      short REP MOVSB (FSRM).  */
   if (CPU_FEATURE_USABLE_P (cpu_features, FSRM))
     rep_movsb_threshold = 2112;
 
-  unsigned long int rep_movsb_stop_threshold;
-  /* ERMS feature is implemented from AMD Zen3 architecture and it is
-     performing poorly for data above L2 cache size. Henceforth, adding
-     an upper bound threshold parameter to limit the usage of Enhanced
-     REP MOVSB operations and setting its value to L2 cache size.  */
+  /* For AMD CPUs that support ERMS (Zen3+), REP MOVSB is in a lot of
+     cases slower than the vectorized path (and for some alignments,
+     it is really slow, check BZ #30994).  */
   if (cpu_features->basic.kind == arch_kind_amd)
-    rep_movsb_stop_threshold = core;
-  /* Setting the upper bound of ERMS to the computed value of
-     non-temporal threshold for architectures other than AMD.  */
-  else
-    rep_movsb_stop_threshold = non_temporal_threshold;
+    rep_movsb_threshold = non_temporal_threshold;
 
   /* The default threshold to use Enhanced REP STOSB.  */
   unsigned long int rep_stosb_threshold = 2048;
 
-#if HAVE_TUNABLES
   long int tunable_size;
 
   tunable_size = TUNABLE_GET (x86_data_cache_size, long int, NULL);
@@ -924,10 +1069,22 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
   if (tunable_size != 0)
     shared = tunable_size;
 
+  /* Non-temporal stores are more performant on some hardware above
+     non_temporal_threshold. Currently Prefer_Non_Temporal is set for for both
+     Intel, AMD and Hygon hardware. */
+  unsigned long int memset_non_temporal_threshold = SIZE_MAX;
+  if (!CPU_FEATURES_ARCH_P (cpu_features, Avoid_Non_Temporal_Memset))
+    memset_non_temporal_threshold = non_temporal_threshold;
+
   tunable_size = TUNABLE_GET (x86_non_temporal_threshold, long int, NULL);
-  /* NB: Ignore the default value 0.  */
-  if (tunable_size != 0)
+  if (tunable_size > minimum_non_temporal_threshold
+      && tunable_size <= maximum_non_temporal_threshold)
     non_temporal_threshold = tunable_size;
+
+  tunable_size = TUNABLE_GET (x86_memset_non_temporal_threshold, long int, NULL);
+  if (tunable_size > minimum_non_temporal_threshold
+      && tunable_size <= maximum_non_temporal_threshold)
+    memset_non_temporal_threshold = tunable_size;
 
   tunable_size = TUNABLE_GET (x86_rep_movsb_threshold, long int, NULL);
   if (tunable_size > minimum_rep_movsb_threshold)
@@ -938,20 +1095,58 @@ dl_init_cacheinfo (struct cpu_features *cpu_features)
      minimum value is fixed.  */
   rep_stosb_threshold = TUNABLE_GET (x86_rep_stosb_threshold,
 				     long int, NULL);
+  if (cpu_features->basic.kind == arch_kind_amd
+      && !TUNABLE_IS_INITIALIZED (x86_rep_stosb_threshold))
+    /* For AMD Zen3+ architecture, the performance of the vectorized loop is
+       slightly better than ERMS.  */
+    rep_stosb_threshold = SIZE_MAX;
 
+  /*
+     For memset, the non-temporal implementation is only accessed through the
+     stosb code. ie:
+     ```
+     if (size >= rep_stosb_thresh)
+     {
+    	if (size >= non_temporal_thresh)
+     {
+     do_non_temporal ();
+     }
+    	do_stosb ();
+     }
+     do_normal_vec_loop ();
+     ```
+     So if we prefer non-temporal, set `rep_stosb_thresh = non_temporal_thresh`
+     to enable the implementation. If `rep_stosb_thresh = non_temporal_thresh`,
+    `rep stosb` will never be used.
+   */
+  TUNABLE_SET_WITH_BOUNDS (x86_memset_non_temporal_threshold,
+			   memset_non_temporal_threshold,
+			   minimum_non_temporal_threshold, SIZE_MAX);
+  /* Do `rep_stosb_thresh = non_temporal_thresh` after setting/getting the
+     final value of `x86_memset_non_temporal_threshold`. In some cases this can
+     be a matter of correctness.  */
+  if (CPU_FEATURES_ARCH_P (cpu_features, Avoid_STOSB))
+    rep_stosb_threshold
+	= TUNABLE_GET (x86_memset_non_temporal_threshold, long int, NULL);
+  TUNABLE_SET_WITH_BOUNDS (x86_rep_stosb_threshold, rep_stosb_threshold, 1,
+			   SIZE_MAX);
   TUNABLE_SET_WITH_BOUNDS (x86_data_cache_size, data, 0, SIZE_MAX);
   TUNABLE_SET_WITH_BOUNDS (x86_shared_cache_size, shared, 0, SIZE_MAX);
   TUNABLE_SET_WITH_BOUNDS (x86_non_temporal_threshold, non_temporal_threshold,
-			   0, SIZE_MAX);
+			   minimum_non_temporal_threshold,
+			   maximum_non_temporal_threshold);
   TUNABLE_SET_WITH_BOUNDS (x86_rep_movsb_threshold, rep_movsb_threshold,
 			   minimum_rep_movsb_threshold, SIZE_MAX);
-  TUNABLE_SET_WITH_BOUNDS (x86_rep_stosb_threshold, rep_stosb_threshold, 1,
-			   SIZE_MAX);
-#endif
+
+  unsigned long int rep_movsb_stop_threshold;
+  /* Setting the upper bound of ERMS to the computed value of
+     non-temporal threshold for all architectures.  */
+  rep_movsb_stop_threshold = non_temporal_threshold;
 
   cpu_features->data_cache_size = data;
   cpu_features->shared_cache_size = shared;
   cpu_features->non_temporal_threshold = non_temporal_threshold;
+  cpu_features->memset_non_temporal_threshold = memset_non_temporal_threshold;
   cpu_features->rep_movsb_threshold = rep_movsb_threshold;
   cpu_features->rep_stosb_threshold = rep_stosb_threshold;
   cpu_features->rep_movsb_stop_threshold = rep_movsb_stop_threshold;

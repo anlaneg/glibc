@@ -1,6 +1,5 @@
-/* Copyright (C) 1998-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -151,12 +150,14 @@ __libc_rwlock_define (extern, __libc_setlocale_lock attribute_hidden)
 void
 __wcsmbs_load_conv (struct __locale_data *new_category)
 {
+  struct lc_ctype_data *data = new_category->private;
+
   /* Acquire the lock.  */
   __libc_rwlock_wrlock (__libc_setlocale_lock);
 
   /* We should repeat the test since while we waited some other thread
      might have run this function.  */
-  if (__glibc_likely (new_category->private.ctype == NULL))
+  if (__glibc_likely (data->fcts == NULL))
     {
       /* We must find the real functions.  */
       const char *charset_name;
@@ -200,13 +201,10 @@ __wcsmbs_load_conv (struct __locale_data *new_category)
 	  free (new_fcts);
 
 	failed:
-	  new_category->private.ctype = &__wcsmbs_gconv_fcts_c;
+	  data->fcts = (void *) &__wcsmbs_gconv_fcts_c;
 	}
       else
-	{
-	  new_category->private.ctype = new_fcts;
-	  new_category->private.cleanup = &_nl_cleanup_ctype;
-	}
+	data->fcts = new_fcts;
     }
 
   __libc_rwlock_unlock (__libc_setlocale_lock);
@@ -267,15 +265,15 @@ __wcsmbs_named_conv (struct gconv_fcts *copy, const char *name)
 void
 _nl_cleanup_ctype (struct __locale_data *locale)
 {
-  const struct gconv_fcts *const data = locale->private.ctype;
-  if (data != NULL)
+  struct lc_ctype_data *data = locale->private;
+  if (data->fcts != NULL && data->fcts != &__wcsmbs_gconv_fcts_c)
     {
-      locale->private.ctype = NULL;
-      locale->private.cleanup = NULL;
-
       /* Free the old conversions.  */
-      __gconv_close_transform (data->tomb, data->tomb_nsteps);
-      __gconv_close_transform (data->towc, data->towc_nsteps);
-      free ((char *) data);
+      __gconv_close_transform (data->fcts->tomb, data->fcts->tomb_nsteps);
+      __gconv_close_transform (data->fcts->towc, data->fcts->towc_nsteps);
+
+      free ((void *) data->fcts);
+      data->fcts = NULL;
+      /* data itself is allocated within locale.  */
     }
 }

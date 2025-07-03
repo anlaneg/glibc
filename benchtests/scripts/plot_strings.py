@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # Plot GNU C Library string microbenchmark output.
-# Copyright (C) 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2019-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -31,6 +31,7 @@ import json
 import matplotlib as mpl
 import numpy as np
 import os
+import sys
 
 try:
     import jsonschema as validator
@@ -275,7 +276,7 @@ def plotRecursive(json_iter, routine, ifuncs, bench_variant, title, outpath,
     domain = np.unique(np.array(domain))
     averages = []
 
-    # Compute geometric mean if there are multple timings for each
+    # Compute geometric mean if there are multiple timings for each
     # parameter value.
     for parameter in domain:
         averages.append(gmean(timings[parameter]))
@@ -331,8 +332,11 @@ def main(args):
     for filename in args.bench:
         bench = None
 
-        with open(filename, "r") as f:
-            bench = json.load(f)
+        if filename == '-':
+            bench = json.load(sys.stdin)
+        else:
+            with open(filename, "r") as f:
+                bench = json.load(f)
 
         validator.validate(bench, schema)
 
@@ -354,7 +358,8 @@ if __name__ == "__main__":
 
     # Required parameter
     parser.add_argument("bench", nargs="+",
-                        help="benchmark results file(s) in json format")
+                        help="benchmark results file(s) in json format, " \
+                        "and/or '-' as a benchmark result file from stdin")
 
     # Optional parameters
     parser.add_argument("-b", "--baseline", type=str,

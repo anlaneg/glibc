@@ -41,6 +41,7 @@ aren't documented either so far.
 			   is to make it work with Inetd.
 * Socket Options::	Miscellaneous low-level socket options.
 * Networks Database::   Accessing the database of network names.
+* Other Socket APIs::   Other socket-related functions.
 @end menu
 
 @node Socket Concepts
@@ -496,7 +497,20 @@ interface name, including its terminating zero byte.
 @c takes a lock, which makes all callers AS- and AC-Unsafe.
 @c  opensock @asulock @aculock @acsfd
 This function yields the interface index corresponding to a particular
-name.  If no interface exists with the name given, it returns 0.
+name specified with @var{ifname}.
+
+The return value is the interface index on success.  On failure, the
+function's return value is zero and @code{errno} is set accordingly.
+The following @code{errno} values are specific to this function:
+
+@table @code
+@item ENODEV
+There is no interface by the name requested.
+@end table
+
+Additionally, since @code{if_nametoindex} invokes @code{socket}
+internally, @code{errno} may also be set to a value listed for the
+@code{socket} function (@pxref{Creating a Socket}).
 @end deftypefun
 
 @deftypefun {char *} if_indextoname (unsigned int @var{ifindex}, char *@var{ifname})
@@ -504,11 +518,22 @@ name.  If no interface exists with the name given, it returns 0.
 @safety{@prelim{}@mtsafe{}@asunsafe{@asulock{}}@acunsafe{@aculock{} @acsfd{}}}
 @c It opens a socket with opensock to use ioctl on the fd to get the
 @c name from the index.
-This function maps an interface index to its corresponding name.  The
-returned name is placed in the buffer pointed to by @code{ifname}, which
-must be at least @code{IFNAMSIZ} bytes in length.  If the index was
-invalid, the function's return value is a null pointer, otherwise it is
-@code{ifname}.
+This function maps an interface index @var{ifindex} to its corresponding
+name.  The returned name is placed in the buffer pointed to by @var{ifname},
+which must be at least @code{IFNAMSIZ} bytes in length.
+
+The return value is @var{ifname} on success.  On failure, the function's
+return value is a null pointer and @code{errno} is set accordingly.  The
+following @code{errno} values are specific to this function:
+
+@table @code
+@item ENXIO
+There is no interface at the index requested.
+@end table
+
+Additionally, since @code{if_indextoname} invokes @code{socket}
+internally, @code{errno} may also be set to a value listed for the
+@code{socket} function (@pxref{Creating a Socket}).
 @end deftypefun
 
 @deftp {Data Type} {struct if_nameindex}
@@ -821,7 +846,7 @@ here.  The address is stored in network byte order.
 This combines the IPv6 traffic class and flow label values, as found
 in the IPv6 header.  This field is stored in network byte order.  Only
 the 28 lower bits (of the number in network byte order) are used; the
-remainig bits must be zero.  The lower 20 bits are the flow label, and
+remaining bits must be zero.  The lower 20 bits are the flow label, and
 bits 20 to 27 are the the traffic class.  Typically, this field is
 zero.
 
@@ -1191,6 +1216,17 @@ either @code{AF_INET} or @code{AF_INET6}, as appropriate for the type of
 address being converted.  @var{cp} is a pointer to the input string, and
 @var{buf} is a pointer to a buffer for the result.  It is the caller's
 responsibility to make sure the buffer is large enough.
+
+The return value is @code{1} on success and @code{0} if @var{cp} does not
+point to a valid address string for the address family @var{af} requested.
+On failure, the function's return value is @code{-1} and @code{errno} is
+set accordingly.  The following @code{errno} values are specific to this
+function:
+
+@table @code
+@item EAFNOSUPPORT
+The address family requested is neither @code{AF_INET} nor @code{AF_INET6}.
+@end table
 @end deftypefun
 
 @deftypefun {const char *} inet_ntop (int @var{af}, const void *@var{cp}, char *@var{buf}, socklen_t @var{len})
@@ -1210,7 +1246,19 @@ network (binary) to presentation (textual) form.  @var{af} should be
 either @code{AF_INET} or @code{AF_INET6}, as appropriate.  @var{cp} is a
 pointer to the address to be converted.  @var{buf} should be a pointer
 to a buffer to hold the result, and @var{len} is the length of this
-buffer.  The return value from the function will be this buffer address.
+buffer.
+
+The return value is @var{buf} on success.  On failure, the function's
+return value is a null pointer and @code{errno} is set accordingly.
+The following @code{errno} values are specific to this function:
+
+@table @code
+@item EAFNOSUPPORT
+The address family requested is neither @code{AF_INET} nor @code{AF_INET6}.
+
+@item ENOSPC
+Insufficient space available for the result in the buffer provided.
+@end table
 @end deftypefun
 
 @node Host Names
@@ -2204,9 +2252,19 @@ socket, or @code{-1} in case of error.  The following @code{errno} error
 conditions are defined for this function:
 
 @table @code
+@item EAFNOSUPPORT
+The @var{namespace} requested is not supported.
+
+@item ESOCKTNOSUPPORT
+@itemx EPROTONOSUPPORT
+@itemx EPROTOTYPE
+The @var{style} is not supported by the @var{namespace} specified.
+
 @item EPROTONOSUPPORT
-The @var{protocol} or @var{style} is not supported by the
-@var{namespace} specified.
+The @var{protocol} is not supported by the @var{namespace} specified.
+
+@item EINVAL
+The @var{style} or @var{protocol} requested is not valid.
 
 @item EMFILE
 The process already has too many file descriptors open.
@@ -2215,11 +2273,13 @@ The process already has too many file descriptors open.
 The system already has too many file descriptors open.
 
 @item EACCES
+@itemx EPERM
 The process does not have the privilege to create a socket of the specified
 @var{style} or @var{protocol}.
 
 @item ENOBUFS
-The system ran out of internal buffer space.
+@itemx ENOMEM
+Insufficient memory was available.
 @end table
 
 The file descriptor returned by the @code{socket} function supports both
@@ -3134,38 +3194,8 @@ You can use plain @code{recv} (@pxref{Receiving Data}) instead of
 treat all possible senders alike).  Even @code{read} can be used if
 you don't want to specify @var{flags} (@pxref{I/O Primitives}).
 
-@ignore
-@c sendmsg and recvmsg are like readv and writev in that they
-@c use a series of buffers.  It's not clear this is worth
-@c supporting or that we support them.
-@c !!! they can do more; it is hairy
-
-@deftp {Data Type} {struct msghdr}
-@standards{BSD, sys/socket.h}
-@end deftp
-
-@deftypefun ssize_t sendmsg (int @var{socket}, const struct msghdr *@var{message}, int @var{flags})
-@standards{BSD, sys/socket.h}
-@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
-
-This function is defined as a cancellation point in multi-threaded
-programs, so one has to be prepared for this and make sure that
-allocated resources (like memory, files descriptors, semaphores or
-whatever) are freed even if the thread is cancel.
-@c @xref{pthread_cleanup_push}, for a method how to do this.
-@end deftypefun
-
-@deftypefun ssize_t recvmsg (int @var{socket}, struct msghdr *@var{message}, int @var{flags})
-@standards{BSD, sys/socket.h}
-@safety{@prelim{}@mtsafe{}@assafe{}@acsafe{}}
-
-This function is defined as a cancellation point in multi-threaded
-programs, so one has to be prepared for this and make sure that
-allocated resources (like memory, files descriptors, semaphores or
-whatever) are freed even if the thread is canceled.
-@c @xref{pthread_cleanup_push}, for a method how to do this.
-@end deftypefun
-@end ignore
+If you need more flexibility and/or control over sending and receiving
+packets, see @code{sendmsg} and @code{recvmsg} (@pxref{Other Socket APIs}).
 
 @node Datagram Example
 @subsection Datagram Socket Example
@@ -3663,4 +3693,21 @@ returns a null pointer if there are no more entries.
 @c   nss_next2 dup @ascudlopen @ascuplugin @ascuheap @asulock @acucorrupt @aculock @acsfd @acsmem
 @c  libc_lock_unlock @aculock
 This function closes the networks database.
+@end deftypefun
+
+@node Other Socket APIs
+@section Other Socket APIs
+
+@deftp {Data Type} {struct msghdr}
+@standards{BSD, sys/socket.h}
+@end deftp
+
+@deftypefun ssize_t sendmsg (int @var{socket}, const struct msghdr *@var{message}, int @var{flags})
+
+@manpagefunctionstub{sendmsg,2}
+@end deftypefun
+
+@deftypefun ssize_t recvmsg (int @var{socket}, struct msghdr *@var{message}, int @var{flags})
+
+@manpagefunctionstub{recvmsg,2}
 @end deftypefun

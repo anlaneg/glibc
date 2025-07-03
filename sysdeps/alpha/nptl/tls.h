@@ -1,5 +1,5 @@
 /* Definition for thread-local data handling.  NPTL/Alpha version.
-   Copyright (C) 2003-2021 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -46,17 +46,11 @@ typedef struct
 /* This is the size of the initial TCB.  */
 # define TLS_INIT_TCB_SIZE	sizeof (tcbhead_t)
 
-/* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN	16
-
 /* This is the size of the TCB.  */
 # define TLS_TCB_SIZE		sizeof (tcbhead_t)
 
 /* This is the size we need before TCB.  */
 # define TLS_PRE_TCB_SIZE	sizeof (struct pthread)
-
-/* Alignment requirements for the TCB.  */
-# define TLS_TCB_ALIGN		16
 
 /* Install the dtv pointer.  The pointer passed is to the element with
    index -1 which contain the length.  */
@@ -75,7 +69,7 @@ typedef struct
    special attention since 'errno' is not yet available and if the
    operation can cause a failure 'errno' must not be touched.  */
 # define TLS_INIT_TP(tcbp) \
-  (__builtin_set_thread_pointer ((void *)(tcbp)), NULL)
+  (__builtin_set_thread_pointer ((void *)(tcbp)), true)
 
 /* Value passed to 'clone' for initialization of the thread register.  */
 # define TLS_DEFINE_INIT_TP(tp, pd) void *tp = (pd) + 1
@@ -92,25 +86,16 @@ typedef struct
 # define DB_THREAD_SELF \
   REGISTER (64, 64, 32 * 8, -sizeof (struct pthread))
 
-/* Access to data in the thread descriptor is easy.  */
-#define THREAD_GETMEM(descr, member) \
-  descr->member
-#define THREAD_GETMEM_NC(descr, member, idx) \
-  descr->member[idx]
-#define THREAD_SETMEM(descr, member, value) \
-  descr->member = (value)
-#define THREAD_SETMEM_NC(descr, member, idx, value) \
-  descr->member[idx] = (value)
+# include <tcb-access.h>
 
 /* Get and set the global scope generation counter in struct pthread.  */
-#define THREAD_GSCOPE_IN_TCB      1
 #define THREAD_GSCOPE_FLAG_UNUSED 0
 #define THREAD_GSCOPE_FLAG_USED   1
 #define THREAD_GSCOPE_FLAG_WAIT   2
 #define THREAD_GSCOPE_RESET_FLAG() \
   do									     \
     { int __res								     \
-	= atomic_exchange_rel (&THREAD_SELF->header.gscope_flag,	     \
+	= atomic_exchange_release (&THREAD_SELF->header.gscope_flag,	     \
 			       THREAD_GSCOPE_FLAG_UNUSED);		     \
       if (__res == THREAD_GSCOPE_FLAG_WAIT)				     \
 	lll_futex_wake (&THREAD_SELF->header.gscope_flag, 1, LLL_PRIVATE);   \
@@ -124,8 +109,6 @@ typedef struct
     }									     \
   while (0)
 
-#else /* __ASSEMBLER__ */
-# include <tcb-offsets.h>
 #endif /* __ASSEMBLER__ */
 
 #endif	/* tls.h */

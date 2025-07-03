@@ -1,5 +1,5 @@
 /* System-specific settings for dynamic linker code.  Hurd version.
-   Copyright (C) 2002-2021 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -22,3 +22,7 @@
    (open, mmap, etc).  */
 
 #define RTLD_PRIVATE_ERRNO 0
+
+#ifndef __ASSEMBLER__
+void _dl_init_first (void *data);
+#endif

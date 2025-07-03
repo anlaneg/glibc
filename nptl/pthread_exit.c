@@ -1,6 +1,5 @@
-/* Copyright (C) 2002-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@redhat.com>, 2002.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -32,9 +31,7 @@ __pthread_exit (void *value)
                     " must be installed for pthread_exit to work\n");
   }
 
-  THREAD_SETMEM (THREAD_SELF, result, value);
-
-  __do_cancel ();
+  __do_cancel (value);
 }
 libc_hidden_def (__pthread_exit)
 weak_alias (__pthread_exit, pthread_exit)

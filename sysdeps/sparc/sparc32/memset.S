@@ -1,9 +1,7 @@
 /* Set a block of memory to some byte value.
    For SPARC v7.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by David S. Miller <davem@caip.rutgers.edu> and
-                  Jakub Jelinek <jj@ultra.linux.cz>.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -44,25 +42,6 @@
 
 	.text
 	.align 4
-ENTRY(__bzero)
-	b		1f
-	 mov		%g0, %g3
-
-3:	cmp		%o2, 3
-	be		2f
-	 stb		%g3, [%o0]
-
-	cmp		%o2, 2
-	be		2f
-	 stb		%g3, [%o0 + 0x01]
-
-	stb		%g3, [%o0 + 0x02]
-2:	sub		%o2, 4, %o2
-	add		%o1, %o2, %o1
-	b		4f
-	 sub		%o0, %o2, %o0
-END(__bzero)
-
 ENTRY(memset)
 	and		%o1, 0xff, %g3
 	sll		%g3, 8, %g2
@@ -75,8 +54,8 @@ ENTRY(memset)
 	 mov		%o0, %g1
 
 	andcc		%o0, 3, %o2
-	bne		3b
-4:	 andcc		%o0, 4, %g0
+	bne		3f
+5:	 andcc		%o0, 4, %g0
 
 	be		2f
 	 mov		%g3, %g2
@@ -148,7 +127,19 @@ ENTRY(memset)
 	stb		%g3, [%o0 + 6]
 0:	retl
 	 nop
+
+3:	cmp		%o2, 3
+	be		2f
+	 stb		%g3, [%o0]
+
+	cmp		%o2, 2
+	be		2f
+	 stb		%g3, [%o0 + 0x01]
+
+	stb		%g3, [%o0 + 0x02]
+2:	sub		%o2, 4, %o2
+	add		%o1, %o2, %o1
+	b		5b
+	 sub		%o0, %o2, %o0
 END(memset)
 libc_hidden_builtin_def (memset)
-
-weak_alias (__bzero, bzero)

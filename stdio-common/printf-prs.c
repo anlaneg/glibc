@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2021 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <sys/param.h>
+#include <printf.h>
 
 #include "../locale/localeinfo.h"
 
@@ -62,6 +63,7 @@ parse_printf_format (const char *fmt, size_t n, int *argtypes)
   size_t max_ref_arg;		/* Highest index used in a positional arg.  */
   struct printf_spec spec;
   const unsigned char *f = (const unsigned char *) fmt;
+  bool failed;
 
   nargs = 0;
   max_ref_arg = 0;
@@ -70,7 +72,7 @@ parse_printf_format (const char *fmt, size_t n, int *argtypes)
   for (f = __find_specmb (f); *f != '\0'; f = spec.next_fmt)
     {
       /* Parse this spec.  */
-      nargs += __parse_one_specmb (f, nargs, &spec, &max_ref_arg);
+      nargs += __parse_one_specmb (f, nargs, &spec, &max_ref_arg, &failed);
 
       /* If the width is determined by an argument, it is an int.  */
       if (spec.width_arg != -1 && (size_t) spec.width_arg < n)

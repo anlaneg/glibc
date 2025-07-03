@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <libc-diag.h>
+
+#include <support/support.h>
 
 static char buf[8192];
 
@@ -28,7 +31,12 @@ main (void)
       return 1;
     }
   for (i = 0; i < 1000; ++i)
+    /* clang do not handle %Z format.  */
+    DIAG_PUSH_NEEDS_COMMENT_CLANG;
+    DIAG_IGNORE_NEEDS_COMMENT_CLANG (13, "-Wformat-invalid-specifier");
+    DIAG_IGNORE_NEEDS_COMMENT_CLANG (13, "-Wformat-extra-args");
     fprintf (in, "%Zu\n", i);
+    DIAG_POP_NEEDS_COMMENT_CLANG;
 
   out = fopen (outname, "w");
   if (out == NULL)
@@ -60,7 +68,7 @@ main (void)
      the perhaps incompatible new shared libraries.  */
   unsetenv ("LD_LIBRARY_PATH");
 
-  asprintf (&printbuf, "cmp %s %s", inname, outname);
+  printbuf = xasprintf ("cmp %s %s", inname, outname);
   result = system (printbuf);
   remove (inname);
   remove (outname);

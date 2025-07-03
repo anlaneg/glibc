@@ -1,5 +1,5 @@
 /* Get file-specific information about a file.  Linux version.
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -110,8 +110,8 @@ distinguish_extX (const struct statfs *fsbuf, const char *file, int fd)
 	      && strcmp (mntbuf.mnt_type, "ext4") != 0)
 	    continue;
 
-	  struct stat64 fsst;
-	  if (__stat64 (mntbuf.mnt_dir, &fsst) >= 0
+	  struct __stat64_t64 fsst;
+	  if (__stat64_time64 (mntbuf.mnt_dir, &fsst) >= 0
 	      && st.st_dev == fsst.st_dev)
 	    {
 	      if (strcmp (mntbuf.mnt_type, "ext4") == 0)
@@ -139,7 +139,7 @@ __statfs_link_max (int result, const struct statfs *fsbuf, const char *file,
 	/* Not possible, return the default value.  */
 	return LINUX_LINK_MAX;
 
-      /* Some error occured.  */
+      /* Some error occurred.  */
       return -1;
     }
 
@@ -186,6 +186,9 @@ __statfs_link_max (int result, const struct statfs *fsbuf, const char *file,
     case LUSTRE_SUPER_MAGIC:
       return LUSTRE_LINK_MAX;
 
+    case BTRFS_SUPER_MAGIC:
+      return BTRFS_LINK_MAX;
+
     default:
       return LINUX_LINK_MAX;
     }
@@ -202,7 +205,7 @@ __statfs_filesize_max (int result, const struct statfs *fsbuf)
 	/* Not possible, return the default value.  */
 	return 32;
 
-      /* Some error occured.  */
+      /* Some error occurred.  */
       return -1;
     }
 
@@ -251,7 +254,7 @@ __statfs_symlinks (int result, const struct statfs *fsbuf)
 	/* Not possible, return the default value.  */
 	return 1;
 
-      /* Some error occured.  */
+      /* Some error occurred.  */
       return -1;
     }
 
@@ -286,7 +289,7 @@ __statfs_chown_restricted (int result, const struct statfs *fsbuf)
 	/* Not possible, return the default value.  */
 	return 1;
 
-      /* Some error occured.  */
+      /* Some error occurred.  */
       return -1;
     }
 

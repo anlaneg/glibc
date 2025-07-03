@@ -1,5 +1,5 @@
 /* Interfaces for the test driver.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -36,6 +36,7 @@ struct test_config
   int expected_signal;   /* If non-zero, expect termination by signal.  */
   char no_mallopt;       /* Boolean flag to disable mallopt.  */
   char no_setvbuf;       /* Boolean flag to disable setvbuf.  */
+  char run_command_mode; /* Boolean flag to indicate run-command-mode.  */
   const char *optstring; /* Short command line options.  */
 };
 

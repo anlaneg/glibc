@@ -1,5 +1,5 @@
 # Filter preprocessor __NR_* macros and extract system call names.
-# Copyright (C) 2017-2021 Free Software Foundation, Inc.
+# Copyright (C) 2017-2025 Free Software Foundation, Inc.
 # This file is part of the GNU C Library.
 #
 # The GNU C Library is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 }
 
 # Skip pseudo-system calls which describe ranges.
-/^#define __NR_(syscalls|arch_specific_syscall|(OABI_)?SYSCALL_BASE) / {
+/^#define __NR_(syscalls|arch_specific_syscall|(OABI_)?SYSCALL_BASE|SYSCALL_MASK) / {
     next;
 }
 /^#define __NR_(|64_|[NO]32_)Linux(_syscalls)? / {

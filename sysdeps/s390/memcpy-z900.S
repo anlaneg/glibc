@@ -1,5 +1,5 @@
 /* memcpy - copy a block from source to destination.  31/64 bit S/390 version.
-   Copyright (C) 2012-2021 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -110,7 +110,7 @@ ENTRY(__memcpy_mvcle)
 	LGR     %r2,%r1             # destination address
 	LGR     %r3,%r5             # destination length = source length
 .L_MVCLE_1:
-	mvcle   %r2,%r4,0           # thats it, MVCLE is your friend
+	mvcle   %r2,%r4,0           # that's it, MVCLE is your friend
 	jo      .L_MVCLE_1
 	LGR     %r2,%r0             # return destination address
 	br      %r14

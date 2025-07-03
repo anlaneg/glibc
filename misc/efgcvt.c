@@ -1,5 +1,5 @@
 /* Double versions of *cvt_r functions.
-   Copyright (C) 1995-2021 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -24,6 +24,7 @@
 #define __GCVT __gcvt
 #define __ECVT_R __ecvt_r
 #define __FCVT_R __fcvt_r
+#define __EFGCVT_FREEMEM_PTR __libc_efgcvt_freemem_ptr
 #include <efgcvt-dbl-macros.h>
 #include <efgcvt-template.c>
 

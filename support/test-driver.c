@@ -1,5 +1,5 @@
 /* Main function for test programs.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -116,7 +116,9 @@ main (int argc, char **argv)
 #if defined (TEST_FUNCTION) && defined (TEST_FUNCTON_ARGV)
 # error TEST_FUNCTION and TEST_FUNCTION_ARGV cannot be defined at the same time
 #endif
-#if defined (TEST_FUNCTION)
+#ifdef RUN_COMMAND_MODE
+  test_config.run_command_mode = 1;
+#elif defined (TEST_FUNCTION)
   test_config.test_function = TEST_FUNCTION;
 #elif defined (TEST_FUNCTION_ARGV)
   test_config.test_function_argv = TEST_FUNCTION_ARGV;
@@ -153,6 +155,7 @@ main (int argc, char **argv)
     {
       CMDLINE_OPTIONS
       TEST_DEFAULT_OPTIONS
+      { 0, }
     };
   test_config.options = &options;
 #endif

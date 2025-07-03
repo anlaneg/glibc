@@ -1,7 +1,6 @@
 /* Return minimum numeric value of X and Y.
-   Copyright (C) 1997-2021 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -18,11 +17,15 @@
    <https://www.gnu.org/licenses/>.  */
 
 #include <math.h>
+#include <math-use-builtins.h>
 
 
 FLOAT
 M_DECL_FUNC (__fmin) (FLOAT x, FLOAT y)
 {
+#if M_USE_BUILTIN (FMIN)
+  return M_SUF (__builtin_fmin) (x, y);
+#else
   if (islessequal (x, y))
     return x;
   else if (isgreater (x, y))
@@ -31,5 +34,6 @@ M_DECL_FUNC (__fmin) (FLOAT x, FLOAT y)
     return x + y;
   else
     return isnan (y) ? x : y;
+#endif
 }
 declare_mgen_alias (__fmin, fmin);

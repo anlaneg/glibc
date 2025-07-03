@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -26,3 +26,4 @@ __getlogin_r_chk (char *buf, size_t buflen, size_t nreal)
 
   return getlogin_r (buf, buflen);
 }
+libc_hidden_def (__getlogin_r_chk)

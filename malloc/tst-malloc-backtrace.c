@@ -1,5 +1,5 @@
 /* Verify that backtrace does not deadlock on itself on memory corruption.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -20,6 +20,9 @@
 #include <stdlib.h>
 
 #include <support/support.h>
+#include <libc-diag.h>
+
+#include "tst-malloc-aux.h"
 
 #define SIZE 4096
 
@@ -29,7 +32,15 @@ __attribute__((noinline))
 call_free (void *ptr)
 {
   free (ptr);
+#if __GNUC_PREREQ (12, 0)
+  /* Ignore a valid warning about using a pointer made indeterminate
+     by a prior call to free().  */
+  DIAG_IGNORE_NEEDS_COMMENT (12, "-Wuse-after-free");
+#endif
   *(size_t *)(ptr - sizeof (size_t)) = 1;
+#if __GNUC_PREREQ (12, 0)
+  DIAG_POP_NEEDS_COMMENT;
+#endif
 }
 
 int

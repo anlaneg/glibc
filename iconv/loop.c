@@ -1,7 +1,6 @@
 /* Conversion loop frame work.
-   Copyright (C) 1998-2021 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -58,78 +57,8 @@
 #include <stddef.h>
 #include <libc-diag.h>
 
-/* We have to provide support for machines which are not able to handled
-   unaligned memory accesses.  Some of the character encodings have
-   representations with a fixed width of 2 or 4 bytes.  But if we cannot
-   access unaligned memory we still have to read byte-wise.  */
 #undef FCTNAME2
-#if _STRING_ARCH_unaligned || !defined DEFINE_UNALIGNED
-/* We can handle unaligned memory access.  */
-# define get16(addr) *((const uint16_t *) (addr))
-# define get32(addr) *((const uint32_t *) (addr))
-
-/* We need no special support for writing values either.  */
-# define put16(addr, val) *((uint16_t *) (addr)) = (val)
-# define put32(addr, val) *((uint32_t *) (addr)) = (val)
-
-# define FCTNAME2(name) name
-#else
-/* Distinguish between big endian and little endian.  */
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define get16(addr) \
-     (((const unsigned char *) (addr))[1] << 8				      \
-      | ((const unsigned char *) (addr))[0])
-#  define get32(addr) \
-     (((((const unsigned char *) (addr))[3] << 8			      \
-	| ((const unsigned char *) (addr))[2]) << 8			      \
-       | ((const unsigned char *) (addr))[1]) << 8			      \
-      | ((const unsigned char *) (addr))[0])
-
-#  define put16(addr, val) \
-     ({ uint16_t __val = (val);						      \
-	((unsigned char *) (addr))[0] = __val;				      \
-	((unsigned char *) (addr))[1] = __val >> 8;			      \
-	(void) 0; })
-#  define put32(addr, val) \
-     ({ uint32_t __val = (val);						      \
-	((unsigned char *) (addr))[0] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[1] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[2] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[3] = __val;				      \
-	(void) 0; })
-# else
-#  define get16(addr) \
-     (((const unsigned char *) (addr))[0] << 8				      \
-      | ((const unsigned char *) (addr))[1])
-#  define get32(addr) \
-     (((((const unsigned char *) (addr))[0] << 8			      \
-	| ((const unsigned char *) (addr))[1]) << 8			      \
-       | ((const unsigned char *) (addr))[2]) << 8			      \
-      | ((const unsigned char *) (addr))[3])
-
-#  define put16(addr, val) \
-     ({ uint16_t __val = (val);						      \
-	((unsigned char *) (addr))[1] = __val;				      \
-	((unsigned char *) (addr))[0] = __val >> 8;			      \
-	(void) 0; })
-#  define put32(addr, val) \
-     ({ uint32_t __val = (val);						      \
-	((unsigned char *) (addr))[3] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[2] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[1] = __val;				      \
-	__val >>= 8;							      \
-	((unsigned char *) (addr))[0] = __val;				      \
-	(void) 0; })
-# endif
-
-# define FCTNAME2(name) name##_unaligned
-#endif
-#define FCTNAME(name) FCTNAME2(name)
+#define FCTNAME(name) name
 
 
 /* We need at least one byte for the next round.  */
@@ -194,8 +123,7 @@
    `continue' must reach certain points.  */
 #define STANDARD_FROM_LOOP_ERR_HANDLER(Incr) \
   {									      \
-    result = __GCONV_ILLEGAL_INPUT;					      \
-									      \
+    result = __gconv_mark_illegal_input (step_data);			      \
     if (! ignore_errors_p ())						      \
       break;								      \
 									      \
@@ -213,12 +141,13 @@
    points.  */
 #define STANDARD_TO_LOOP_ERR_HANDLER(Incr) \
   {									      \
-    result = __GCONV_ILLEGAL_INPUT;					      \
-									      \
     if (irreversible == NULL)						      \
-      /* This means we are in call from __gconv_transliterate.  In this	      \
-	 case we are not doing any error recovery outself.  */		      \
-      break;								      \
+      {									      \
+	/* This means we are in call from __gconv_transliterate.  In this     \
+	   case we are not doing any error recovery ourselves.  */	      \
+	result = __gconv_mark_illegal_input (step_data);		      \
+	break;								      \
+      }									      \
 									      \
     /* If needed, flush any conversion state, so that __gconv_transliterate   \
        starts with current shift state.  */				      \
@@ -229,6 +158,8 @@
       result = __gconv_transliterate					      \
 	(step, step_data, *inptrp,					      \
 	 &inptr, inend, &outptr, irreversible);			      \
+    else								      \
+      result = __gconv_mark_illegal_input (step_data);			      \
 									      \
     REINIT_PARAMS;							      \
 									      \
@@ -345,24 +276,9 @@ FCTNAME (LOOPFCT) (struct __gconv_step *step,
 }
 
 
-/* Include the file a second time to define the function to handle
-   unaligned access.  */
-#if !defined DEFINE_UNALIGNED && !_STRING_ARCH_unaligned \
-    && MIN_NEEDED_INPUT != 1 && MAX_NEEDED_INPUT % MIN_NEEDED_INPUT == 0 \
-    && MIN_NEEDED_OUTPUT != 1 && MAX_NEEDED_OUTPUT % MIN_NEEDED_OUTPUT == 0
-# undef get16
-# undef get32
-# undef put16
-# undef put32
-# undef unaligned
-
-# define DEFINE_UNALIGNED
-# include "loop.c"
-# undef DEFINE_UNALIGNED
-#else
-# if MAX_NEEDED_INPUT > 1
-#  define SINGLE(fct) SINGLE2 (fct)
-#  define SINGLE2(fct) fct##_single
+#if MAX_NEEDED_INPUT > 1
+# define SINGLE(fct) SINGLE2 (fct)
+# define SINGLE2(fct) fct##_single
 static inline int
 __attribute ((always_inline))
 SINGLE(LOOPFCT) (struct __gconv_step *step,
@@ -372,37 +288,37 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
 		 size_t *irreversible EXTRA_LOOP_DECLS)
 {
   mbstate_t *state = step_data->__statep;
-#  ifdef LOOP_NEED_FLAGS
+# ifdef LOOP_NEED_FLAGS
   int flags = step_data->__flags;
-#  endif
-#  ifdef LOOP_NEED_DATA
+# endif
+# ifdef LOOP_NEED_DATA
   void *data = step->__data;
-#  endif
+# endif
   int result = __GCONV_OK;
   unsigned char bytebuf[MAX_NEEDED_INPUT];
   const unsigned char *inptr = *inptrp;
   unsigned char *outptr = *outptrp;
   size_t inlen;
 
-#  ifdef INIT_PARAMS
+# ifdef INIT_PARAMS
   INIT_PARAMS;
-#  endif
+# endif
 
-#  ifdef UNPACK_BYTES
+# ifdef UNPACK_BYTES
   UNPACK_BYTES
-#  else
+# else
   /* Add the bytes from the state to the input buffer.  */
   assert ((state->__count & 7) <= sizeof (state->__value));
   for (inlen = 0; inlen < (size_t) (state->__count & 7); ++inlen)
     bytebuf[inlen] = state->__value.__wchb[inlen];
-#  endif
+# endif
 
   /* Are there enough bytes in the input buffer?  */
   if (MIN_NEEDED_INPUT > 1
       && __builtin_expect (inptr + (MIN_NEEDED_INPUT - inlen) > inend, 0))
     {
       *inptrp = inend;
-#  ifdef STORE_REST
+# ifdef STORE_REST
 
       /* Building with -O3 GCC emits a `array subscript is above array
 	 bounds' warning.  GCC BZ #64739 has been opened for this.  */
@@ -417,14 +333,14 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
       inend = &bytebuf[inlen];
 
       STORE_REST
-#  else
+# else
       /* We don't have enough input for another complete input
 	 character.  */
       size_t inlen_after = inlen + (inend - inptr);
       assert (inlen_after <= sizeof (state->__value.__wchb));
       for (; inlen < inlen_after; inlen++)
 	state->__value.__wchb[inlen] = *inptr++;
-#  endif
+# endif
 
       return __GCONV_INCOMPLETE_INPUT;
     }
@@ -436,11 +352,17 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
     return __GCONV_FULL_OUTPUT;
 
   /*  Now add characters from the normal input buffer.  */
-  if (inlen >= MAX_NEEDED_INPUT)
+  if (inlen >= MAX_NEEDED_INPUT || inptr >= inend)
     /* Avoid a -Wstringop-overflow= warning when this loop is
        unrolled.  The compiler cannot otherwise see that this is
        unreachable because it depends on (state->__count & 7) not
-       being too large after a previous conversion step.  */
+       being too large after a previous conversion step.
+       Starting with GCC 12, we also have mark the inptr >= inend
+       case as unreachable to omit the warning.  Note that this SINGLE
+       function is only used to implement the mb*towc*() or wc*tomb*()
+       functions.  Those functions use inptr and inend pointing to a
+       variable on stack, compute the inend pointer or explicitly check
+       the arguments which always leads to inptr < inend.  */
     __builtin_unreachable ();
   do
     bytebuf[inlen++] = *inptr++;
@@ -470,11 +392,11 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
       result = __GCONV_OK;
 
       /* Clear the state buffer.  */
-#  ifdef CLEAR_STATE
+# ifdef CLEAR_STATE
       CLEAR_STATE;
-#  else
+# else
       state->__count &= ~7;
-#  endif
+# endif
     }
   else if (result == __GCONV_INCOMPLETE_INPUT)
     {
@@ -483,11 +405,11 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
       assert (inend != &bytebuf[MAX_NEEDED_INPUT]);
 
       *inptrp += inend - bytebuf - (state->__count & 7);
-#  ifdef STORE_REST
+# ifdef STORE_REST
       inptrp = &inptr;
 
       STORE_REST
-#  else
+# else
       /* We don't have enough input for another complete input
 	 character.  */
       assert (inend - inptr > (state->__count & ~7));
@@ -496,14 +418,13 @@ SINGLE(LOOPFCT) (struct __gconv_step *step,
       for (inlen = 0; inlen < inend - inptr; inlen++)
 	state->__value.__wchb[inlen] = inptr[inlen];
       inptr = inend;
-#  endif
+# endif
     }
 
   return result;
 }
-#  undef SINGLE
-#  undef SINGLE2
-# endif
+# undef SINGLE
+# undef SINGLE2
 
 
 # ifdef ONEBYTE_BODY
@@ -535,8 +456,3 @@ gconv_btowc (struct __gconv_step *step, unsigned char c)
 #undef LOOP_NEED_STATE
 #undef LOOP_NEED_FLAGS
 #undef LOOP_NEED_DATA
-#undef get16
-#undef get32
-#undef put16
-#undef put32
-#undef unaligned

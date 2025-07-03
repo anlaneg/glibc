@@ -1,5 +1,5 @@
 /* Bug 11941: Improper assert map->l_init_called in dlclose.
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -17,7 +17,7 @@
    <https://www.gnu.org/licenses/>.  */
 
 /* This DSO simulates a plugin with a dependency on the
-   primary DSO loaded by the appliation.  */
+   primary DSO loaded by the application.  */
 #include <stdio.h>
 
 extern void primary_reference (void);

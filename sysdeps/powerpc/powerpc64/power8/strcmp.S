@@ -1,5 +1,5 @@
 /* Optimized strcmp implementation for PowerPC64/POWER8.
-   Copyright (C) 2015-2021 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -207,7 +207,7 @@ L(check_source2_byte_loop):
 	bdnz	L(check_source2_byte_loop)
 
 	/* If source2 is unaligned to doubleword, the code needs to check
-	   on each interation if the unaligned doubleword access will cross
+	   on each iteration if the unaligned doubleword access will cross
 	   a 4k page boundary.  */
 	.align	5
 L(loop_unaligned):

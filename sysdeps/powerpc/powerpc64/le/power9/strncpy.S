@@ -1,5 +1,5 @@
 /* Optimized strncpy implementation for POWER9 LE.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -43,7 +43,7 @@
 # endif
 #endif
 
-#define FRAMESIZE (FRAME_MIN_SIZE+8)
+#define FRAMESIZE (FRAME_MIN_SIZE+16)
 
 /* Implements the function
 
@@ -352,7 +352,7 @@ L(zero_padding_loop):
 	cmpldi	cr6,r5,16	/* Check if length was reached.  */
 	ble	cr6,L(zero_padding_end)
 
-	stxv	v18,0(r11)
+	stxv	32+v18,0(r11)
 	addi	r11,r11,16
 	addi	r5,r5,-16
 
@@ -360,13 +360,13 @@ L(zero_padding_loop):
 
 L(zero_padding_end):
 	sldi	r10,r5,56	/* stxvl wants size in top 8 bits  */
-	stxvl	v18,r11,r10	/* Partial store  */
+	stxvl	32+v18,r11,r10	/* Partial store  */
 	blr
 
 	.align	4
 L(zero_padding_memset):
-	std	r30,-8(r1)   /* Save r30 on the stack.  */
-	cfi_offset(r30, -8)
+	std	r30,-16(r1)  /* Save r30 on the stack.  */
+	cfi_offset(r30, -16)
 	mr	r30,r3       /* Save the return value of strncpy.  */
 	/* Prepare the call to memset.  */
 	mr	r3,r11       /* Pointer to the area to be zero-filled.  */
@@ -380,6 +380,9 @@ L(zero_padding_memset):
 	mflr	r0
 	std	r0,16(r1)
 
+#ifdef __ROP_PROTECT__
+	hashst	0,FRAME_ROP_SAVE(r1)
+#endif
 	/* Create the stack frame.  */
 	stdu	r1,-FRAMESIZE(r1)
 	cfi_adjust_cfa_offset(FRAMESIZE)
@@ -395,13 +398,16 @@ L(zero_padding_memset):
 	mr	r3,r30       /* Restore the return value of strncpy, i.e.:
 				dest.  For stpncpy, the return value is the
 				same as return value of memset.  */
-	ld	r30,FRAMESIZE-8(r1) /* Restore r30.  */
+	ld	r30,FRAMESIZE-16(r1) /* Restore r30.  */
 	/* Restore the stack frame.  */
 	addi	r1,r1,FRAMESIZE
 	cfi_adjust_cfa_offset(-FRAMESIZE)
 	/* Restore the link register.  */
 	mtlr	r0
 	cfi_restore(lr)
+#ifdef __ROP_PROTECT__
+	hashchk	0,FRAME_ROP_SAVE(r1)
+#endif
 	blr
 
 END (FUNC_NAME)

@@ -1,5 +1,5 @@
 /* Generic definitions for dealing with Mach thread states.
-   Copyright (C) 1994-2021 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -38,6 +38,15 @@
 #endif
 #endif
 
+/* Set up the thread state to call the given function on the given state.
+   Dependning on architecture, this may imply more than just setting PC
+   and SP.  */
+#ifndef MACHINE_THREAD_STATE_SETUP_CALL
+#define MACHINE_THREAD_STATE_SETUP_CALL(ts, stack, size, func) \
+  (MACHINE_THREAD_STATE_SET_PC (ts, func), \
+   MACHINE_THREAD_STATE_SET_SP (ts, stack, size))
+#endif
+
 /* This copies architecture-specific bits from the current thread to the new
    thread state.  */
 #ifndef MACHINE_THREAD_STATE_FIX_NEW
@@ -50,7 +59,7 @@
 #include <string.h>		/* size_t, memcpy */
 #include <mach/mach_interface.h> /* __thread_get_state */
 
-static inline int
+static __inline int
 machine_get_state (thread_t thread, struct machine_thread_all_state *state,
 		   int flavor, void *stateptr, void *scpptr, size_t size)
 {
@@ -65,12 +74,12 @@ machine_get_state (thread_t thread, struct machine_thread_all_state *state,
       /* No one asked about this flavor of state before; fetch the state
 	 directly from the kernel into the sigcontext.  */
       mach_msg_type_number_t got = (size / sizeof (int));
-      return (! __thread_get_state (thread, flavor, scpptr, &got)
+      return (! __thread_get_state (thread, flavor, (thread_state_t) scpptr, &got)
 	      && got == (size / sizeof (int)));
     }
 }
 
-static inline int
+static __inline int
 machine_get_basic_state (thread_t thread,
 			 struct machine_thread_all_state *state)
 {

@@ -1,7 +1,6 @@
 /* Mail alias file parser in nss_files module.
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
-   Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -282,7 +281,7 @@ get_next_alias (FILE *stream, const char *match, struct aliasent *result,
 		      /* Adjust the pointer so it is aligned for
 			 storing pointers.  */
 		      first_unused += __alignof__ (char *) - 1;
-		      first_unused -= ((first_unused - (char *) 0)
+		      first_unused -= (((uintptr_t) first_unused)
 				       % __alignof__ (char *));
 		      result->alias_members = (char **) first_unused;
 

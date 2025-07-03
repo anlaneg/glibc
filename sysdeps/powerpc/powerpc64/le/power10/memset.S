@@ -1,5 +1,5 @@
 /* Optimized memset implementation for POWER10 LE.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 # define MEMSET memset
 #endif
 
-	.machine  power9
+	.machine  power10
 ENTRY_TOCLESS (MEMSET, 5)
 	CALL_MCOUNT 3
 
@@ -242,15 +242,3 @@ L(bcdz_tail):
 
 END_GEN_TB (MEMSET,TB_TOCLESS)
 libc_hidden_builtin_def (memset)
-
-/* Copied from bzero.S to prevent the linker from inserting a stub
-   between bzero and memset.  */
-ENTRY_TOCLESS (__bzero)
-	CALL_MCOUNT 2
-	mr	r5,r4
-	li	r4,0
-	b	L(_memset)
-END (__bzero)
-#ifndef __bzero
-weak_alias (__bzero, bzero)
-#endif
