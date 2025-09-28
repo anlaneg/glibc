@@ -51,9 +51,10 @@
 
 #ifndef __ASSEMBLER__
 # define __lll_private_flag(fl, private) \
-  (((fl) | FUTEX_PRIVATE_FLAG) ^ (private))
+  (((fl) | FUTEX_PRIVATE_FLAG/*private标记*/) ^ (private))
 
-# define lll_futex_syscall(nargs, futexp, op, ...)                      \
+/*实现futex系统调用*/
+# define lll_futex_syscall(nargs/*参数数目*/, futexp/*futex检测的地址*/, op/*futex对应的op及flags*/, ...)                      \
   ({                                                                    \
     long int __ret = INTERNAL_SYSCALL (futex, nargs, futexp, op, 	\
 				       __VA_ARGS__);                    \
@@ -72,9 +73,10 @@
 # define lll_futex_wait(futexp, val, private) \
   lll_futex_timed_wait (futexp, val, NULL, private)
 
-# define lll_futex_timed_wait(futexp, val, timeout, private)     \
+/*futex_timed_wait通过futex系统调用实现*/
+# define lll_futex_timed_wait(futexp, val, timeout/*超时时间*/, private)     \
   lll_futex_syscall (4, futexp,                                 \
-		     __lll_private_flag (FUTEX_WAIT, private),  \
+		     __lll_private_flag (FUTEX_WAIT/*指明op为wait*/, private),  \
 		     val, timeout)
 
 /* Verify whether the supplied clockid is supported by
@@ -85,7 +87,7 @@
 /* Wake up up to NR waiters on FUTEXP.  */
 # define lll_futex_wake(futexp, nr, private)                             \
   lll_futex_syscall (4, futexp,                                         \
-		     __lll_private_flag (FUTEX_WAKE, private), nr, 0)
+		     __lll_private_flag (FUTEX_WAKE/*指明op为wake*/, private), nr, 0)
 
 /* Wake up up to NR_WAKE waiters on FUTEXP.  Move up to NR_MOVE of the
    rest from waiting on FUTEXP to waiting on MUTEX (a different futex).

@@ -19,7 +19,7 @@
 #include <sys/stat.h>
 
 key_t
-ftok (const char *pathname, int proj_id)
+ftok (const char *pathname/*文件路径*/, int proj_id)
 {
   struct __stat64_t64 st;
   key_t key;
@@ -27,6 +27,7 @@ ftok (const char *pathname, int proj_id)
   if (__stat64_time64 (pathname, &st) < 0)
     return (key_t) -1;
 
+  /*利用st生成key*/
   key = ((st.st_ino & 0xffff) | ((st.st_dev & 0xff) << 16)
 	 | ((proj_id & 0xff) << 24));
 

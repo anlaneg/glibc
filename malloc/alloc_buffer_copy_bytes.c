@@ -28,7 +28,7 @@ __libc_alloc_buffer_copy_bytes (struct alloc_buffer buf,
 {
   void *ptr = alloc_buffer_alloc_bytes (&buf, len);
   if (ptr != NULL)
-    memcpy (ptr, src, len);
+    memcpy (ptr, src, len);/*长度足够，直接复制*/
   return buf;
 }
 libc_hidden_def (__libc_alloc_buffer_copy_bytes)

@@ -159,6 +159,7 @@ __strerror_r (int errnum, char *buf, size_t buflen)
 void
 __libc_fatal (const char *message)
 {
+	/*输出日志并退出*/
   _dl_fatal_printf ("%s", message);
 }
 rtld_hidden_def (__libc_fatal)

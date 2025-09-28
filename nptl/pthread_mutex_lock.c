@@ -630,6 +630,7 @@ libc_hidden_ver (___pthread_mutex_lock, __pthread_mutex_lock)
 # ifndef SHARED
 strong_alias (___pthread_mutex_lock, __pthread_mutex_lock)
 # endif
+/*定义符号实现pthread_mutex_lock*/
 versioned_symbol (libpthread, ___pthread_mutex_lock, pthread_mutex_lock,
 		  GLIBC_2_0);
 

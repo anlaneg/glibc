@@ -24,18 +24,19 @@
 
 #ifndef __ASSUME_TIME64_SYSCALLS
 static int
-__futex_abstimed_wait_common32 (unsigned int* futex_word,
-                                unsigned int expected, int op,
-                                const struct __timespec64* abstime,
-                                int private, bool cancel)
+__futex_abstimed_wait_common32 (unsigned int* futex_word/*检测位置*/,
+                                unsigned int expected/*预期的值*/, int op/*操作码*/,
+                                const struct __timespec64* abstime/*超时时间*/,
+                                int private/*进程共享/私有*/, bool cancel)
 {
   struct timespec ts32, *pts32 = NULL;
   if (abstime != NULL)
     {
       ts32 = valid_timespec64_to_timespec (*abstime);
-      pts32 = &ts32;
+      pts32 = &ts32;/*转换为timespec变量*/
     }
 
+  /*触发系统调用futex*/
   if (cancel)
     return INTERNAL_SYSCALL_CANCEL (futex, futex_word, op, expected,
                                     pts32, NULL /* Unused.  */,
@@ -64,10 +65,10 @@ __futex_abstimed_wait_common64 (unsigned int* futex_word,
 }
 
 static int
-__futex_abstimed_wait_common (unsigned int* futex_word,
-                              unsigned int expected, clockid_t clockid,
-                              const struct __timespec64* abstime,
-                              int private, bool cancel)
+__futex_abstimed_wait_common (unsigned int* futex_word/*检测的地址*/,
+                              unsigned int expected/*期待的值*/, clockid_t clockid/*采用哪类clock*/,
+                              const struct __timespec64* abstime/*超时时间*/,
+                              int private/*进程私有还是共有*/, bool cancel/*是否可取消*/)
 {
   int err;
   unsigned int clockbit;
@@ -78,24 +79,27 @@ __futex_abstimed_wait_common (unsigned int* futex_word,
     return ETIMEDOUT;
 
   if (! lll_futex_supported_clockid (clockid))
-    return EINVAL;
+    return EINVAL;/*遇到不支持的clockid*/
 
-  clockbit = (clockid == CLOCK_REALTIME) ? FUTEX_CLOCK_REALTIME : 0;
-  int op = __lll_private_flag (FUTEX_WAIT_BITSET | clockbit, private);
+  clockbit = (clockid == CLOCK_REALTIME) ? FUTEX_CLOCK_REALTIME : 0;/*依据clock类型选择不同bit*/
+  int op = __lll_private_flag (FUTEX_WAIT_BITSET/*指明此操作为wait命令*/ | clockbit, private);/*产生操作码及标记*/
 
 #ifdef __ASSUME_TIME64_SYSCALLS
   err = __futex_abstimed_wait_common64 (futex_word, expected, op, abstime,
 					private, cancel);
 #else
+  /*如果abstime->tv_sec中时间范围不在int32以内，则need_time64为true*/
   bool need_time64 = abstime != NULL && !in_int32_t_range (abstime->tv_sec);
   if (need_time64)
     {
+	  /*需要64bit time的情况*/
       err = __futex_abstimed_wait_common64 (futex_word, expected, op, abstime,
 					    private, cancel);
       if (err == -ENOSYS)
 	err = -EOVERFLOW;
     }
   else
+	  /*需要32bit time的情况*/
     err = __futex_abstimed_wait_common32 (futex_word, expected, op, abstime,
                                           private, cancel);
 #endif
@@ -131,13 +135,13 @@ __futex_abstimed_wait64 (unsigned int* futex_word, unsigned int expected,
 libc_hidden_def (__futex_abstimed_wait64)
 
 int
-__futex_abstimed_wait_cancelable64 (unsigned int* futex_word,
-                                    unsigned int expected, clockid_t clockid,
-                                    const struct __timespec64* abstime,
-                                    int private)
+__futex_abstimed_wait_cancelable64 (unsigned int* futex_word/*检测的地址*/,
+                                    unsigned int expected/*期待的值*/, clockid_t clockid/*采用哪类clock*/,
+                                    const struct __timespec64* abstime/*超时时间*/,
+                                    int private/*进程私有还是共有*/)
 {
   return __futex_abstimed_wait_common (futex_word, expected, clockid,
-                                       abstime, private, true);
+                                       abstime, private, true/*可取消*/);
 }
 libc_hidden_def (__futex_abstimed_wait_cancelable64)
 

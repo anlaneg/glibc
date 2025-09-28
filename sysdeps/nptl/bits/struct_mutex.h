@@ -26,9 +26,10 @@
 
 struct __pthread_mutex_s
 {
+	/*锁变量（包含标记）*/
   int __lock __LOCK_ALIGNMENT;
   unsigned int __count;
-  int __owner;
+  int __owner;/*指明持有者*/
 #if __WORDSIZE == 64
   unsigned int __nusers;
 #endif

@@ -450,11 +450,11 @@ int
 ___pthread_cond_wait (pthread_cond_t *cond, pthread_mutex_t *mutex)
 {
   /* clockid is unused when abstime is NULL. */
-  return __pthread_cond_wait_common (cond, mutex, 0, NULL);
+  return __pthread_cond_wait_common (cond, mutex, 0, NULL/*超时时间定为NULL*/);
 }
 
 versioned_symbol (libc, ___pthread_cond_wait, pthread_cond_wait,
-		  GLIBC_2_3_2);
+		  GLIBC_2_3_2);/*实现pthread_cond_wait*/
 libc_hidden_ver (___pthread_cond_wait, __pthread_cond_wait)
 #ifndef SHARED
 strong_alias (___pthread_cond_wait, __pthread_cond_wait)
@@ -479,7 +479,7 @@ ___pthread_cond_timedwait64 (pthread_cond_t *cond, pthread_mutex_t *mutex,
 }
 
 #if __TIMESIZE == 64
-strong_alias (___pthread_cond_timedwait64, ___pthread_cond_timedwait)
+strong_alias (___pthread_cond_timedwait64, ___pthread_cond_timedwait)/*用于指明信号量实现函数*/
 #else
 strong_alias (___pthread_cond_timedwait64, __pthread_cond_timedwait64)
 libc_hidden_def (__pthread_cond_timedwait64)

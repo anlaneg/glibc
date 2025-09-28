@@ -279,7 +279,7 @@ __pthread_rwlock_rdunlock (pthread_rwlock_t *rwlock)
 
 static __always_inline int
 __pthread_rwlock_rdlock_full64 (pthread_rwlock_t *rwlock, clockid_t clockid,
-                                const struct __timespec64 *abstime)
+                                const struct __timespec64 *abstime/*超时时间*/)
 {
   unsigned int r;
 

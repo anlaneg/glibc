@@ -306,8 +306,8 @@ _dl_fatal_printf (const char *fmt, ...)
   va_list arg;
 
   va_start (arg, fmt);
-  _dl_debug_vdprintf (STDERR_FILENO, 0, fmt, arg);
+  _dl_debug_vdprintf (STDERR_FILENO, 0, fmt, arg);/*输出日志并退出*/
   va_end (arg);
-  _exit (127);
+  _exit (127);/*进程退出*/
 }
 rtld_hidden_def (_dl_fatal_printf)

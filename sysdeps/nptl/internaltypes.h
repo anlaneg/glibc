@@ -177,8 +177,8 @@ struct new_sem
 #else
 # define SEM_VALUE_SHIFT 1
 # define SEM_NWAITERS_MASK ((unsigned int)1)
-  unsigned int value;
-  int private;
+  unsigned int value;/*信号量的value*/
+  int private;/*标记是否private共享（或者进程共享）*/
   int pad;
   unsigned int nwaiters;
 #endif

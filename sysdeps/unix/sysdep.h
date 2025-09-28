@@ -49,9 +49,11 @@
 #define __INTERNAL_SYSCALL7(name, a1, a2, a3, a4, a5, a6, a7) \
   INTERNAL_SYSCALL (name, 7, a1, a2, a3, a4, a5, a6, a7)
 
+/*返回参数数目*/
 #define __INTERNAL_SYSCALL_NARGS_X(a,b,c,d,e,f,g,h,n,...) n
 #define __INTERNAL_SYSCALL_NARGS(...) \
   __INTERNAL_SYSCALL_NARGS_X (__VA_ARGS__,7,6,5,4,3,2,1,0,)
+/*联接宏b及参数数目n后，生成新的宏调用bn(...)*/
 #define __INTERNAL_SYSCALL_DISP(b,...) \
   __SYSCALL_CONCAT (b,__INTERNAL_SYSCALL_NARGS(__VA_ARGS__))(__VA_ARGS__)
 
@@ -59,10 +61,11 @@
    It is similar to INTERNAL_SYSCALL macro, but without the need to pass the
    expected argument number as second parameter.  */
 #define INTERNAL_SYSCALL_CALL(...) \
+	/*依据传入的参数数目，调用__INTERNAL_SYSCALL$n*/\
   __INTERNAL_SYSCALL_DISP (__INTERNAL_SYSCALL, __VA_ARGS__)
 
 #define __INTERNAL_SYSCALL_NCS0(name) \
-  INTERNAL_SYSCALL_NCS (name, 0)
+  INTERNAL_SYSCALL_NCS (name/*系统调用名称*/, 0/*叁数数目*/)
 #define __INTERNAL_SYSCALL_NCS1(name, a1) \
   INTERNAL_SYSCALL_NCS (name, 1, a1)
 #define __INTERNAL_SYSCALL_NCS2(name, a1, a2) \
@@ -188,14 +191,16 @@ long int __syscall_cancel (__syscall_arg_t arg1, __syscall_arg_t arg2,
   __syscall_cancel (__SSC (a1), __SSC (a2), __SSC (a3), __SSC (a4),	\
 		    __SSC (a5), __SSC (a6), __SYSCALL_CANCEL7_ARG	\
 		    __NR_##name)
-#define __SYSCALL_CANCEL7(name, a1, a2, a3, a4, a5, a6, a7)		\
+#define __SYSCALL_CANCEL7(name/*系统调用名称*/, a1, a2, a3, a4, a5, a6, a7)		\
   __syscall_cancel (__SSC (a1), __SSC (a2), __SSC (a3), __SSC (a4),	\
-		    __SSC (a5), __SSC (a6), __SSC (a7), __NR_##name)
+		    __SSC (a5), __SSC (a6), __SSC (a7), __NR_##name/*此系统调用编号*/)
 
+/*取得参数数目*/
 #define __SYSCALL_CANCEL_NARGS_X(a,b,c,d,e,f,g,h,n,...) n
 #define __SYSCALL_CANCEL_NARGS(...) \
   __SYSCALL_CANCEL_NARGS_X (__VA_ARGS__,7,6,5,4,3,2,1,0,)
 #define __SYSCALL_CANCEL_CONCAT_X(a,b)     a##b
+/*将a,b联连在一起*/
 #define __SYSCALL_CANCEL_CONCAT(a,b)       __SYSCALL_CANCEL_CONCAT_X (a, b)
 #define __SYSCALL_CANCEL_DISP(b,...) \
   __SYSCALL_CANCEL_CONCAT (b,__SYSCALL_CANCEL_NARGS(__VA_ARGS__))(__VA_ARGS__)
@@ -239,6 +244,7 @@ long int __syscall_cancel (__syscall_arg_t arg1, __syscall_arg_t arg2,
    argument required.  If an error occurs its value is returned as an negative
    number unmodified and errno is not set.  */
 #define __INTERNAL_SYSCALL_CANCEL_CALL(...) \
+	/*依据参数数目，调用不同的宏，例如__INTERNAL_SYSCALL_CANCEL7*/\
   __SYSCALL_CANCEL_DISP (__INTERNAL_SYSCALL_CANCEL, __VA_ARGS__)
 
 #if IS_IN (rtld)

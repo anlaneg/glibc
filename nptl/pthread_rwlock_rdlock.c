@@ -23,7 +23,7 @@ ___pthread_rwlock_rdlock (pthread_rwlock_t *rwlock)
 {
   LIBC_PROBE (rdlock_entry, 1, rwlock);
 
-  int result = __pthread_rwlock_rdlock_full64 (rwlock, CLOCK_REALTIME, NULL);
+  int result = __pthread_rwlock_rdlock_full64 (rwlock, CLOCK_REALTIME, NULL/*无超时时间*/);
   LIBC_PROBE (rdlock_acquire_read, 1, rwlock);
   return result;
 }
@@ -34,7 +34,7 @@ libc_hidden_ver (___pthread_rwlock_rdlock, __pthread_rwlock_rdlock)
 
 #if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_1, GLIBC_2_34)
 compat_symbol (libpthread, ___pthread_rwlock_rdlock, pthread_rwlock_rdlock,
-	       GLIBC_2_1);
+	       GLIBC_2_1);/*指明读写锁读锁函数实现方式*/
 #endif
 #if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_2, GLIBC_2_34)
 compat_symbol (libpthread, ___pthread_rwlock_rdlock, __pthread_rwlock_rdlock,

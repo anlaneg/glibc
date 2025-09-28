@@ -151,6 +151,7 @@
 /* Define ALIASNAME as a weak alias for NAME.
    If weak aliases are not available, this defines a strong alias.  */
 # define weak_alias(name, aliasname) _weak_alias (name, aliasname)
+/*定义一个和name同类型的变量aliasname,且指明此符号是一个weak,且指明别名为name*/
 # define _weak_alias(name, aliasname) \
   extern __typeof (name) aliasname __attribute__ ((weak, alias (#name))) \
     __attribute_copy__ (name);

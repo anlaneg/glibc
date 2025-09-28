@@ -2283,7 +2283,7 @@ try_connect (int *fdp, int *afp, struct sockaddr_in6 *source_addrp,
 }
 
 int
-getaddrinfo (const char *name, const char *service,
+getaddrinfo (const char *name/*主机名称*/, const char *service/*服务名称*/,
 	     const struct addrinfo *hints, struct addrinfo **pai)
 {
   int i = 0, last_i = 0;

@@ -37,10 +37,10 @@ __new_sem_wait (sem_t *sem)
   __pthread_testcancel ();
 
   if (__new_sem_wait_fast ((struct new_sem *) sem, 0) == 0)
-    return 0;
+    return 0;/*成功减1，直接返回*/
   else
     return __new_sem_wait_slow64 ((struct new_sem *) sem,
-				  CLOCK_REALTIME, NULL);
+				  CLOCK_REALTIME/*使用real-time*/, NULL);
 }
 versioned_symbol (libc, __new_sem_wait, sem_wait, GLIBC_2_34);
 

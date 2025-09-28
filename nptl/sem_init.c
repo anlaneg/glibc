@@ -31,13 +31,16 @@ __new_sem_init (sem_t *sem, int pshared, unsigned int value)
   /* Parameter sanity check.  */
   if (__glibc_unlikely (value > SEM_VALUE_MAX))
     {
+	  /*value不得超过最大值*/
       __set_errno (EINVAL);
       return -1;
     }
+  /*是否进程间共享*/
   pshared = pshared != 0 ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
   int err = futex_supports_pshared (pshared);
   if (err != 0)
     {
+	  /*pshared参数有误，则报错*/
       __set_errno (err);
       return -1;
     }
@@ -60,7 +63,7 @@ __new_sem_init (sem_t *sem, int pshared, unsigned int value)
 
   return 0;
 }
-versioned_symbol (libc, __new_sem_init, sem_init, GLIBC_2_34);
+versioned_symbol (libc, __new_sem_init, sem_init, GLIBC_2_34);/*指明sem_init替换为__new_sem_init函数*/
 
 #if OTHER_SHLIB_COMPAT(libpthread, GLIBC_2_1, GLIBC_2_34)
 compat_symbol (libpthread, __new_sem_init, sem_init, GLIBC_2_1);

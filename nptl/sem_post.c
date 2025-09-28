@@ -61,21 +61,22 @@ __new_sem_post (sem_t *sem)
     {
       if ((v >> SEM_VALUE_SHIFT) == SEM_VALUE_MAX)
 	{
+    	  /*value超限，报错*/
 	  __set_errno (EOVERFLOW);
 	  return -1;
 	}
     }
   while (!atomic_compare_exchange_weak_release
-	 (&isem->value, &v, v + (1 << SEM_VALUE_SHIFT)));
+	 (&isem->value, &v, v + (1 << SEM_VALUE_SHIFT)));/*执行v加1*/
 
   /* If there is any potentially blocked waiter, wake one of them.  */
   if ((v & SEM_NWAITERS_MASK) != 0)
-    futex_wake (&isem->value, 1, private);
+    futex_wake (&isem->value, 1, private);/*此处有等待者，执行系统调用唤醒它*/
 #endif
 
   return 0;
 }
-versioned_symbol (libpthread, __new_sem_post, sem_post, GLIBC_2_34);
+versioned_symbol (libpthread, __new_sem_post, sem_post, GLIBC_2_34);/*指明sem_post函数实现*/
 
 #if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_1, GLIBC_2_34)
 compat_symbol (libpthread, __new_sem_post, sem_post, GLIBC_2_1);

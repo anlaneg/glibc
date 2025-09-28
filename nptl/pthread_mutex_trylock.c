@@ -54,7 +54,7 @@ ___pthread_mutex_trylock (pthread_mutex_t *mutex)
 	  mutex->__data.__owner = id;
 	  mutex->__data.__count = 1;
 	  ++mutex->__data.__nusers;
-	  return 0;
+	  return 0;/*锁未被占用，直接占用*/
 	}
       break;
 
@@ -221,7 +221,7 @@ ___pthread_mutex_trylock (pthread_mutex_t *mutex)
 	     in sysdeps/nptl/bits/thread-shared-types.h.  */
 	  int mutex_kind = atomic_load_relaxed (&(mutex->__data.__kind));
 	  kind = mutex_kind & PTHREAD_MUTEX_KIND_MASK_NP;
-	  robust = mutex_kind & PTHREAD_MUTEX_ROBUST_NORMAL_NP;
+	  robust = mutex_kind & PTHREAD_MUTEX_ROBUST_NORMAL_NP;/*指明了robust*/
 	}
 
 	if (robust)
@@ -286,9 +286,9 @@ ___pthread_mutex_trylock (pthread_mutex_t *mutex)
 	    /* The mutex owner died.  The kernel will now take care of
 	       everything.  */
 	    int private = (robust
-			   ? PTHREAD_ROBUST_MUTEX_PSHARED (mutex)
+			   ? PTHREAD_ROBUST_MUTEX_PSHARED (mutex)/*robust情况*/
 			   : PTHREAD_MUTEX_PSHARED (mutex));
-	    int e = INTERNAL_SYSCALL_CALL (futex, &mutex->__data.__lock,
+	    int e = INTERNAL_SYSCALL_CALL (futex, &mutex->__data.__lock/*指明锁所对应的内存*/,
 					   __lll_private_flag (FUTEX_TRYLOCK_PI,
 							       private), 0, 0);
 

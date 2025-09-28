@@ -128,8 +128,9 @@ alloc_buffer_create (void *start, size_t size)
   uintptr_t current = (uintptr_t) start;
   uintptr_t end = (uintptr_t) start + size;
   if (end < current)
+	  /*size过大，报错*/
     __libc_alloc_buffer_create_failure (start, size);
-  return (struct alloc_buffer) { current, end };
+  return (struct alloc_buffer) { current, end };/*初始化alloc_buffer*/
 }
 
 /* Internal function.  See alloc_buffer_allocate below.  */
@@ -161,7 +162,7 @@ alloc_buffer_mark_failed (struct alloc_buffer *buf)
 static __always_inline __attribute__ ((nonnull (1))) size_t
 alloc_buffer_size (const struct alloc_buffer *buf)
 {
-  return buf->__alloc_buffer_end - buf->__alloc_buffer_current;
+  return buf->__alloc_buffer_end - buf->__alloc_buffer_current;/*取buffer size*/
 }
 
 /* Return true if the buffer has been marked as failed.  */
@@ -195,12 +196,14 @@ alloc_buffer_alloc_bytes (struct alloc_buffer *buf, size_t length)
 {
   if (length <= alloc_buffer_size (buf))
     {
+	  /*长度足够，偏移current到新位置,返回原位置*/
       void *result = (void *) buf->__alloc_buffer_current;
       buf->__alloc_buffer_current += length;
       return result;
     }
   else
     {
+	  /*长度不足，报错*/
       alloc_buffer_mark_failed (buf);
       return NULL;
     }

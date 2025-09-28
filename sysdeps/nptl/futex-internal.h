@@ -101,6 +101,7 @@ futex_fatal_error (void)
 static __always_inline int
 futex_supports_pshared (int pshared)
 {
+  /*检查参数pshared*/
   if (__glibc_likely (pshared == PTHREAD_PROCESS_PRIVATE))
     return 0;
   else if (pshared == PTHREAD_PROCESS_SHARED)
@@ -141,9 +142,10 @@ futex_supports_pshared (int pshared)
    a futex_wait call when synchronizing similar to Dekker synchronization.
    However, we make no such guarantee here.  */
 static __always_inline int
-futex_wait (unsigned int *futex_word, unsigned int expected, int private)
+futex_wait (unsigned int *futex_word/*待检测地址*/, unsigned int expected/*预期的值*/, int private/*私有共享/进程共享*/)
 {
-  int err = lll_futex_timed_wait (futex_word, expected, NULL, private);
+	/*触发系统调用*/
+  int err = lll_futex_timed_wait (futex_word, expected, NULL/*无超时时间*/, private);
   switch (err)
     {
     case 0:

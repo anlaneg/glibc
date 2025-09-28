@@ -26,7 +26,7 @@ __pthread_mutexattr_setrobust (pthread_mutexattr_t *attr, int robustness)
       && __builtin_expect (robustness != PTHREAD_MUTEX_ROBUST_NP, 0))
     return EINVAL;
 
-  struct pthread_mutexattr *iattr = (struct pthread_mutexattr *) attr;
+  struct pthread_mutexattr *iattr = (struct pthread_mutexattr *) attr;/*mutex属性*/
 
   /* We use bit 30 to signal whether the mutex is going to be
      robust or not.  */

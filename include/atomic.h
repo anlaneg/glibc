@@ -546,7 +546,7 @@ void __atomic_link_error (void);
      __atomic_link_error ();
 # else
 #  define __atomic_check_size(mem) \
-   if (sizeof (*mem) != 4)						      \
+   if (sizeof (*mem) != 4)/*必须为4字节*/						      \
      __atomic_link_error ();
 # endif
 /* We additionally provide 8b and 16b atomic loads and stores; we do not yet
@@ -590,10 +590,10 @@ void __atomic_link_error (void);
   } while (0)
 
 /* On failure, this CAS has memory_order_relaxed semantics.  */
-# define atomic_compare_exchange_weak_relaxed(mem, expected, desired) \
+# define atomic_compare_exchange_weak_relaxed(mem/*指向要操作的原子变量的指针*/, expected/*预期值的地址*/, desired/*若比较成功，要写入的新值*/) \
   ({ __atomic_check_size((mem));					      \
-  __atomic_compare_exchange_n ((mem), (expected), (desired), 1,		      \
-    __ATOMIC_RELAXED, __ATOMIC_RELAXED); })
+  __atomic_compare_exchange_n ((mem), (expected), (desired), 1/*是否使用弱版本（可能失败）*/,		      \
+    __ATOMIC_RELAXED/*成功时：仅保证原子性，无内存序限制*/, __ATOMIC_RELAXED/*失败时：仅保证原子性，无内存序限制*/); })
 # define atomic_compare_exchange_weak_acquire(mem, expected, desired) \
   ({ __atomic_check_size((mem));					      \
   __atomic_compare_exchange_n ((mem), (expected), (desired), 1,		      \

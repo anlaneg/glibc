@@ -55,7 +55,7 @@ ___sem_timedwait (sem_t *sem, const struct timespec *abstime)
   return __sem_timedwait64 (sem, &ts64);
 }
 #endif /* __TIMESPEC64 != 64 */
-versioned_symbol (libc, ___sem_timedwait, sem_timedwait, GLIBC_2_34);
+versioned_symbol (libc, ___sem_timedwait, sem_timedwait, GLIBC_2_34);/*sem_timedwait实现为___sem_timedwait*/
 #if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_2, GLIBC_2_34)
 compat_symbol (libpthread, ___sem_timedwait, sem_timedwait, GLIBC_2_2);
 #endif

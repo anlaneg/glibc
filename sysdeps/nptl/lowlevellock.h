@@ -99,7 +99,7 @@ libc_hidden_proto (__lll_lock_wait)
          (atomic_compare_and_exchange_bool_acq (__futex, 1, 0)))        \
        {                                                                \
          if (__builtin_constant_p (private) && (private) == LLL_PRIVATE) \
-           __lll_lock_wait_private (__futex);                           \
+           __lll_lock_wait_private (__futex);/*私有锁*/                           \
          else                                                           \
            __lll_lock_wait (__futex, private);                          \
        }                                                                \

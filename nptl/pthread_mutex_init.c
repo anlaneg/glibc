@@ -96,6 +96,7 @@ ___pthread_mutex_init (pthread_mutex_t *mutex,
 #ifndef __ASSUME_SET_ROBUST_LIST
       if ((imutexattr->mutexkind & PTHREAD_MUTEXATTR_FLAG_PSHARED) != 0
 	  && !__nptl_set_robust_list_avail)
+    	  /*必须支持系统调用set_robust_list_avail*/
 	return ENOTSUP;
 #endif
 

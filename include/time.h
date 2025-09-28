@@ -350,7 +350,7 @@ static inline bool
 in_int32_t_range (__time64_t t)
 {
   int32_t s = t;
-  return s == t;
+  return s == t;/*检查是否在int32范围以内*/
 }
 
 /* Check whether T fits in time_t.  */

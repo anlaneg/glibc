@@ -31,6 +31,7 @@
    of the kernel.  But these symbols do not follow the SYS_* syntax
    so we have to redefine the `SYS_ify' macro here.  */
 #undef SYS_ify
+/*系统调用名称转系统调用编号*/
 #define SYS_ify(syscall_name)	__NR_##syscall_name
 
 #ifdef __ASSEMBLER__
@@ -231,8 +232,9 @@
 #define TYPEFY(X, name) __typeof__ (ARGIFY (X)) name
 
 #undef INTERNAL_SYSCALL
-#define INTERNAL_SYSCALL(name, nr, args...)				\
-	internal_syscall##nr (SYS_ify (name), args)
+/*触发系统调用name，并传参数*/
+#define INTERNAL_SYSCALL(name/*系统调用名称*/, nr/*调用参数数目*/, args...)				\
+	internal_syscall##nr (SYS_ify (name), args/*参数列表*/)
 
 #undef INTERNAL_SYSCALL_NCS
 #define INTERNAL_SYSCALL_NCS(number, nr, args...)			\
@@ -299,7 +301,8 @@
 })
 
 #undef internal_syscall4
-#define internal_syscall4(number, arg1, arg2, arg3, arg4)		\
+/*用于实现4参数的系统调用*/
+#define internal_syscall4(number/*系统调用编号*/, arg1, arg2, arg3, arg4)		\
 ({									\
     unsigned long int resultvar;					\
     TYPEFY (arg4, __arg4) = ARGIFY (arg4);			 	\
@@ -309,11 +312,11 @@
     register TYPEFY (arg4, _a4) asm ("r10") = __arg4;			\
     register TYPEFY (arg3, _a3) asm ("rdx") = __arg3;			\
     register TYPEFY (arg2, _a2) asm ("rsi") = __arg2;			\
-    register TYPEFY (arg1, _a1) asm ("rdi") = __arg1;			\
+    register TYPEFY (arg1, _a1) asm ("rdi") = __arg1;/*参数1存放在rdi中*/	\
     asm volatile (							\
     "syscall\n\t"							\
-    : "=a" (resultvar)							\
-    : "0" (number), "r" (_a1), "r" (_a2), "r" (_a3), "r" (_a4)		\
+    : "=a" (resultvar)/*存放结果*/							\
+    : "0" (number)/*系统调用编号*/, "r" (_a1), "r" (_a2), "r" (_a3), "r" (_a4)		\
     : "memory", REGISTERS_CLOBBERED_BY_SYSCALL);			\
     (long int) resultvar;						\
 })

@@ -35,6 +35,7 @@
 
 #define SEM_OPEN_FLAGS (O_RDWR | O_NOFOLLOW | O_CLOEXEC)
 
+/*实现sem_open函数*/
 sem_t *
 __sem_open (const char *name, int oflag, ...)
 {
@@ -42,7 +43,7 @@ __sem_open (const char *name, int oflag, ...)
   sem_t *result;
 
   /* Check that shared futexes are supported.  */
-  int err = futex_supports_pshared (PTHREAD_PROCESS_SHARED);
+  int err = futex_supports_pshared (PTHREAD_PROCESS_SHARED);/*默认为进程共享*/
   if (err != 0)
     {
       __set_errno (err);
@@ -50,9 +51,10 @@ __sem_open (const char *name, int oflag, ...)
     }
 
   struct shmdir_name dirname;
-  int ret = __shm_get_name (&dirname, name, true);
+  int ret = __shm_get_name (&dirname, name, true/*需要加前缀*/);
   if (ret != 0)
     {
+	  /*构造文件路径失败，报错（长度超限）*/
       __set_errno (ret);
       return SEM_FAILED;
     }
@@ -64,13 +66,14 @@ __sem_open (const char *name, int oflag, ...)
   if ((oflag & O_CREAT) == 0 || (oflag & O_EXCL) == 0)
     {
     try_again:
+	  /*打开此文件*/
       fd = __open (dirname.name, (oflag & O_EXCL) | SEM_OPEN_FLAGS);
 
       if (fd == -1)
 	{
 	  /* If we are supposed to create the file try this next.  */
 	  if ((oflag & O_CREAT) != 0 && errno == ENOENT)
-	    goto try_create;
+	    goto try_create;/*文件不存在，且刚才打开时没有指定create标记，尝试创建*/
 
 	  /* Return.  errno is already set.  */
 	  result = SEM_FAILED;
@@ -91,6 +94,7 @@ __sem_open (const char *name, int oflag, ...)
     try_create:
       va_start (ap, oflag);
 
+      /*oflag后，分别为参数mode,value*/
       mode = va_arg (ap, mode_t);
       value = va_arg (ap, unsigned int);
 
@@ -98,6 +102,7 @@ __sem_open (const char *name, int oflag, ...)
 
       if (value > SEM_VALUE_MAX)
 	{
+    	  /*value超限*/
 	  __set_errno (EINVAL);
 	  result = SEM_FAILED;
 	  goto out;
@@ -110,11 +115,12 @@ __sem_open (const char *name, int oflag, ...)
 	struct new_sem newsem;
       } sem;
 
+      /*初始化newsem*/
       __new_sem_open_init (&sem.newsem, value);
 
       /* Initialize the remaining bytes as well.  */
       memset ((char *) &sem.initsem + sizeof (struct new_sem), '\0',
-	      sizeof (sem_t) - sizeof (struct new_sem));
+	      sizeof (sem_t) - sizeof (struct new_sem));/*清空其它剩余无用字段*/
 
       char tmpfname[] = SHMDIR "sem.XXXXXX";
       int retries = 0;
@@ -132,7 +138,7 @@ __sem_open (const char *name, int oflag, ...)
 	    }
 
 	  /* Open the file.  Make sure we do not overwrite anything.  */
-	  fd = __open (tmpfname, O_CREAT | O_EXCL | SEM_OPEN_FLAGS, mode);
+	  fd = __open (tmpfname, O_CREAT | O_EXCL | SEM_OPEN_FLAGS, mode);/*创建并打开文件*/
 	  if (fd == -1)
 	    {
 	      if (errno == EEXIST)
@@ -142,7 +148,7 @@ __sem_open (const char *name, int oflag, ...)
 		      /* Restore the six placeholder bytes before the
 			 null terminator before the next attempt.  */
 		      memcpy (tmpfname + sizeof (tmpfname) - 7, "XXXXXX", 6);
-		      continue;
+		      continue;/*重试*/
 		    }
 
 		  __set_errno (EAGAIN);
@@ -153,9 +159,10 @@ __sem_open (const char *name, int oflag, ...)
 	    }
 
 	  /* We got a file.  */
-	  break;
+	  break;/*成功打开了此文件*/
 	}
 
+      /*向此文件中写入sem.initsem并针对此文件进行mmap*/
       if (TEMP_FAILURE_RETRY (write (fd, &sem.initsem, sizeof (sem_t)))
 	  == sizeof (sem_t)
 	  /* Map the sem_t structure from the file.  */
@@ -164,10 +171,10 @@ __sem_open (const char *name, int oflag, ...)
 					 fd, 0)) != MAP_FAILED)
 	{
 	  /* Create the file.  Don't overwrite an existing file.  */
-	  if (__link (tmpfname, dirname.name) != 0)
+	  if (__link (tmpfname, dirname.name) != 0)/*建立硬链接到dirname所指的目录*/
 	    {
 	      /* Undo the mapping.  */
-	      __munmap (result, sizeof (sem_t));
+	      __munmap (result, sizeof (sem_t));/*建立失败，umap掉result*/
 
 	      /* Reinitialize 'result'.  */
 	      result = SEM_FAILED;
@@ -216,7 +223,7 @@ out:
   return result;
 }
 #if PTHREAD_IN_LIBC
-versioned_symbol (libc, __sem_open, sem_open, GLIBC_2_34);
+versioned_symbol (libc, __sem_open, sem_open, GLIBC_2_34);/*指明sem_open采用__sem_open函数*/
 # if OTHER_SHLIB_COMPAT (libpthread, GLIBC_2_1_1, GLIBC_2_34)
 compat_symbol (libpthread, __sem_open, sem_open, GLIBC_2_1_1);
 # endif

@@ -113,8 +113,8 @@ do_futex_wait (struct new_sem *sem, clockid_t clockid,
       clockid, abstime,
       sem->private);
 #else
-  err = __futex_abstimed_wait_cancelable64 (&sem->value, SEM_NWAITERS_MASK,
-					    clockid, abstime, sem->private);
+  err = __futex_abstimed_wait_cancelable64 (&sem->value/*当前信号量取值所在的地址*/, SEM_NWAITERS_MASK,
+					    clockid, abstime, sem->private/*共享类型*/);
 #endif
 
   return err;
@@ -148,10 +148,10 @@ __new_sem_wait_fast (struct new_sem *sem, int definitive_result)
   do
     {
       if ((v >> SEM_VALUE_SHIFT) == 0)
-	break;
+	break;/*value为零*/
       if (atomic_compare_exchange_weak_acquire (&sem->value,
 	  &v, v - (1 << SEM_VALUE_SHIFT)))
-	return 0;
+	return 0;/*value不为零，使其旧值减1*/
     }
   while (definitive_result);
   return -1;
@@ -251,7 +251,7 @@ __new_sem_wait_slow64 (struct new_sem *sem, clockid_t clockid,
      MO we use when decrementing nwaiters below; it ensures that if another
      waiter unset the bit before us, we see that and set it again.  Also see
      property (2) above.  */
-  atomic_fetch_add_acquire (&sem->nwaiters, 1);
+  atomic_fetch_add_acquire (&sem->nwaiters, 1);/*等待者计数增加*/
 
   pthread_cleanup_push (__sem_wait_cleanup, sem);
 
@@ -281,9 +281,10 @@ __new_sem_wait_slow64 (struct new_sem *sem, clockid_t clockid,
 	  if ((v >> SEM_VALUE_SHIFT) == 0)
 	    {
 	      /* See __HAVE_64B_ATOMICS variant.  */
-	      err = do_futex_wait (sem, clockid, abstime);
+	      err = do_futex_wait (sem/*信号量*/, clockid/*clock方式*/, abstime);/*计数为零，等待*/
 	      if (err == ETIMEDOUT || err == EINTR)
 		{
+	    	  /*超时或者中断，走错误处理*/
 		  __set_errno (err);
 		  err = -1;
 		  goto error;
@@ -295,7 +296,7 @@ __new_sem_wait_slow64 (struct new_sem *sem, clockid_t clockid,
 	    }
 	}
       /* If there is no token, we must not try to grab one.  */
-      while ((v >> SEM_VALUE_SHIFT) == 0);
+      while ((v >> SEM_VALUE_SHIFT) == 0);/*如果此时value仍为零，则继续等待*/
     }
   /* Try to grab a token.  We need acquire MO so this synchronizes with
      all token providers (i.e., the RMW operation we read from or all those

@@ -27,14 +27,15 @@
 #include <fcntl.h>
 #include <errno.h>
 
+/*构造shm文件路径*/
 int
-__shm_get_name (struct shmdir_name *result, const char *name, bool sem_prefix)
+__shm_get_name (struct shmdir_name *result, const char *name, bool sem_prefix/*是否添加sem前缀*/)
 {
   struct alloc_buffer buffer;
   size_t namelen;
 
-  buffer = alloc_buffer_create (result->name, sizeof (result->name));
-  alloc_buffer_copy_bytes (&buffer, SHMDIR, strlen (SHMDIR));
+  buffer = alloc_buffer_create (result->name, sizeof (result->name));/*创建buffer*/
+  alloc_buffer_copy_bytes (&buffer, SHMDIR, strlen (SHMDIR));/*向buffer内写入SHMDIR目录*/
 
 #if defined (SHM_ANON) && defined (O_TMPFILE)
   if (name == SHM_ANON)
@@ -48,17 +49,21 @@ __shm_get_name (struct shmdir_name *result, const char *name, bool sem_prefix)
     }
 #endif
 
+  /*跳过name开头的‘/’符号*/
   while (name[0] == '/')
     ++name;
-  namelen = strlen (name);
+  namelen = strlen (name);/*取得name长度*/
 
   if (sem_prefix)
+	  /*增加sem前缀*/
     alloc_buffer_copy_bytes (&buffer, "sem.", strlen ("sem."));
+  /*复制name*/
   alloc_buffer_copy_bytes (&buffer, name, namelen + 1);
   if (namelen == 0 || memchr (name, '/', namelen) != NULL)
-    return EINVAL;
+    return EINVAL;/*name长度有误或者name中有‘/’符号*/
   if (alloc_buffer_has_failed (&buffer))
     {
+	  /*检查buffer是否超限*/
       if (namelen > NAME_MAX)
         return ENAMETOOLONG;
       return EINVAL;
