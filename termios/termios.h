@@ -59,9 +59,12 @@ extern int cfsetispeed (struct termios *__termios_p, speed_t __speed) __THROW;
 #ifdef	__USE_MISC
 /* Set both the input and output baud rates in *TERMIOS_OP to SPEED.  */
 extern int cfsetspeed (struct termios *__termios_p, speed_t __speed) __THROW;
+#endif
 
+#ifdef __USE_GNU
 /* Interfaces that are explicitly numeric representations of baud rates */
 typedef speed_t baud_t;
+#define BAUD_MAX SPEED_MAX
 
 /* Return the output baud rate stored in *TERMIOS_P.  */
 extern baud_t cfgetobaud (const struct termios *__termios_p) __THROW;

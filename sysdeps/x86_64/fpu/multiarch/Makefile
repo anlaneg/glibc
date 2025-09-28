@@ -26,6 +26,14 @@ CFLAGS-s_sinf-fma.c = -mfma -mavx2
 CFLAGS-s_cosf-fma.c = -mfma -mavx2
 CFLAGS-s_sincosf-fma.c = -mfma -mavx2
 
+# Check if ISA level is 2 or above.
+ifeq (,$(filter $(have-x86-isa-level),$(x86-isa-level-2-or-above)))
+sysdep_calls += \
+  s_modf-sse4_1 \
+  s_modff-sse4_1 \
+# sysdep_calls
+endif
+
 # Check if ISA level is 3 or above.
 ifneq (,$(filter $(have-x86-isa-level),$(x86-isa-level-3-or-above)))
 libm-sysdep_routines += \
@@ -43,6 +51,10 @@ libm-sysdep_routines += \
   s_truncf-avx \
 # libm-sysdep_routines
 else
+sysdep_calls += \
+  s_modf-avx \
+  s_modff-avx \
+# sysdep_calls
 ifeq (no,$(have-x86-apx))
 libm-sysdep_routines += \
   e_asin-fma4 \
@@ -121,6 +133,11 @@ libm-sysdep_routines += \
   s_truncf-c \
 # libm-sysdep_routines
 endif
+
+# $(sysdep_calls) functions are built both for libc and libm.  While the
+# libc objects have the prefix s_, the libm ones are prefixed with m_.
+sysdep_routines += $(sysdep_calls)
+libm-sysdep_routines += $(sysdep_calls:s_%=m_%)
 endif
 
 CFLAGS-e_asin-fma4.c = -mfma4
@@ -140,6 +157,12 @@ CFLAGS-s_atan-avx.c = -msse2avx -DSSE2AVX
 CFLAGS-s_sin-avx.c = -msse2avx -DSSE2AVX
 CFLAGS-s_tan-avx.c = -msse2avx -DSSE2AVX
 CFLAGS-s_sincos-avx.c = -msse2avx -DSSE2AVX
+
+CFLAGS-s_modf-sse4_1.c = -msse4.1 -fno-builtin-modff32x -fno-builtin-modff64
+CFLAGS-s_modff-sse4_1.c = -msse4.1 -fno-builtin-modff32
+
+CFLAGS-s_modf-avx.c = -mavx -fno-builtin-modff32x -fno-builtin-modff64
+CFLAGS-s_modff-avx.c = -mavx -fno-builtin-modff32
 endif
 
 ifeq ($(subdir),mathvec)

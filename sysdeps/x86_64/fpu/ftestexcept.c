@@ -19,15 +19,17 @@
 #include <fenv.h>
 
 int
-fetestexcept (int excepts)
+__fetestexcept (int excepts)
 {
   int temp;
   unsigned int mxscr;
 
   /* Get current exceptions.  */
   __asm__ ("fnstsw %0\n"
-	   "stmxcsr %1" : "=m" (*&temp), "=m" (*&mxscr));
+	   "%vstmxcsr %1" : "=m" (temp), "=m" (mxscr));
 
   return (temp | mxscr) & excepts & FE_ALL_EXCEPT;
 }
+libm_hidden_def (__fetestexcept)
+weak_alias (__fetestexcept, fetestexcept)
 libm_hidden_def (fetestexcept)

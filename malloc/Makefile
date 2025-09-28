@@ -114,6 +114,7 @@ tests-exclude-malloc-check = \
   tst-memalign-3 \
   tst-mxfast \
   tst-safe-linking \
+  tst-tcfree4 \
 # tests-exclude-malloc-check
 
 # Run all tests with MALLOC_CHECK_=3
@@ -136,6 +137,7 @@ tests-exclude-hugetlb1 = \
   tst-mallocfork2 \
   tst-mallocfork3 \
   tst-mallocstate \
+  tst-mxfast \
 # tests-exclude-hugetlb1
 # The tst-free-errno relies on the used malloc page size to mmap an
 # overlapping region.

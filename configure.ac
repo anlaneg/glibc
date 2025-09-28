@@ -440,6 +440,12 @@ case "$enable_fortify_source" in
 *) AC_MSG_ERROR([Not a valid argument for --enable-fortify-source: "$enable_fortify_source"]);;
 esac
 
+AC_ARG_ENABLE([sframe],
+	      [AS_HELP_STRING([--enable-sframe],
+			      [Enable building with SFrame support @<:@default=no@:>@])],
+	      [use_sframe=$enableval],
+	      [use_sframe=no])
+
 # We keep the original values in `$config_*' and never modify them, so we
 # can write them unchanged into config.make.  Everything else uses
 # $machine, $vendor, and $os, and changes them whenever convenient.
@@ -1537,7 +1543,7 @@ AC_SUBST(libc_cv_test_cc_signaling_nans)
 
 dnl Check if TEST_CC supports -fsemantic-interposition.
 LIBC_TRY_TEST_CC_OPTION([-fsemantic-interposition],
-  [-c -Werror -fsemantic-interposition],
+  [-Werror -fsemantic-interposition],
   libc_cv_test_cc_cflags_fsemantic_interposition,
   [libc_cv_test_cc_cflags_fsemantic_interposition=yes],
   [libc_cv_test_cc_cflags_fsemantic_interposition=no]
@@ -1584,6 +1590,14 @@ LIBC_TRY_CC_AND_TEST_CC_OPTION([for -Wimplicit-fallthrough],
   libc_cv_test_cc_wimplicit_fallthrough,
   [libc_cv_test_cc_wimplicit_fallthrough=-Wimplicit-fallthrough],
   [libc_cv_test_cc_wimplicit_fallthrough=])
+dnl Clang's -Wimplicit-fallthrough warning, which flags unannotated
+dnl fall-through in switch statements, does not recognize specific
+dnl comments like /* FALLTHROUGH */ for suppressing the warning, unlike
+dnl GCC.  Since fall through comments are used extensively in glibc,
+dnl disable -Wimplicit-fallthrough when clang is in use.
+if test $libc_cv_test_clang = yes; then
+  libc_cv_test_cc_wimplicit_fallthrough=
+fi
 LIBC_CONFIG_VAR([cc-option-wimplicit-fallthrough],
 		[$libc_cv_cc_wimplicit_fallthrough])
 AC_SUBST(libc_cv_test_cc_wimplicit_fallthrough)
@@ -1635,7 +1649,7 @@ LIBC_CONFIG_VAR([have-test-cc-trampoline],
 
 dnl Check if TEST_CC supports -Wno-restrict.
 LIBC_TRY_TEST_CC_OPTION([-Wno-restrict],
-  [-c -Werror -Wno-restrict],
+  [-Werror -Wno-restrict],
   libc_cv_test_cflags_wno_restrict,
   [libc_cv_test_cflags_wno_restrict=-Wno-restrict],
   [libc_cv_test_cflags_wno_restrict=]
@@ -1645,7 +1659,7 @@ LIBC_CONFIG_VAR([test-config-cflags-wno-restrict],
 
 dnl Check if TEST_CC supports -Wno-fortify-source.
 LIBC_TRY_TEST_CC_OPTION([-Wno-fortify-source],
-  [-c -Werror -Wno-fortify-source],
+  [-Werror -Wno-fortify-source],
   libc_cv_test_cflags_wno_fortify_source,
   [libc_cv_test_cflags_wno_fortify_source=-Wno-fortify-source],
   [libc_cv_test_cflags_wno_fortify_source=]
@@ -1655,7 +1669,7 @@ LIBC_CONFIG_VAR([test-config-cflags-wno-fortify-source],
 
 dnl Check if TEST_CC supports -finput-charset=ascii.
 LIBC_TRY_TEST_CC_OPTION([-finput-charset=ascii],
-  [-c -Werror -finput-charset=ascii],
+  [-Werror -finput-charset=ascii],
   libc_cv_test_cflags_finput_charset_ascii,
   [libc_cv_test_cflags_finput_charset_ascii="-finput-charset=ascii"],
   [libc_cv_test_cflags_finput_charset_ascii=]
@@ -1665,7 +1679,7 @@ LIBC_CONFIG_VAR(test-config-cflags-finput-charset-ascii,
 
 dnl Check if TEST_CXX supports -finput-charset=ascii.
 LIBC_TRY_TEST_CXX_OPTION([$CXX -finput-charset=ascii],
-  [-c -Werror -finput-charset=ascii],
+  [-Werror -finput-charset=ascii],
   libc_cv_test_cxxflags_finput_charset_ascii,
   [libc_cv_test_cxxflags_finput_charset_ascii="-finput-charset=ascii"],
   [libc_cv_test_cxxflags_finput_charset_ascii=]
@@ -2113,7 +2127,50 @@ LIBC_CONFIG_VAR([have-libgcc_s], [$libc_cv_have_libgcc_s])
 # Support configure.ac under sysdeps.
 AC_SUBST(libc_cv_test_cc_mprefer_vector_width)
 AC_SUBST(test_enable_cet)
-AC_SUBST(libc_cv_test_x86_have_amx_tile)
+
+enable_gsframe=no
+if test $use_sframe = yes; then
+  # SFrame requires to be explicit enabled by the architecture
+  if test -z $libc_cv_support_sframe; then
+    AC_MSG_FAILURE([the architecture doesn't support SFrame])
+  fi
+
+  # SFrame requires binutils 2.45 or higher.
+  libc_cv_sframe_readelf_version=yes
+  AC_CHECK_PROG_VER(READELF, $READELF, --version,
+    [GNU readelf.* \([0-9][0-9]*\.[0-9.]*\)],
+    [2.4[5-9]*|2.[5-9][0-9]*|2.[1-9][0-9][0-9]*|[3-9]*|[1-9][0-9]*],
+    libc_cv_sframe_readelf_version=no)
+  if test $libc_cv_sframe_readelf_version = no; then
+    AC_MSG_FAILURE([binutils too old to enable SFrame])
+  fi
+
+  # Check if the current toolchain supports SFrame
+  AC_CACHE_CHECK([for SFrame support], libc_cv_default_sframe,
+  [dnl
+cat > conftest.c <<EOF
+int test_function(void)
+{
+  return 42;
+}
+EOF
+    libc_cv_default_sframe=no
+    if ${CC} -c conftest.c -o conftest.o -Wa,--gsframe >/dev/null 2>&1 && \
+       # Check if .sframe section is present and if version > 1
+       $READELF --sframe conftest.o | grep "SFRAME_VER" | grep -qv "VERSION_1"; then
+      libc_cv_default_sframe=yes
+    fi
+    rm -f conftest.c conftest.o
+  ])
+
+  if test $libc_cv_default_sframe = no; then
+    AC_MSG_FAILURE([toolchain doesn't support SFrame v2 or higher])
+  fi
+
+  enable_gsframe=yes
+  AC_DEFINE(ENABLE_SFRAME)
+fi
+LIBC_CONFIG_VAR([enable-gsframe], [$enable_gsframe])
 
 # Set the `multidir' variable by grabbing the variable from the compiler.
 # We do it once and save the result in a generated makefile.

@@ -19,8 +19,7 @@
 static void
 compare_output (void *buffer, size_t length, const char *ref[], size_t reflen)
 {
-  FILE *in = fmemopen (buffer, length, "r");
-  TEST_VERIFY_EXIT (in != NULL);
+  FILE *in = xfmemopen (buffer, length, "r");
   char *line = NULL;
   size_t linelen = 0;
 
@@ -45,5 +44,5 @@ compare_output (void *buffer, size_t length, const char *ref[], size_t reflen)
     TEST_COMPARE (found[i], true);
 
   free (line);
-  fclose (in);
+  xfclose (in);
 }

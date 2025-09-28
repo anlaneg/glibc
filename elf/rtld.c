@@ -322,7 +322,7 @@ struct rtld_global _rtld_global =
 #include <dl-procruntime.c>
     /* Generally the default presumption without further information is an
      * executable stack but this is not true for all platforms.  */
-    ._dl_stack_flags = DEFAULT_STACK_PERMS,
+    ._dl_stack_prot_flags = DEFAULT_STACK_PROT_PERMS,
 #ifdef _LIBC_REENTRANT
     ._dl_load_lock = _RTLD_LOCK_RECURSIVE_INITIALIZER,
     ._dl_load_write_lock = _RTLD_LOCK_RECURSIVE_INITIALIZER,
@@ -371,7 +371,6 @@ struct rtld_global_ro _rtld_global_ro attribute_relro =
     ._dl_error_free = _dl_error_free,
     ._dl_tls_get_addr_soft = _dl_tls_get_addr_soft,
     ._dl_libc_freeres = __rtld_libc_freeres,
-    ._dl_readonly_area = _dl_readonly_area,
   };
 /* If we would use strong_alias here the compiler would see a
    non-hidden definition.  This would undo the effect of the previous
@@ -458,6 +457,7 @@ _dl_start_final (void *arg, struct dl_start_final_info *info)
   /* Do not use an initializer for these members because it would
      interfere with __rtld_static_init.  */
   GLRO (dl_find_object) = &_dl_find_object;
+  GLRO (dl_readonly_area) = &_dl_readonly_area;
 
   /* If it hasn't happen yet record the startup time.  */
   rtld_timer_start (&start_time);
@@ -1197,7 +1197,7 @@ rtld_setup_main_map (struct link_map *main_map)
 	break;
 
       case PT_GNU_STACK:
-	GL(dl_stack_flags) = ph->p_flags;
+	GL(dl_stack_prot_flags) = pf_to_prot (ph->p_flags);
 	break;
 
       case PT_GNU_RELRO:
@@ -1237,6 +1237,60 @@ rtld_setup_main_map (struct link_map *main_map)
     assert (_dl_rtld_map.l_libname); /* How else did we get here?  */
 
   return has_interp;
+}
+
+/* Set up the program header information for the dynamic linker
+   itself.  It can be accessed via _r_debug and dl_iterate_phdr
+   callbacks, and it is used by _dl_find_object.  */
+static void
+rtld_setup_phdr (void)
+{
+  /* Starting from binutils-2.23, the linker will define the magic
+     symbol __ehdr_start to point to our own ELF header if it is
+     visible in a segment that also includes the phdrs.  */
+
+  const ElfW(Ehdr) *rtld_ehdr = &__ehdr_start;
+  assert (rtld_ehdr->e_ehsize == sizeof *rtld_ehdr);
+  assert (rtld_ehdr->e_phentsize == sizeof (ElfW(Phdr)));
+
+  const ElfW(Phdr) *rtld_phdr = (const void *) rtld_ehdr + rtld_ehdr->e_phoff;
+
+  _dl_rtld_map.l_phdr = rtld_phdr;
+  _dl_rtld_map.l_phnum = rtld_ehdr->e_phnum;
+
+
+  _dl_rtld_map.l_contiguous = 1;
+  /* The linker may not have produced a contiguous object.  The kernel
+     will load the object with actual gaps (unlike the glibc loader
+     for shared objects, which always produces a contiguous mapping).
+     See similar logic in rtld_setup_main_map above.  */
+  {
+    ElfW(Addr) expected_load_address = 0;
+    for (const ElfW(Phdr) *ph = rtld_phdr; ph < &rtld_phdr[rtld_ehdr->e_phnum];
+	 ++ph)
+      if (ph->p_type == PT_LOAD)
+	{
+	  ElfW(Addr) mapstart = ph->p_vaddr & ~(GLRO(dl_pagesize) - 1);
+	  if (_dl_rtld_map.l_contiguous && expected_load_address != 0
+	      && expected_load_address != mapstart)
+	    _dl_rtld_map.l_contiguous = 0;
+	  ElfW(Addr) allocend = ph->p_vaddr + ph->p_memsz;
+	  /* The next expected address is the page following this load
+	     segment.  */
+	  expected_load_address = ((allocend + GLRO(dl_pagesize) - 1)
+				   & ~(GLRO(dl_pagesize) - 1));
+	}
+  }
+
+  /* PT_GNU_RELRO is usually the last phdr.  */
+  size_t cnt = rtld_ehdr->e_phnum;
+  while (cnt-- > 0)
+    if (rtld_phdr[cnt].p_type == PT_GNU_RELRO)
+      {
+	_dl_rtld_map.l_relro_addr = rtld_phdr[cnt].p_vaddr;
+	_dl_rtld_map.l_relro_size = rtld_phdr[cnt].p_memsz;
+	break;
+      }
 }
 
 /* Adjusts the contents of the stack and related globals for the user
@@ -1488,12 +1542,12 @@ dl_main (const ElfW(Phdr) *phdr,
       --_dl_argc;
       ++_dl_argv;
 
-      /* The initialization of _dl_stack_flags done below assumes the
+      /* The initialization of dl_stack_prot_flags done below assumes the
 	 executable's PT_GNU_STACK may have been honored by the kernel, and
 	 so a PT_GNU_STACK with PF_X set means the stack started out with
 	 execute permission.  However, this is not really true if the
 	 dynamic linker is the executable the kernel loaded.  For this
-	 case, we must reinitialize _dl_stack_flags to match the dynamic
+	 case, we must reinitialize dl_stack_prot_flags to match the dynamic
 	 linker itself.  If the dynamic linker was built with a
 	 PT_GNU_STACK, then the kernel may have loaded us with a
 	 nonexecutable stack that we will have to make executable when we
@@ -1503,7 +1557,7 @@ dl_main (const ElfW(Phdr) *phdr,
       for (const ElfW(Phdr) *ph = phdr; ph < &phdr[phnum]; ++ph)
 	if (ph->p_type == PT_GNU_STACK)
 	  {
-	    GL(dl_stack_flags) = ph->p_flags;
+	    GL(dl_stack_prot_flags) = pf_to_prot (ph->p_flags);
 	    break;
 	  }
 
@@ -1624,8 +1678,6 @@ dl_main (const ElfW(Phdr) *phdr,
 
   bool has_interp = rtld_setup_main_map (main_map);
 
-  /* Handle this after PT_GNU_STACK parse, because it updates dl_stack_flags
-     if required.  */
   _dl_handle_execstack_tunable ();
 
   /* If the current libname is different from the SONAME, add the
@@ -1706,33 +1758,7 @@ dl_main (const ElfW(Phdr) *phdr,
   ++GL(dl_ns)[LM_ID_BASE]._ns_nloaded;
   ++GL(dl_load_adds);
 
-  /* Starting from binutils-2.23, the linker will define the magic symbol
-     __ehdr_start to point to our own ELF header if it is visible in a
-     segment that also includes the phdrs.  If that's not available, we use
-     the old method that assumes the beginning of the file is part of the
-     lowest-addressed PT_LOAD segment.  */
-
-  /* Set up the program header information for the dynamic linker
-     itself.  It is needed in the dl_iterate_phdr callbacks.  */
-  const ElfW(Ehdr) *rtld_ehdr = &__ehdr_start;
-  assert (rtld_ehdr->e_ehsize == sizeof *rtld_ehdr);
-  assert (rtld_ehdr->e_phentsize == sizeof (ElfW(Phdr)));
-
-  const ElfW(Phdr) *rtld_phdr = (const void *) rtld_ehdr + rtld_ehdr->e_phoff;
-
-  _dl_rtld_map.l_phdr = rtld_phdr;
-  _dl_rtld_map.l_phnum = rtld_ehdr->e_phnum;
-
-
-  /* PT_GNU_RELRO is usually the last phdr.  */
-  size_t cnt = rtld_ehdr->e_phnum;
-  while (cnt-- > 0)
-    if (rtld_phdr[cnt].p_type == PT_GNU_RELRO)
-      {
-	_dl_rtld_map.l_relro_addr = rtld_phdr[cnt].p_vaddr;
-	_dl_rtld_map.l_relro_size = rtld_phdr[cnt].p_memsz;
-	break;
-      }
+  rtld_setup_phdr ();
 
   /* Add the dynamic linker to the TLS list if it also uses TLS.  */
   if (_dl_rtld_map.l_tls_blocksize != 0)
@@ -1779,8 +1805,7 @@ dl_main (const ElfW(Phdr) *phdr,
   elf_setup_debug_entry (main_map, r);
 
   /* We start adding objects.  */
-  r->r_state = RT_ADD;
-  _dl_debug_state ();
+  _dl_debug_change_state (r, RT_ADD);
   LIBC_PROBE (init_start, 2, LM_ID_BASE, r);
 
   /* Auditing checkpoint: we are ready to signal that the initial map
@@ -2315,6 +2340,9 @@ dl_main (const ElfW(Phdr) *phdr,
 
       __rtld_mutex_init ();
       __rtld_malloc_init_real (main_map);
+
+      /* Update copy-relocated _r_debug if necessary.  */
+      _dl_debug_post_relocate (main_map);
     }
 
   /* All ld.so initialization is complete.  Apply RELRO.  */
@@ -2335,8 +2363,7 @@ dl_main (const ElfW(Phdr) *phdr,
   /* Notify the debugger all new objects are now ready to go.  We must re-get
      the address since by now the variable might be in another object.  */
   r = _dl_debug_update (LM_ID_BASE);
-  r->r_state = RT_CONSISTENT;
-  _dl_debug_state ();
+  _dl_debug_change_state (r, RT_CONSISTENT);
   LIBC_PROBE (init_complete, 2, LM_ID_BASE, r);
 
   /* Auditing checkpoint: we have added all objects.  */

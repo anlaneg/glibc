@@ -40,7 +40,7 @@ __fesetenv (const fenv_t *envp)
      values which we do not want to come from the saved environment.
      Therefore, we get the current environment and replace the values
      we want to use from the environment specified by the parameter.  */
-  __asm__ ("fnstenv %0" : "=m" (*&temp));
+  __asm__ ("fnstenv %0" : "=m" (temp));
 
   if (envp == FE_DFL_ENV)
     {
@@ -80,7 +80,7 @@ __fesetenv (const fenv_t *envp)
   if (CPU_FEATURE_USABLE (SSE))
     {
       unsigned int mxcsr;
-      __asm__ ("stmxcsr %0" : "=m" (mxcsr));
+      __asm__ ("%vstmxcsr %0" : "=m" (mxcsr));
 
       if (envp == FE_DFL_ENV)
 	{
@@ -111,7 +111,7 @@ __fesetenv (const fenv_t *envp)
       else
 	mxcsr = envp->__eip;
 
-      __asm__ ("ldmxcsr %0" : : "m" (mxcsr));
+      __asm__ ("%vldmxcsr %0" : : "m" (mxcsr));
     }
 
   /* Success.  */

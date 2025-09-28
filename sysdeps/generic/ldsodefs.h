@@ -171,19 +171,6 @@ dl_symbol_visibility_binds_local_p (const ElfW(Sym) *sym)
 # define ELF_RTYPE_CLASS_COPY 0
 #endif
 
-/* ELF uses the PF_x macros to specify the segment permissions, mmap
-   uses PROT_xxx.  In most cases the three macros have the values 1, 2,
-   and 3 but not in a matching order.  The following macros allows
-   converting from the PF_x values to PROT_xxx values.  */
-#define PF_TO_PROT \
-  ((PROT_READ << (PF_R * 4))						      \
-   | (PROT_WRITE << (PF_W * 4))						      \
-   | (PROT_EXEC << (PF_X * 4))						      \
-   | ((PROT_READ | PROT_WRITE) << ((PF_R | PF_W) * 4))			      \
-   | ((PROT_READ | PROT_EXEC) << ((PF_R | PF_X) * 4))			      \
-   | ((PROT_WRITE | PROT_EXEC) << (PF_W | PF_X) * 4)			      \
-   | ((PROT_READ | PROT_WRITE | PROT_EXEC) << ((PF_R | PF_W | PF_X) * 4)))
-
 /* The filename itself, or the main program name, if available.  */
 #define DSO_FILENAME(name) ((name)[0] ? (name)				      \
 			    : (rtld_progname ?: "<main program>"))
@@ -368,8 +355,6 @@ struct rtld_global
       size_t n_elements;
       void (*free) (void *);
     } _ns_unique_sym_table;
-    /* Keep track of changes to each namespace' list.  */
-    struct r_debug_extended _ns_debug;
   } _dl_ns[DL_NNS];
   /* One higher than index of last used namespace.  */
   EXTERN size_t _dl_nns;
@@ -418,7 +403,7 @@ struct rtld_global
 #include <dl-procruntime.c>
 
   /* Prevailing state of the stack, PF_X indicating it's executable.  */
-  EXTERN ElfW(Word) _dl_stack_flags;
+  EXTERN int _dl_stack_prot_flags;
 
   /* Flag signalling whether there are gaps in the module ID allocation.  */
   EXTERN bool _dl_tls_dtv_gaps;
@@ -1089,14 +1074,28 @@ extern void _dl_debug_state (void);
 rtld_hidden_proto (_dl_debug_state)
 
 /* Initialize `struct r_debug_extended' for the namespace NS.  LDBASE
-   is the run-time load address of the dynamic linker, to be put in the
-   `r_ldbase' member.  Return the address of the structure.  */
+   is the run-time load address of the dynamic linker, to be put in
+   the `r_ldbase' member.
+
+   Return the address of the r_debug structure for the namespace.
+   This is not merely a convenience or optimization, but it is
+   necessary for the LIBC_PROBE Systemtap/debugger probes to work
+   reliably: direct variable access can create probes that tools
+   cannot consume.  */
 extern struct r_debug *_dl_debug_initialize (ElfW(Addr) ldbase, Lmid_t ns)
      attribute_hidden;
+
+/* This is called after relocation processing to handle a potential
+   copy relocation for _r_debug.  */
+void _dl_debug_post_relocate (struct link_map *main_map) attribute_hidden;
 
 /* Update the `r_map' member and return the address of `struct r_debug'
    of the namespace NS.  */
 extern struct r_debug *_dl_debug_update (Lmid_t ns) attribute_hidden;
+
+/* Update R->r_state to STATE and notify the debugger by calling
+   _dl_debug_state.  */
+void _dl_debug_change_state (struct r_debug *r, int state) attribute_hidden;
 
 /* Initialize the basic data structure for the search paths.  SOURCE
    is either "LD_LIBRARY_PATH" or "--library-path".

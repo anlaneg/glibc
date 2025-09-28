@@ -25,53 +25,15 @@ SYSDEPS := lockfile
 LCLHDRS :=
 
 libpthread-routines := \
-  pt-init-specific \
-  pt-alloc \
   pt-create \
-  pt-getattr \
-  pt-dealloc \
-  pt-detach \
-  pt-exit \
   pt-initialize \
-  pt-join \
   pt-spin-inlines \
-  pt-cleanup \
-  pt-testcancel \
-  pt-cancel \
-  pt-mutex-transfer-np \
   pt-hurd-cond-wait \
   pt-hurd-cond-timedwait \
-  pt-stack-alloc \
-  pt-thread-alloc \
-  pt-thread-start \
-  pt-thread-terminate \
-  pt-startup \
-  pt-getconcurrency \
-  pt-setconcurrency \
-  pt-docancel \
   pt-sysdep \
-  pt-setup \
-  pt-machdep \
   pt-spin \
-  pt-sigstate-init \
-  pt-kill \
-  pt-getcpuclockid \
-  pt-setschedprio \
-  pt-yield \
   pt-getname-np \
   pt-setname-np \
-  sem_close \
-  sem-destroy \
-  sem-getvalue \
-  sem-init \
-  sem_open \
-  sem-post \
-  sem-timedwait \
-  sem-trywait \
-  sem_unlink \
-  sem-wait \
-  sem-waitfast \
-  sem_routines \
   cancellation \
   cthreads-compat \
   herrno \
@@ -112,6 +74,7 @@ routines := \
   forward \
   htlfreeres \
   libc_pthread_init \
+  pt-alloc \
   pt-attr \
   pt-attr-destroy \
   pt-attr-getdetachstate \
@@ -143,6 +106,8 @@ routines := \
   pt-barrierattr-setpshared \
   pt-block \
   pt-block-intr \
+  pt-cancel \
+  pt-cleanup \
   pt-cond \
   pt-cond-brdcast \
   pt-cond-destroy \
@@ -156,11 +121,22 @@ routines := \
   pt-condattr-init \
   pt-condattr-setclock \
   pt-condattr-setpshared \
+  pt-dealloc \
   pt-destroy-specific \
+  pt-detach \
+  pt-docancel \
+  pt-exit \
+  pt-getattr \
+  pt-getconcurrency \
+  pt-getcpuclockid \
   pt-getschedparam \
   pt-getspecific \
+  pt-init-specific \
+  pt-join \
   pt-key-create \
   pt-key-delete \
+  pt-kill \
+  pt-machdep \
   pt-mutex-checklocked \
   pt-mutex-consistent \
   pt-mutex-destroy \
@@ -169,6 +145,7 @@ routines := \
   pt-mutex-lock \
   pt-mutex-setprioceiling \
   pt-mutex-timedlock \
+  pt-mutex-transfer-np \
   pt-mutex-trylock \
   pt-mutex-unlock \
   pt-mutexattr-destroy \
@@ -203,14 +180,37 @@ routines := \
   pt-self pt-equal \
   pt-setcancelstate \
   pt-setcanceltype \
+  pt-setconcurrency \
   pt-setschedparam \
+  pt-setschedprio \
   pt-setspecific \
+  pt-setup \
   pt-sigmask \
   pt-sigstate \
   pt-sigstate-destroy \
+  pt-sigstate-init \
+  pt-stack-alloc \
+  pt-startup \
+  pt-testcancel \
+  pt-thread-alloc \
+  pt-thread-start \
+  pt-thread-terminate \
   pt-timedblock \
   pt-timedblock-intr \
   pt-wakeup \
+  pt-yield \
+  sem-destroy \
+  sem-getvalue \
+  sem-init \
+  sem-post \
+  sem-timedwait \
+  sem-trywait \
+  sem-wait \
+  sem-waitfast \
+  sem_close \
+  sem_open \
+  sem_routines \
+  sem_unlink \
   # routines
 shared-only-routines = forward
 

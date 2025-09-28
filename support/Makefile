@@ -66,6 +66,7 @@ libsupport-routines = \
   support_format_netent \
   support_fuse \
   support_isolate_in_subprocess \
+  support_mem_access \
   support_mutex_pi_monotonic \
   support_need_proc \
   support_open_and_compare_file_bytes \
@@ -134,6 +135,7 @@ libsupport-routines = \
   xfclose \
   xfdopendir \
   xfgets \
+  xfmemopen \
   xfopen \
   xfork \
   xfread \
@@ -332,6 +334,7 @@ tests = \
   tst-support-open-dev-null-range \
   tst-support-openpty \
   tst-support-process_state \
+  tst-support_accept_oom \
   tst-support_blob_repeat \
   tst-support_capture_subprocess \
   tst-support_descriptors \

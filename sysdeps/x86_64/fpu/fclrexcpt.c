@@ -19,7 +19,7 @@
 #include <fenv.h>
 
 int
-feclearexcept (int excepts)
+__feclearexcept (int excepts)
 {
   fenv_t temp;
   unsigned int mxcsr;
@@ -29,24 +29,26 @@ feclearexcept (int excepts)
 
   /* Bah, we have to clear selected exceptions.  Since there is no
      `fldsw' instruction we have to do it the hard way.  */
-  __asm__ ("fnstenv %0" : "=m" (*&temp));
+  __asm__ ("fnstenv %0" : "=m" (temp));
 
   /* Clear the relevant bits.  */
   temp.__status_word &= excepts ^ FE_ALL_EXCEPT;
 
   /* Put the new data in effect.  */
-  __asm__ ("fldenv %0" : : "m" (*&temp));
+  __asm__ ("fldenv %0" : : "m" (temp));
 
   /* And the same procedure for SSE.  */
-  __asm__ ("stmxcsr %0" : "=m" (*&mxcsr));
+  __asm__ ("%vstmxcsr %0" : "=m" (mxcsr));
 
   /* Clear the relevant bits.  */
   mxcsr &= ~excepts;
 
   /* And put them into effect.  */
-  __asm__ ("ldmxcsr %0" : : "m" (*&mxcsr));
+  __asm__ ("%vldmxcsr %0" : : "m" (mxcsr));
 
   /* Success.  */
   return 0;
 }
+libm_hidden_def (__feclearexcept)
+weak_alias (__feclearexcept, feclearexcept)
 libm_hidden_def (feclearexcept)

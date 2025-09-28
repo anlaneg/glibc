@@ -19,6 +19,7 @@
 #ifndef X86_MATH_PRIVATE_H
 #define X86_MATH_PRIVATE_H 1
 
+#include <math.h>
 #include_next <math_private.h>
 
 __extern_always_inline long double
@@ -27,6 +28,28 @@ __NTH (__ieee754_atan2l (long double y, long double x))
   long double ret;
   __asm__ __volatile__ ("fpatan" : "=t" (ret) : "0" (x), "u" (y) : "st(1)");
   return ret;
+}
+
+__extern_always_inline double
+__trunc (double x)
+{
+#if HAVE_X86_INLINE_TRUNC || !defined __SSE4_1__
+  return trunc (x);
+#else
+  asm ("%vroundsd $11, %d1, %0" : "=v" (x) : "v" (x));
+  return x;
+#endif
+}
+
+__extern_always_inline float
+__truncf (float x)
+{
+#if HAVE_X86_INLINE_TRUNC || !defined __SSE4_1__
+  return truncf (x);
+#else
+  asm ("%vroundss $11, %d1, %0" : "=v" (x) : "v" (x));
+  return x;
+#endif
 }
 
 #endif

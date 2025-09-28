@@ -20,7 +20,6 @@
 #include <shlib-compat.h>
 #include "semaphoreP.h"
 #include <kernel-features.h>
-#include <futex-internal.h>
 
 
 int
@@ -33,15 +32,6 @@ __new_sem_init (sem_t *sem, int pshared, unsigned int value)
     {
 	  /*value不得超过最大值*/
       __set_errno (EINVAL);
-      return -1;
-    }
-  /*是否进程间共享*/
-  pshared = pshared != 0 ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
-  int err = futex_supports_pshared (pshared);
-  if (err != 0)
-    {
-	  /*pshared参数有误，则报错*/
-      __set_errno (err);
       return -1;
     }
 
@@ -58,8 +48,7 @@ __new_sem_init (sem_t *sem, int pshared, unsigned int value)
   isem->nwaiters = 0;
 #endif
 
-  isem->private = (pshared == PTHREAD_PROCESS_PRIVATE
-		   ? FUTEX_PRIVATE : FUTEX_SHARED);
+  isem->private = (pshared == 0 ? FUTEX_PRIVATE : FUTEX_SHARED);
 
   return 0;
 }

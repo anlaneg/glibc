@@ -135,6 +135,25 @@ LDFLAGS-tst-tls23 += -rdynamic
 tst-tls23-mod.so-no-z-defs = yes
 
 $(objpfx)tst-tls23-mod.so: $(libsupport)
+
+tests-special += $(objpfx)check-gnu2-tls.out
+
+$(objpfx)check-gnu2-tls.out: $(common-objpfx)libc.so
+	LC_ALL=C $(READELF) -V -W $< \
+		| sed -ne '/.gnu.version_d/, /.gnu.version_r/ p' \
+		| grep GLIBC_ABI_GNU2_TLS > $@; \
+	$(evaluate-test)
+generated += check-gnu2-tls.out
+
+ifneq (,$(test-cc-cflags-no-direct-extern-access))
+CFLAGS-tst-protected1a.c += $(test-cc-cflags-no-direct-extern-access)
+CFLAGS-tst-protected1b.c += $(test-cc-cflags-no-direct-extern-access)
+CFLAGS-vismain.c += $(test-cc-cflags-no-direct-extern-access)
+endif
+endif
+
+ifeq ($(subdir),gmon)
+CFLAGS-mcount.c += -mgeneral-regs-only
 endif
 
 ifeq ($(subdir),math)

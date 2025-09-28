@@ -57,6 +57,7 @@ dl-routines = \
   dl-close \
   dl-debug \
   dl-debug-symbols \
+  dl-debug_state \
   dl-deps \
   dl-exception \
   dl-execstack \
@@ -419,6 +420,8 @@ tests += \
   tst-dlmopen1 \
   tst-dlmopen3 \
   tst-dlmopen4 \
+  tst-dlmopen4-nonpic \
+  tst-dlmopen4-pic \
   tst-dlopen-auditdup \
   tst-dlopen-constructor-null \
   tst-dlopen-self \
@@ -540,6 +543,8 @@ tests-internal += \
   tst-dl_find_object-threads \
   tst-dlmopen2 \
   tst-hash-collision3 \
+  tst-link-map-contiguous-ldso \
+  tst-link-map-contiguous-libc \
   tst-ptrguard1 \
   tst-stackguard1 \
   tst-tls-surplus \
@@ -550,6 +555,10 @@ tests-internal += \
   unload \
   unload2 \
   # tests-internal
+
+ifeq ($(build-hardcoded-path-in-tests),yes)
+tests-internal += tst-link-map-contiguous-main
+endif
 
 tests-container += \
   tst-dlopen-self-container \
@@ -2158,7 +2167,7 @@ $(objpfx)execstack-default: $(first-word $(wildcard $(sysdirs:%=%/stackinfo.h)))
 	$(make-target-directory)
 	{ echo '#include <elf.h>'; \
 	  echo '#include <stackinfo.h>'; \
-	  echo '#if (DEFAULT_STACK_PERMS & PF_X) == 0'; \
+	  echo '#if (DEFAULT_STACK_PROT_PERMS & PROT_EXEC) == 0'; \
 	  echo '@@@execstack-no@@@'; \
 	  echo '#else'; \
 	  echo '@@@execstack-yes@@@'; \
@@ -2257,6 +2266,13 @@ $(objpfx)tst-dlmopen2.out: $(objpfx)tst-dlmopen1mod.so
 $(objpfx)tst-dlmopen3.out: $(objpfx)tst-dlmopen1mod.so
 
 $(objpfx)tst-dlmopen4.out: $(objpfx)tst-dlmopen1mod.so
+
+CFLAGS-tst-dlmopen4-pic.c += -fPIC
+$(objpfx)tst-dlmopen4-pic.out: $(objpfx)tst-dlmopen1mod.so
+
+CFLAGS-tst-dlmopen4-nonpic.c += -fno-pie
+tst-dlmopen4-nonpic-no-pie = yes
+$(objpfx)tst-dlmopen4-nonpic.out: $(objpfx)tst-dlmopen1mod.so
 
 $(objpfx)tst-audit1.out: $(objpfx)tst-auditmod1.so
 tst-audit1-ENV = LD_AUDIT=$(objpfx)tst-auditmod1.so

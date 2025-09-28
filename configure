@@ -620,7 +620,6 @@ DEFINES
 static_nss
 profile
 libc_cv_multidir
-libc_cv_test_x86_have_amx_tile
 test_enable_cet
 libc_cv_test_cc_mprefer_vector_width
 shared
@@ -692,6 +691,7 @@ MAKEINFO
 MSGFMT
 MAKE
 LD
+STRIP
 NM
 OBJDUMP
 READELF
@@ -822,6 +822,7 @@ enable_mathvec
 enable_cet
 enable_scv
 enable_fortify_source
+enable_sframe
 with_cpu
 '
       ac_precious_vars='build_alias
@@ -1507,6 +1508,7 @@ Optional Features:
                           Use -D_FORTIFY_SOURCE=[1|2|3] to control code
                           hardening, defaults to highest possible value
                           supported by the build compiler.
+  --enable-sframe         Enable building with SFrame support [default=no]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -4885,6 +4887,16 @@ case "$enable_fortify_source" in
 *) as_fn_error $? "Not a valid argument for --enable-fortify-source: \"$enable_fortify_source\"" "$LINENO" 5;;
 esac
 
+# Check whether --enable-sframe was given.
+if test ${enable_sframe+y}
+then :
+  enableval=$enable_sframe; use_sframe=$enableval
+else case e in #(
+  e) use_sframe=no ;;
+esac
+fi
+
+
 # We keep the original values in `$config_*' and never modify them, so we
 # can write them unchanged into config.make.  Everything else uses
 # $machine, $vendor, and $os, and changes them whenever convenient.
@@ -5125,6 +5137,10 @@ fi
 
 if test -z "$NM"; then
     NM=`$CC -print-prog-name=nm`
+fi
+
+if test -z "$STRIP"; then
+    STRIP=`$CC -print-prog-name=strip`
 fi
 
 
@@ -7818,7 +7834,7 @@ if test ${libc_cv_test_cc_cflags_fsemantic_interposition+y}
 then :
   printf %s "(cached) " >&6
 else case e in #(
-  e) if { ac_try='${CC-cc} -c -Werror -fsemantic-interposition -xc /dev/null -S -o /dev/null'
+  e) if { ac_try='${CC-cc} -Werror -fsemantic-interposition -xc /dev/null -S -o /dev/null'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -8004,6 +8020,9 @@ CC="$saved_CC"
 
 fi
 
+if test $libc_cv_test_clang = yes; then
+  libc_cv_test_cc_wimplicit_fallthrough=
+fi
 config_vars="$config_vars
 cc-option-wimplicit-fallthrough = $libc_cv_cc_wimplicit_fallthrough"
 
@@ -8185,7 +8204,7 @@ if test ${libc_cv_test_cflags_wno_restrict+y}
 then :
   printf %s "(cached) " >&6
 else case e in #(
-  e) if { ac_try='${CC-cc} -c -Werror -Wno-restrict -xc /dev/null -S -o /dev/null'
+  e) if { ac_try='${CC-cc} -Werror -Wno-restrict -xc /dev/null -S -o /dev/null'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -8219,7 +8238,7 @@ if test ${libc_cv_test_cflags_wno_fortify_source+y}
 then :
   printf %s "(cached) " >&6
 else case e in #(
-  e) if { ac_try='${CC-cc} -c -Werror -Wno-fortify-source -xc /dev/null -S -o /dev/null'
+  e) if { ac_try='${CC-cc} -Werror -Wno-fortify-source -xc /dev/null -S -o /dev/null'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -8253,7 +8272,7 @@ if test ${libc_cv_test_cflags_finput_charset_ascii+y}
 then :
   printf %s "(cached) " >&6
 else case e in #(
-  e) if { ac_try='${CC-cc} -c -Werror -finput-charset=ascii -xc /dev/null -S -o /dev/null'
+  e) if { ac_try='${CC-cc} -Werror -finput-charset=ascii -xc /dev/null -S -o /dev/null'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -8287,7 +8306,7 @@ if test ${libc_cv_test_cxxflags_finput_charset_ascii+y}
 then :
   printf %s "(cached) " >&6
 else case e in #(
-  e) if { ac_try='${CXX-c++} -c -Werror -finput-charset=ascii -xc++ /dev/null -S -o /dev/null'
+  e) if { ac_try='${CXX-c++} -Werror -finput-charset=ascii -xc++ /dev/null -S -o /dev/null'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
@@ -9340,6 +9359,133 @@ have-libgcc_s = $libc_cv_have_libgcc_s"
 
 
 
+enable_gsframe=no
+if test $use_sframe = yes; then
+  # SFrame requires to be explicit enabled by the architecture
+  if test -z $libc_cv_support_sframe; then
+    { { printf "%s\n" "$as_me:${as_lineno-$LINENO}: error: in '$ac_pwd':" >&5
+printf "%s\n" "$as_me: error: in '$ac_pwd':" >&2;}
+as_fn_error $? "the architecture doesn't support SFrame
+See 'config.log' for more details" "$LINENO" 5; }
+  fi
+
+  # SFrame requires binutils 2.45 or higher.
+  libc_cv_sframe_readelf_version=yes
+  for ac_prog in $READELF
+do
+  # Extract the first word of "$ac_prog", so it can be a program name with args.
+set dummy $ac_prog; ac_word=$2
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+printf %s "checking for $ac_word... " >&6; }
+if test ${ac_cv_prog_READELF+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) if test -n "$READELF"; then
+  ac_cv_prog_READELF="$READELF" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  case $as_dir in #(((
+    '') as_dir=./ ;;
+    */) ;;
+    *) as_dir=$as_dir/ ;;
+  esac
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir$ac_word$ac_exec_ext"; then
+    ac_cv_prog_READELF="$ac_prog"
+    printf "%s\n" "$as_me:${as_lineno-$LINENO}: found $as_dir$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+fi ;;
+esac
+fi
+READELF=$ac_cv_prog_READELF
+if test -n "$READELF"; then
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $READELF" >&5
+printf "%s\n" "$READELF" >&6; }
+else
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+fi
+
+
+  test -n "$READELF" && break
+done
+
+if test -z "$READELF"; then
+  ac_verc_fail=yes
+else
+  # Found it, now check the version.
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking version of $READELF" >&5
+printf %s "checking version of $READELF... " >&6; }
+  ac_prog_version=`$READELF --version 2>&1 | sed -n 's/^.*GNU readelf.* \([0-9][0-9]*\.[0-9.]*\).*$/\1/p'`
+  case $ac_prog_version in
+    '') ac_prog_version="v. ?.??, bad"; ac_verc_fail=yes;;
+    2.4[5-9]*|2.[5-9][0-9]*|2.[1-9][0-9][0-9]*|[3-9]*|[1-9][0-9]*)
+       ac_prog_version="$ac_prog_version, ok"; ac_verc_fail=no;;
+    *) ac_prog_version="$ac_prog_version, bad"; ac_verc_fail=yes;;
+
+  esac
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_prog_version" >&5
+printf "%s\n" "$ac_prog_version" >&6; }
+fi
+if test $ac_verc_fail = yes; then
+  libc_cv_sframe_readelf_version=no
+fi
+
+  if test $libc_cv_sframe_readelf_version = no; then
+    { { printf "%s\n" "$as_me:${as_lineno-$LINENO}: error: in '$ac_pwd':" >&5
+printf "%s\n" "$as_me: error: in '$ac_pwd':" >&2;}
+as_fn_error $? "binutils too old to enable SFrame
+See 'config.log' for more details" "$LINENO" 5; }
+  fi
+
+  # Check if the current toolchain supports SFrame
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for SFrame support" >&5
+printf %s "checking for SFrame support... " >&6; }
+if test ${libc_cv_default_sframe+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) cat > conftest.c <<EOF
+int test_function(void)
+{
+  return 42;
+}
+EOF
+    libc_cv_default_sframe=no
+    if ${CC} -c conftest.c -o conftest.o -Wa,--gsframe >/dev/null 2>&1 && \
+       # Check if .sframe section is present and if version > 1
+       $READELF --sframe conftest.o | grep "SFRAME_VER" | grep -qv "VERSION_1"; then
+      libc_cv_default_sframe=yes
+    fi
+    rm -f conftest.c conftest.o
+   ;;
+esac
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $libc_cv_default_sframe" >&5
+printf "%s\n" "$libc_cv_default_sframe" >&6; }
+
+  if test $libc_cv_default_sframe = no; then
+    { { printf "%s\n" "$as_me:${as_lineno-$LINENO}: error: in '$ac_pwd':" >&5
+printf "%s\n" "$as_me: error: in '$ac_pwd':" >&2;}
+as_fn_error $? "toolchain doesn't support SFrame v2 or higher
+See 'config.log' for more details" "$LINENO" 5; }
+  fi
+
+  enable_gsframe=yes
+  printf "%s\n" "#define ENABLE_SFRAME 1" >>confdefs.h
+
+fi
+config_vars="$config_vars
+enable-gsframe = $enable_gsframe"
 
 # Set the `multidir' variable by grabbing the variable from the compiler.
 # We do it once and save the result in a generated makefile.

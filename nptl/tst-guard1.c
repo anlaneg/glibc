@@ -21,59 +21,28 @@
 #include <setjmp.h>
 #include <stackinfo.h>
 #include <stdio.h>
+#include <support/capture_subprocess.h>
 #include <support/check.h>
 #include <support/test-driver.h>
 #include <support/xsignal.h>
 #include <support/xthread.h>
 #include <support/xunistd.h>
+#include <support/check_mem_access.h>
 #include <sys/mman.h>
 #include <stdlib.h>
 
 static long int pagesz;
 
-/* To check if the guard region is inaccessible, the thread tries read/writes
-   on it and checks if a SIGSEGV is generated.  */
-
-static volatile sig_atomic_t signal_jump_set;
-static sigjmp_buf signal_jmp_buf;
-
-static void
-sigsegv_handler (int sig)
-{
-  if (signal_jump_set == 0)
-    return;
-
-  siglongjmp (signal_jmp_buf, sig);
-}
-
-static bool
-try_access_buf (char *ptr, bool write)
-{
-  signal_jump_set = true;
-
-  bool failed = sigsetjmp (signal_jmp_buf, 0) != 0;
-  if (!failed)
-    {
-      if (write)
-	*(volatile char *)(ptr) = 'x';
-      else
-	*(volatile char *)(ptr);
-    }
-
-  signal_jump_set = false;
-  return !failed;
-}
-
 static bool
 try_read_buf (char *ptr)
 {
-  return try_access_buf (ptr, false);
+  return check_mem_access (ptr, false);
 }
 
 static bool
 try_write_buf (char *ptr)
 {
-  return try_access_buf (ptr, true);
+  return check_mem_access (ptr, true);
 }
 
 static bool
@@ -202,7 +171,7 @@ tf (void *closure)
 
 /* Test 1: caller provided stack without guard.  */
 static void
-do_test1 (void)
+do_test1 (void *closure)
 {
   pthread_attr_t attr;
   xpthread_attr_init (&attr);
@@ -227,7 +196,7 @@ do_test1 (void)
 
 /* Test 2: same as 1., but with a guard area.  */
 static void
-do_test2 (void)
+do_test2 (void *closure)
 {
   pthread_attr_t attr;
   xpthread_attr_init (&attr);
@@ -250,18 +219,9 @@ do_test2 (void)
   xmunmap (stack, stacksize);
 }
 
-/* Test 3: pthread_create with default values.  */
+/* Test 3: pthread_create without a guard area.  */
 static void
-do_test3 (void)
-{
-  pthread_t t = xpthread_create (NULL, tf, NULL);
-  void *status = xpthread_join (t);
-  TEST_VERIFY (status == 0);
-}
-
-/* Test 4: pthread_create without a guard area.  */
-static void
-do_test4 (void)
+do_test3 (void *closure)
 {
   pthread_attr_t attr;
   xpthread_attr_init (&attr);
@@ -277,9 +237,18 @@ do_test4 (void)
   xpthread_attr_destroy (&attr);
 }
 
+/* Test 4: pthread_create with default values.  */
+static void
+do_test4 (void *closure)
+{
+  pthread_t t = xpthread_create (NULL, tf, NULL);
+  void *status = xpthread_join (t);
+  TEST_VERIFY (status == 0);
+}
+
 /* Test 5: pthread_create with non default stack and guard size value.  */
 static void
-do_test5 (void)
+do_test5 (void *closure)
 {
   pthread_attr_t attr;
   xpthread_attr_init (&attr);
@@ -299,7 +268,7 @@ do_test5 (void)
    test 3, but with a larger guard area.  The pthread_create will need to
    increase the guard area.  */
 static void
-do_test6 (void)
+do_test6 (void *closure)
 {
   pthread_attr_t attr;
   xpthread_attr_init (&attr);
@@ -320,7 +289,7 @@ do_test6 (void)
    pthread_create should use the cached stack from previous tests, but it
    would require to reduce the guard area.  */
 static void
-do_test7 (void)
+do_test7 (void *closure)
 {
   pthread_t t = xpthread_create (NULL, tf, NULL);
   void *status = xpthread_join (t);
@@ -332,35 +301,42 @@ do_test (void)
 {
   pagesz = sysconf (_SC_PAGESIZE);
 
-  {
-    struct sigaction sa = {
-      .sa_handler = sigsegv_handler,
-      .sa_flags = SA_NODEFER,
-    };
-    sigemptyset (&sa.sa_mask);
-    xsigaction (SIGSEGV, &sa, NULL);
-    /* Some system generates SIGBUS accessing the guard area when it is
-       setup with madvise.  */
-    xsigaction (SIGBUS, &sa, NULL);
-  }
-
   static const struct {
     const char *descr;
-    void (*test)(void);
+    void (*test) (void *);
   } tests[] = {
     { "user provided stack without guard", do_test1 },
     { "user provided stack with guard",    do_test2 },
-    { "default attribute",                 do_test3 },
-    { "default attribute without guard",   do_test4 },
+    /* N.B: do_test3 should be before do_test4 to check if a new thread
+       that uses the thread stack previously allocated without a guard
+       page correctly sets up the guard pages even on a kernel without
+       MADV_GUARD_INSTALL support (BZ 33356).  */
+    { "default attribute without guard",   do_test3 },
+    { "default attribute",                 do_test4 },
+    /* Also checks if the guard is correctly removed from the cache thread
+       stack.  */
+    { "default attribute without guard",   do_test3 },
     { "non default stack and guard sizes", do_test5 },
     { "reused stack with larger guard",    do_test6 },
     { "reused stack with smaller guard",   do_test7 },
   };
 
+  /* Run each test with a clean state.  */
+  for (int i = 0; i < array_length (tests); i++)
+    {
+      printf ("debug: fork: test%01d: %s\n", i, tests[i].descr);
+      struct support_capture_subprocess result =
+	support_capture_subprocess (tests[i].test, NULL);
+      support_capture_subprocess_check (&result, tests[i].descr, 0,
+					sc_allow_none);
+      support_capture_subprocess_free (&result);
+    }
+
+  /* And now run the same tests along with the thread stack cache.  */
   for (int i = 0; i < array_length (tests); i++)
     {
       printf ("debug: test%01d: %s\n", i, tests[i].descr);
-      tests[i].test();
+      tests[i].test ( NULL);
     }
 
   return 0;

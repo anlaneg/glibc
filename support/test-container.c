@@ -273,7 +273,7 @@ devmount (const char *new_root_path, const char *which)
 {
   int fd;
   fd = open (concat (new_root_path, "/dev/", which, NULL),
-	     O_CREAT | O_TRUNC | O_RDWR, 0777);
+	     O_CREAT | O_TRUNC | O_RDWR, 0666);
   xclose (fd);
 
   trymount (concat ("/dev/", which, NULL),
@@ -740,7 +740,7 @@ main (int argc, char **argv)
   char *command_basename;
   char *so_base;
   int do_postclean = 0;
-  bool do_ldconfig = false;
+  bool do_ldconfig = true;
   char *change_cwd = NULL;
 
   int pipes[2];

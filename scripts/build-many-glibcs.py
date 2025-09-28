@@ -233,13 +233,11 @@ class Context(object):
         self.add_config(arch='i686',
                         os_name='gnu')
         self.add_config(arch='loongarch64',
-                        os_name='linux-gnu',
-                        variant='lp64d',
-                        gcc_cfg=['--with-abi=lp64d','--disable-multilib'])
+                        os_name='linux-gnuf64',
+                        gcc_cfg=['--disable-multilib'])
         self.add_config(arch='loongarch64',
-                        os_name='linux-gnu',
-                        variant='lp64s',
-                        gcc_cfg=['--with-abi=lp64s','--disable-multilib'])
+                        os_name='linux-gnusf',
+                        gcc_cfg=['--disable-multilib'])
         self.add_config(arch='m68k',
                         os_name='linux-gnu',
                         gcc_cfg=['--disable-multilib'])
@@ -833,11 +831,11 @@ class Context(object):
 
     def checkout(self, versions):
         """Check out the desired component versions."""
-        default_versions = {'binutils': 'vcs-2.44',
-                            'gcc': 'vcs-14',
+        default_versions = {'binutils': 'vcs-2.45',
+                            'gcc': 'vcs-15',
                             'glibc': 'vcs-mainline',
                             'gmp': '6.3.0',
-                            'linux': '6.15',
+                            'linux': '6.16',
                             'mpc': '1.3.1',
                             'mpfr': '4.2.2',
                             'mig': 'vcs-mainline',

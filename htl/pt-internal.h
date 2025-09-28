@@ -172,6 +172,7 @@ extern int __pthread_concurrency;
 
 /* The size of the thread ID lookup table.  */
 extern int __pthread_max_threads;
+libc_hidden_proto (__pthread_max_threads)
 
 #define __pthread_getid(thread) \
   ({ struct __pthread *__t = NULL;                                           \
@@ -209,6 +210,7 @@ extern int __pthread_create_internal (struct __pthread **__restrict pthread,
 /* Allocate a new thread structure and a pthread thread ID (but not a
    kernel thread or a stack).  THREAD has one reference.  */
 extern int __pthread_alloc (struct __pthread **thread);
+libc_hidden_proto (__pthread_alloc)
 
 /* Deallocate the content of the thread structure.  This is the dual of
    __pthread_alloc (N.B. it does not call __pthread_stack_dealloc nor
@@ -217,15 +219,17 @@ extern int __pthread_alloc (struct __pthread **thread);
    to call __pthread_dealloc_finish when it is really finished with using
    THREAD.  */
 extern void __pthread_dealloc (struct __pthread *thread);
+libc_hidden_proto (__pthread_dealloc)
 
 /* Confirm deallocating the thread structure.  Before calling this
    the structure will not be reused yet.  */
 extern void __pthread_dealloc_finish (struct __pthread *pthread);
-
+libc_hidden_proto (__pthread_dealloc_finish)
 
 /* Allocate a stack of size STACKSIZE.  The stack base shall be
    returned in *STACKADDR.  */
 extern int __pthread_stack_alloc (void **stackaddr, size_t stacksize);
+libc_hidden_proto (__pthread_stack_alloc)
 
 /* Deallocate the stack STACKADDR of size STACKSIZE.  */
 extern void __pthread_stack_dealloc (void *stackaddr, size_t stacksize);
@@ -238,14 +242,16 @@ extern int __pthread_setup (struct __pthread *__restrict thread,
 						 void *),
 			    void *(*start_routine) (void *),
 			    void *__restrict arg);
-
+libc_hidden_proto (__pthread_setup)
 
 /* Allocate a kernel thread (and any miscellaneous system dependent
    resources) for THREAD; it must not be placed on the run queue.  */
 extern int __pthread_thread_alloc (struct __pthread *thread);
+libc_hidden_proto (__pthread_thread_alloc)
 
 /* Start THREAD making it eligible to run.  */
 extern int __pthread_thread_start (struct __pthread *thread);
+libc_hidden_proto (__pthread_thread_start)
 
 /* Terminate the kernel thread associated with THREAD, and deallocate its
    stack as well as any other kernel resource associated with it.
@@ -259,11 +265,12 @@ extern int __pthread_thread_start (struct __pthread *thread);
    has started, no other thread can terminate it, so that thread-local
    variables created by that thread are correctly released.  */
 extern void __pthread_thread_terminate (struct __pthread *thread);
-
+libc_hidden_proto (__pthread_thread_terminate)
 
 /* Called by a thread just before it calls the provided start
    routine.  */
 extern void __pthread_startup (void);
+libc_hidden_proto (__pthread_startup)
 
 /* Block THREAD.  */
 extern void __pthread_block (struct __pthread *thread);
@@ -305,6 +312,7 @@ libc_hidden_proto (__pthread_destroy_specific)
 /* Initialize newly create thread *THREAD's signal state data
    structures.  */
 extern error_t __pthread_sigstate_init (struct __pthread *thread);
+libc_hidden_proto (__pthread_sigstate_init)
 
 /* Destroy the signal state data structures associated with thread
    *THREAD.  */

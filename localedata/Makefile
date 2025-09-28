@@ -236,6 +236,7 @@ tests = \
   bug-iconv-trans \
   bug-setlocale1 \
   bug-usesetlocale \
+  tst-bz12701-lc \
   tst-bz13988 \
   tst-c-utf8-consistency \
   tst-digits \
@@ -249,6 +250,8 @@ tests = \
   tst-mbswcs4 \
   tst-mbswcs5 \
   tst-mbswcs6 \
+  tst-scanf-width-digit \
+  tst-scanf-width-point \
   tst-setlocale \
   tst-setlocale2 \
   tst-setlocale3 \

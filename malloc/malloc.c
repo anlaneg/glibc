@@ -230,6 +230,9 @@
 /* For uintptr_t.  */
 #include <stdint.h>
 
+/* For stdc_count_ones.  */
+#include <stdbit.h>
+
 /* For va_arg, va_start, va_end.  */
 #include <stdarg.h>
 
@@ -294,9 +297,9 @@
 # define TCACHE_SMALL_BINS		64
 # define TCACHE_LARGE_BINS		12 /* Up to 4M chunks */
 # define TCACHE_MAX_BINS	(TCACHE_SMALL_BINS + TCACHE_LARGE_BINS)
-# define MAX_TCACHE_SMALL_SIZE	tidx2usize (TCACHE_MAX_BINS-1)
+# define MAX_TCACHE_SMALL_SIZE	tidx2csize (TCACHE_SMALL_BINS-1)
 
-/* Only used to pre-fill the tunables.  */
+# define tidx2csize(idx)	(((size_t) idx) * MALLOC_ALIGNMENT + MINSIZE)
 # define tidx2usize(idx)	(((size_t) idx) * MALLOC_ALIGNMENT + MINSIZE - SIZE_SZ)
 
 /* When "x" is from chunksize().  */
@@ -1323,8 +1326,8 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* Check if REQ overflows when padded and aligned and if the resulting
    value is less than PTRDIFF_T.  Returns the requested size or
-   MINSIZE in case the value is less than MINSIZE, or 0 if any of the
-   previous checks fail.  */
+   MINSIZE in case the value is less than MINSIZE, or SIZE_MAX if any
+   of the previous checks fail.  */
 static __always_inline size_t
 checked_request2size (size_t req) __nonnull (1)
 {
@@ -1332,7 +1335,7 @@ checked_request2size (size_t req) __nonnull (1)
                   "PTRDIFF_MAX is not more than half of SIZE_MAX");
 
   if (__glibc_unlikely (req > PTRDIFF_MAX))
-    return 0;
+    return SIZE_MAX;
 
   /* When using tagged memory, we cannot share the end of the user
      block with the header for the next chunk, so ensure that we
@@ -1455,7 +1458,7 @@ checked_request2size (size_t req) __nonnull (1)
 #define memsize(p)                                                    \
   (__MTAG_GRANULE_SIZE > SIZE_SZ && __glibc_unlikely (mtag_enabled) ? \
     chunksize (p) - CHUNK_HDR_SZ :                                    \
-    chunksize (p) - CHUNK_HDR_SZ + (chunk_is_mmapped (p) ? 0 : SIZE_SZ))
+    chunksize (p) - CHUNK_HDR_SZ + SIZE_SZ)
 
 /* If memory tagging is enabled the layout changes to accommodate the granule
    size, this is wasteful for small allocations so not done by default.
@@ -1472,6 +1475,44 @@ tag_new_usable (void *ptr)
       ptr = __libc_mtag_tag_region (__libc_mtag_new_tag (ptr), memsize (cp));
     }
   return ptr;
+}
+
+/* HP page used for an mmap()'ed chunk. */
+#define MMAP_HP 0x1
+
+/* Check for HP usage from an mmap()'ed chunk. */
+static __always_inline bool
+mmap_is_hp (mchunkptr p)
+{
+  return prev_size (p) & MMAP_HP;
+}
+
+/* Set HP advised field for an mmap()'ed chunk. */
+static __always_inline void
+set_mmap_is_hp (mchunkptr p)
+{
+  prev_size (p) |= MMAP_HP;
+}
+
+/* Get an mmap()ed chunk's offset, ignoring huge page bits. */
+static __always_inline size_t
+prev_size_mmap (mchunkptr p)
+{
+  return prev_size (p) & ~MMAP_HP;
+}
+
+/* Return pointer to mmap base from a chunk with IS_MMAPPED set.  */
+static __always_inline void *
+mmap_base (mchunkptr p)
+{
+  return (char *) p - prev_size_mmap (p);
+}
+
+/* Return total mmap size of a chunk with IS_MMAPPED set.  */
+static __always_inline size_t
+mmap_size (mchunkptr p)
+{
+  return prev_size_mmap (p) + chunksize (p) + CHUNK_HDR_SZ;
 }
 
 /*
@@ -1871,6 +1912,7 @@ struct malloc_par
   INTERNAL_SIZE_T arena_max;
 
   /* Transparent Large Page support.  */
+  enum malloc_thp_mode_t thp_mode;
   INTERNAL_SIZE_T thp_pagesize;
   /* A value different than 0 means to align mmap allocation to hp_pagesize
      add hp_flags on flags.  */
@@ -1927,12 +1969,13 @@ static struct malloc_par mp_ =
   .mmap_threshold = DEFAULT_MMAP_THRESHOLD,
   .trim_threshold = DEFAULT_TRIM_THRESHOLD,
 #define NARENAS_FROM_NCORES(n) ((n) * (sizeof (long) == 4 ? 2 : 8))
-  .arena_test = NARENAS_FROM_NCORES (1)
+  .arena_test = NARENAS_FROM_NCORES (1),
+  .thp_mode = malloc_thp_mode_not_supported
 #if USE_TCACHE
   ,
   .tcache_count = TCACHE_FILL_COUNT,
   .tcache_small_bins = TCACHE_SMALL_BINS,
-  .tcache_max_bytes = MAX_TCACHE_SMALL_SIZE,
+  .tcache_max_bytes = MAX_TCACHE_SMALL_SIZE + 1,
   .tcache_unsorted_limit = 0 /* No limit.  */
 #endif
 };
@@ -2011,6 +2054,11 @@ static inline void
 madvise_thp (void *p, INTERNAL_SIZE_T size)
 {
 #ifdef MADV_HUGEPAGE
+  /* Only use __madvise if the system is using 'madvise' mode.
+     Otherwise the call is wasteful. */
+  if (mp_.thp_mode != malloc_thp_mode_madvise)
+    return;
+
   /* Do not consider areas smaller than a huge page or if the tunable is
      not active.  */
   if (mp_.thp_pagesize == 0 || size < mp_.thp_pagesize)
@@ -2068,12 +2116,13 @@ static void
 do_check_chunk (mstate av, mchunkptr p)
 {
   unsigned long sz = chunksize (p);
-  /* min and max possible addresses assuming contiguous allocation */
-  char *max_address = (char *) (av->top) + chunksize (av->top);
-  char *min_address = max_address - av->system_mem;
 
   if (!chunk_is_mmapped (p))
     {
+      /* min and max possible addresses assuming contiguous allocation */
+      char *max_address = (char *) (av->top) + chunksize (av->top);
+      char *min_address = max_address - av->system_mem;
+
       /* Has legal address ... */
       if (p != av->top)
         {
@@ -2093,13 +2142,8 @@ do_check_chunk (mstate av, mchunkptr p)
     }
   else
     {
-      /* address is outside main heap  */
-      if (contiguous (av) && av->top != initial_top (av))
-        {
-          assert (((char *) p) < min_address || ((char *) p) >= max_address);
-        }
       /* chunk is page-aligned */
-      assert (((prev_size (p) + sz) & (GLRO (dl_pagesize) - 1)) == 0);
+      assert ((mmap_size (p) & (GLRO (dl_pagesize) - 1)) == 0);
       /* mem is aligned */
       assert (!misaligned_chunk (p));
     }
@@ -2397,83 +2441,36 @@ do_check_malloc_state (mstate av)
 
 /* ----------- Routines dealing with system allocation -------------- */
 
-/*
-   sysmalloc handles malloc cases requiring more memory from the system.
-   On entry, it is assumed that av->top does not have enough
-   space to service request for nb bytes, thus requiring that av->top
-   be extended or replaced.
- */
+/* Allocate a mmap chunk - used for large block sizes or as a fallback.
+   Round up size to nearest page.  Add padding if MALLOC_ALIGNMENT is
+   larger than CHUNK_HDR_SZ.  Add CHUNK_HDR_SZ at the end so that mmap
+   chunks have the same layout as regular chunks.  */
 
 static void *
-sysmalloc_mmap (INTERNAL_SIZE_T nb, size_t pagesize, int extra_flags, mstate av)
+sysmalloc_mmap (INTERNAL_SIZE_T nb, size_t pagesize, int extra_flags)
 {
-  long int size;
-
-  /*
-    Round up size to nearest page.  For mmapped chunks, the overhead is one
-    SIZE_SZ unit larger than for normal chunks, because there is no
-    following chunk whose prev_size field could be used.
-
-    See the front_misalign handling below, for glibc there is no need for
-    further alignments unless we have have high alignment.
-   */
-  if (MALLOC_ALIGNMENT == CHUNK_HDR_SZ)
-    size = ALIGN_UP (nb + SIZE_SZ, pagesize);
-  else
-    size = ALIGN_UP (nb + SIZE_SZ + MALLOC_ALIGN_MASK, pagesize);
-
-  /* Don't try if size wraps around 0.  */
-  if ((unsigned long) (size) <= (unsigned long) (nb))
-    return MAP_FAILED;
+  size_t padding = MALLOC_ALIGNMENT - CHUNK_HDR_SZ;
+  size_t size = ALIGN_UP (nb + padding + CHUNK_HDR_SZ, pagesize);
 
   char *mm = (char *) MMAP (NULL, size,
 			    mtag_mmap_flags | PROT_READ | PROT_WRITE,
 			    extra_flags);
   if (mm == MAP_FAILED)
     return mm;
-
-#ifdef MAP_HUGETLB
-  if (!(extra_flags & MAP_HUGETLB))
+  if (extra_flags == 0)
     madvise_thp (mm, size);
-#endif
 
   __set_vma_name (mm, size, " glibc: malloc");
 
-  /*
-    The offset to the start of the mmapped region is stored in the prev_size
-    field of the chunk.  This allows us to adjust returned start address to
-    meet alignment requirements here and in memalign(), and still be able to
-    compute proper address argument for later munmap in free() and realloc().
-   */
+  /* Store offset to start of mmap in prev_size.  */
+  mchunkptr p = (mchunkptr) (mm + padding);
+  set_prev_size (p, padding);
+  set_head (p, (size - padding - CHUNK_HDR_SZ) | IS_MMAPPED);
 
-  INTERNAL_SIZE_T front_misalign; /* unusable bytes at front of new space */
-
-  if (MALLOC_ALIGNMENT == CHUNK_HDR_SZ)
-    {
-      /* For glibc, chunk2mem increases the address by CHUNK_HDR_SZ and
-	 MALLOC_ALIGN_MASK is CHUNK_HDR_SZ-1.  Each mmap'ed area is page
-	 aligned and therefore definitely MALLOC_ALIGN_MASK-aligned.  */
-      assert (((INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK) == 0);
-      front_misalign = 0;
-    }
-  else
-    front_misalign = (INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK;
-
-  mchunkptr p;                    /* the allocated/returned chunk */
-
-  if (front_misalign > 0)
-    {
-      ptrdiff_t correction = MALLOC_ALIGNMENT - front_misalign;
-      p = (mchunkptr) (mm + correction);
-      set_prev_size (p, correction);
-      set_head (p, (size - correction) | IS_MMAPPED);
-    }
-  else
-    {
-      p = (mchunkptr) mm;
-      set_prev_size (p, 0);
-      set_head (p, size | IS_MMAPPED);
-    }
+  /* Must also check whether huge pages were used in the mmap call
+     and this is not the fallback call after using huge pages failed */
+  if (__glibc_unlikely (extra_flags & mp_.hp_flags))
+    set_mmap_is_hp (p);
 
   /* update statistics */
   int new = atomic_fetch_add_relaxed (&mp_.n_mmaps, 1) + 1;
@@ -2483,7 +2480,7 @@ sysmalloc_mmap (INTERNAL_SIZE_T nb, size_t pagesize, int extra_flags, mstate av)
   sum = atomic_fetch_add_relaxed (&mp_.mmapped_mem, size) + size;
   atomic_max (&mp_.max_mmapped_mem, sum);
 
-  check_chunk (av, p);
+  check_chunk (NULL, p);
 
   return chunk2mem (p);
 }
@@ -2519,10 +2516,8 @@ sysmalloc_mmap_fallback (long int *s, INTERNAL_SIZE_T nb,
   if (mbrk == MAP_FAILED)
     return MAP_FAILED;
 
-#ifdef MAP_HUGETLB
-  if (!(extra_flags & MAP_HUGETLB))
+  if (extra_flags == 0)
     madvise_thp (mbrk, size);
-#endif
 
   __set_vma_name (mbrk, size, " glibc: malloc");
 
@@ -2577,11 +2572,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	{
 	  /* There is no need to issue the THP madvise call if Huge Pages are
 	     used directly.  */
-	  mm = sysmalloc_mmap (nb, mp_.hp_pagesize, mp_.hp_flags, av);
+	  mm = sysmalloc_mmap (nb, mp_.hp_pagesize, mp_.hp_flags);
 	  if (mm != MAP_FAILED)
 	    return mm;
 	}
-      mm = sysmalloc_mmap (nb, pagesize, 0, av);
+      mm = sysmalloc_mmap (nb, pagesize, 0);
       if (mm != MAP_FAILED)
 	return mm;
       tried_mmap = true;
@@ -2665,7 +2660,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	  /* We can at least try to use to mmap memory.  If new_heap fails
 	     it is unlikely that trying to allocate huge pages will
 	     succeed.  */
-	  char *mm = sysmalloc_mmap (nb, pagesize, 0, av);
+	  char *mm = sysmalloc_mmap (nb, pagesize, 0);
 	  if (mm != MAP_FAILED)
 	    return mm;
 	}
@@ -2693,17 +2688,13 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
          previous calls. Otherwise, we correct to page-align below.
        */
 
-#ifdef MADV_HUGEPAGE
-      /* Defined in brk.c.  */
-      extern void *__curbrk;
       if (__glibc_unlikely (mp_.thp_pagesize != 0))
 	{
-	  uintptr_t top = ALIGN_UP ((uintptr_t) __curbrk + size,
-				    mp_.thp_pagesize);
-	  size = top - (uintptr_t) __curbrk;
+	  uintptr_t lastbrk = (uintptr_t) MORECORE (0);
+	  uintptr_t top = ALIGN_UP (lastbrk + size, mp_.thp_pagesize);
+	  size = top - lastbrk;
 	}
       else
-#endif
 	size = ALIGN_UP (size, GLRO(dl_pagesize));
 
       /*
@@ -2978,11 +2969,9 @@ systrim (size_t pad, mstate av)
     return 0;
 
   /* Release in pagesize units and round down to the nearest page.  */
-#ifdef MADV_HUGEPAGE
   if (__glibc_unlikely (mp_.thp_pagesize != 0))
     extra = ALIGN_DOWN (top_area - pad, mp_.thp_pagesize);
   else
-#endif
     extra = ALIGN_DOWN (top_area - pad, GLRO(dl_pagesize));
 
   if (extra == 0)
@@ -3031,13 +3020,12 @@ static void
 munmap_chunk (mchunkptr p)
 {
   size_t pagesize = GLRO (dl_pagesize);
-  INTERNAL_SIZE_T size = chunksize (p);
 
   assert (chunk_is_mmapped (p));
 
   uintptr_t mem = (uintptr_t) chunk2mem (p);
-  uintptr_t block = (uintptr_t) p - prev_size (p);
-  size_t total_size = prev_size (p) + size;
+  uintptr_t block = (uintptr_t) mmap_base (p);
+  size_t total_size = mmap_size (p);
   /* Unfortunately we have to do the compilers job by hand here.  Normally
      we would test BLOCK and TOTAL-SIZE separately for compliance with the
      page size.  But gcc does not recognize the optimization possibility
@@ -3061,22 +3049,22 @@ munmap_chunk (mchunkptr p)
 static mchunkptr
 mremap_chunk (mchunkptr p, size_t new_size)
 {
-  size_t pagesize = GLRO (dl_pagesize);
-  INTERNAL_SIZE_T offset = prev_size (p);
+  size_t pagesize = mmap_is_hp (p) ? mp_.hp_pagesize : GLRO (dl_pagesize);
+  INTERNAL_SIZE_T offset = prev_size_mmap (p);
   INTERNAL_SIZE_T size = chunksize (p);
   char *cp;
 
   assert (chunk_is_mmapped (p));
 
-  uintptr_t block = (uintptr_t) p - offset;
+  uintptr_t block = (uintptr_t) mmap_base (p);
   uintptr_t mem = (uintptr_t) chunk2mem(p);
-  size_t total_size = offset + size;
+  size_t total_size = mmap_size (p);
   if (__glibc_unlikely ((block | total_size) & (pagesize - 1)) != 0
       || __glibc_unlikely (!powerof2 (mem & (pagesize - 1))))
     malloc_printerr("mremap_chunk(): invalid pointer");
 
-  /* Note the extra SIZE_SZ overhead as in mmap_chunk(). */
-  new_size = ALIGN_UP (new_size + offset + SIZE_SZ, pagesize);
+  /* Note the extra CHUNK_HDR_SZ overhead as in mmap_chunk(). */
+  new_size = ALIGN_UP (new_size + offset + CHUNK_HDR_SZ, pagesize);
 
   /* No need to remap if the number of pages does not change.  */
   if (total_size == new_size)
@@ -3094,8 +3082,8 @@ mremap_chunk (mchunkptr p, size_t new_size)
 
   assert (!misaligned_chunk (p));
 
-  assert (prev_size (p) == offset);
-  set_head (p, (new_size - offset) | IS_MMAPPED);
+  assert (prev_size_mmap (p) == offset);
+  set_head (p, (new_size - offset - CHUNK_HDR_SZ) | IS_MMAPPED);
 
   INTERNAL_SIZE_T new;
   new = atomic_fetch_add_relaxed (&mp_.mmapped_mem, new_size - size - offset)
@@ -3152,6 +3140,20 @@ tcache_key_initialize (void)
   if (__getrandom_nocancel_nostatus_direct (&tcache_key, sizeof(tcache_key),
 					    GRND_NONBLOCK)
       != sizeof (tcache_key))
+    tcache_key = 0;
+
+  /* We need tcache_key to be non-zero (otherwise tcache_double_free_verify's
+     clearing of e->key would go unnoticed and it would loop getting called
+     through __libc_free), and we want tcache_key not to be a
+     commonly-occurring value in memory, so ensure a minimum amount of one and
+     zero bits.  */
+  int minimum_bits = __WORDSIZE / 4;
+  int maximum_bits = __WORDSIZE - minimum_bits;
+
+  while (tcache_key <= 0x1000000
+      || tcache_key >= ((uintptr_t) ULONG_MAX) - 0x1000000
+      || stdc_count_ones (tcache_key) < minimum_bits
+      || stdc_count_ones (tcache_key) > maximum_bits)
     {
       tcache_key = random_bits ();
 #if __WORDSIZE == 64
@@ -3208,11 +3210,10 @@ tcache_get_n (size_t tc_idx, tcache_entry **ep, bool mangled)
   if (__glibc_unlikely (misaligned_mem (e)))
     malloc_printerr ("malloc(): unaligned tcache chunk detected");
 
-  void *ne = e == NULL ? NULL : REVEAL_PTR (e->next);
   if (!mangled)
-    *ep = ne;
+    *ep = REVEAL_PTR (e->next);
   else
-    *ep = PROTECT_PTR (ep, ne);
+    *ep = PROTECT_PTR (ep, REVEAL_PTR (e->next));
 
   ++(tcache->num_slots[tc_idx]);
   e->key = 0;
@@ -3229,7 +3230,7 @@ tcache_put (mchunkptr chunk, size_t tc_idx)
 static __always_inline void *
 tcache_get (size_t tc_idx)
 {
-  return tcache_get_n (tc_idx, & tcache->entries[tc_idx], false);
+  return tcache_get_n (tc_idx, &tcache->entries[tc_idx], false);
 }
 
 static __always_inline tcache_entry **
@@ -3305,10 +3306,16 @@ tcache_get_align (size_t nb, size_t alignment)
           mangled = true;
         }
 
+      /* GCC compiling for -Os warns on some architectures that csize may be
+	 uninitialized.  However, if 'te' is not NULL, csize is always
+	 initialized in the loop above.  */
+      DIAG_PUSH_NEEDS_COMMENT;
+      DIAG_IGNORE_Os_NEEDS_COMMENT (12, "-Wmaybe-uninitialized");
       if (te != NULL
 	  && csize == nb
 	  && PTR_IS_ALIGNED (te, alignment))
 	return tag_new_usable (tcache_get_n (tc_idx, tep, mangled));
+      DIAG_POP_NEEDS_COMMENT;
     }
   return NULL;
 }
@@ -3381,11 +3388,6 @@ tcache_init (void)
 {
   if (tcache_shutting_down)
     return;
-
-  /* Check minimum mmap chunk is larger than max tcache size.  This means
-     mmap chunks with their different layout are never added to tcache.  */
-  if (MAX_TCACHE_SMALL_SIZE >= GLRO (dl_pagesize) / 2)
-    malloc_printerr ("max tcache size too large");
 
   size_t bytes = sizeof (tcache_perthread_struct);
   tcache = (tcache_perthread_struct *) __libc_malloc2 (bytes);
@@ -3465,11 +3467,6 @@ __libc_malloc (size_t bytes)
 {
 #if USE_TCACHE
   size_t nb = checked_request2size (bytes);
-  if (nb == 0)
-    {
-      __set_errno (ENOMEM);
-      return NULL;
-    }
 
   if (nb < mp_.tcache_max_bytes)
     {
@@ -3519,8 +3516,6 @@ __libc_free (void *mem)
   if (__glibc_unlikely (misaligned_chunk (p)))
     return malloc_printerr_tail ("free(): invalid pointer");
 
-  check_inuse_chunk (arena_for_chunk (p), p);
-
 #if USE_TCACHE
   if (__glibc_likely (size < mp_.tcache_max_bytes && tcache != NULL))
     {
@@ -3541,7 +3536,6 @@ __libc_free (void *mem)
 	{
 	  tc_idx = large_csize2tidx (size);
 	  if (size >= MINSIZE
-	      && !chunk_is_mmapped (p)
               && __glibc_likely (tcache->num_slots[tc_idx] != 0))
 	    return tcache_put_large (p, tc_idx);
 	}
@@ -3565,16 +3559,16 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   void *newp;             /* chunk to return */
 
+  /* realloc of null is supposed to be same as malloc */
+  if (oldmem == NULL)
+    return __libc_malloc (bytes);
+
 #if REALLOC_ZERO_BYTES_FREES
-  if (bytes == 0 && oldmem != NULL)
+  if (bytes == 0)
     {
       __libc_free (oldmem); return NULL;
     }
 #endif
-
-  /* realloc of null is supposed to be same as malloc */
-  if (oldmem == NULL)
-    return __libc_malloc (bytes);
 
   /* Perform a quick check to ensure that the pointer's tag matches the
      memory's tag.  */
@@ -3593,18 +3587,12 @@ __libc_realloc (void *oldmem, size_t bytes)
   if (bytes <= usable)
     {
       size_t difference = usable - bytes;
-      if ((unsigned long) difference < 2 * sizeof (INTERNAL_SIZE_T)
-	  || (chunk_is_mmapped (oldp) && difference <= GLRO (dl_pagesize)))
+      if ((unsigned long) difference < 2 * sizeof (INTERNAL_SIZE_T))
 	return oldmem;
     }
 
   /* its size */
   const INTERNAL_SIZE_T oldsize = chunksize (oldp);
-
-  if (chunk_is_mmapped (oldp))
-    ar_ptr = NULL;
-  else
-    ar_ptr = arena_for_chunk (oldp);
 
   /* Little security check which won't hurt performance: the allocator
      never wraps around at the end of the address space.  Therefore
@@ -3614,12 +3602,12 @@ __libc_realloc (void *oldmem, size_t bytes)
                         || misaligned_chunk (oldp)))
       malloc_printerr ("realloc(): invalid pointer");
 
-  nb = checked_request2size (bytes);
-  if (nb == 0)
+  if (bytes > PTRDIFF_MAX)
     {
       __set_errno (ENOMEM);
       return NULL;
     }
+  nb = checked_request2size (bytes);
 
   if (chunk_is_mmapped (oldp))
     {
@@ -3638,9 +3626,9 @@ __libc_realloc (void *oldmem, size_t bytes)
 	  return tag_new_usable (newmem);
 	}
 #endif
-      /* Note the extra SIZE_SZ overhead. */
-      if (oldsize - SIZE_SZ >= nb)
-        return oldmem;                         /* do nothing */
+      /* Return if shrinking and mremap was unsuccessful.  */
+      if (bytes <= usable)
+	return oldmem;
 
       /* Must alloc, copy, free. */
       newmem = __libc_malloc (bytes);
@@ -3651,6 +3639,8 @@ __libc_realloc (void *oldmem, size_t bytes)
       munmap_chunk (oldp);
       return newmem;
     }
+
+  ar_ptr = arena_for_chunk (oldp);
 
   if (SINGLE_THREAD_P)
     {
@@ -3745,13 +3735,7 @@ _mid_memalign (size_t alignment, size_t bytes)
     }
 
 #if USE_TCACHE
-  size_t nb = checked_request2size (bytes);
-  if (nb == 0)
-    {
-      __set_errno (ENOMEM);
-      return NULL;
-    }
-  void *victim = tcache_get_align (nb, alignment);
+  void *victim = tcache_get_align (checked_request2size (bytes), alignment);
   if (victim != NULL)
     return tag_new_usable (victim);
 #endif
@@ -3912,11 +3896,7 @@ __libc_calloc (size_t n, size_t elem_size)
 
 #if USE_TCACHE
   size_t nb = checked_request2size (bytes);
-  if (nb == 0)
-    {
-      __set_errno (ENOMEM);
-      return NULL;
-    }
+
   if (nb < mp_.tcache_max_bytes)
     {
       if (__glibc_unlikely (tcache == NULL))
@@ -3991,12 +3971,12 @@ _int_malloc (mstate av, size_t bytes)
      aligned.
    */
 
-  nb = checked_request2size (bytes);
-  if (nb == 0)
+  if (bytes > PTRDIFF_MAX)
     {
       __set_errno (ENOMEM);
       return NULL;
     }
+  nb = checked_request2size (bytes);
 
   /* There are no usable arenas.  Fall back to sysmalloc to get a chunk from
      mmap.  */
@@ -4024,7 +4004,7 @@ _int_malloc (mstate av, size_t bytes)
       if (__glibc_unlikely (pp != NULL && misaligned_chunk (pp)))       \
 	malloc_printerr ("malloc(): unaligned fastbin chunk detected"); \
     }							\
-  while ((pp = catomic_compare_and_exchange_val_acq (fb, pp, victim)) \
+  while ((pp = atomic_compare_and_exchange_val_acq (fb, pp, victim)) \
 	 != victim);					\
 
   if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))
@@ -4683,7 +4663,7 @@ _int_free_chunk (mstate av, mchunkptr p, INTERNAL_SIZE_T size, int have_lock)
 	  old2 = old;
 	  p->fd = PROTECT_PTR (&p->fd, old);
 	}
-      while ((old = catomic_compare_and_exchange_val_rel (fb, p, old2))
+      while ((old = atomic_compare_and_exchange_val_rel (fb, p, old2))
 	     != old2);
 
     /* Check that size of fastbin chunk at the top is the same as
@@ -4752,6 +4732,8 @@ static void
 _int_free_merge_chunk (mstate av, mchunkptr p, INTERNAL_SIZE_T size)
 {
   mchunkptr nextchunk = chunk_at_offset(p, size);
+
+  check_inuse_chunk (av, p);
 
   /* Lightweight tests: check whether the block is already the
      top block.  */
@@ -5151,12 +5133,12 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
   unsigned long remainder_size;   /* its size */
   INTERNAL_SIZE_T size;
 
-  nb = checked_request2size (bytes);
-  if (nb == 0)
+  if (bytes > PTRDIFF_MAX)
     {
       __set_errno (ENOMEM);
       return NULL;
     }
+  nb = checked_request2size (bytes);
 
   /* We can't check tcache here because we hold the arena lock, which
      tcache doesn't expect.  We expect it has been checked
@@ -5336,7 +5318,7 @@ musable (void *mem)
   mchunkptr p = mem2chunk (mem);
 
   if (chunk_is_mmapped (p))
-    return chunksize (p) - CHUNK_HDR_SZ;
+    return memsize (p);
   else if (inuse (p))
     return memsize (p);
 
@@ -5587,15 +5569,13 @@ do_set_arena_max (size_t value)
 static __always_inline int
 do_set_tcache_max (size_t value)
 {
+  if (value > PTRDIFF_MAX)
+    return 0;
+
   size_t nb = request2size (value);
   size_t tc_idx = csize2tidx (nb);
 
-  /* To check that value is not too big and request2size does not return an
-     overflown value.  */
-  if (value > nb)
-    return 0;
-
-  if (nb > MAX_TCACHE_SMALL_SIZE)
+  if (tc_idx >= TCACHE_SMALL_BINS)
     tc_idx = large_csize2tidx (nb);
 
   LIBC_PROBE (memory_tunable_tcache_max_bytes, 2, value, mp_.tcache_max_bytes);
@@ -5604,7 +5584,7 @@ do_set_tcache_max (size_t value)
     {
       if (tc_idx < TCACHE_SMALL_BINS)
 	mp_.tcache_small_bins = tc_idx + 1;
-      mp_.tcache_max_bytes = nb;
+      mp_.tcache_max_bytes = nb + 1;
       return 1;
     }
 
@@ -5649,12 +5629,9 @@ do_set_hugetlb (size_t value)
 {
   if (value == 1)
     {
-      enum malloc_thp_mode_t thp_mode = __malloc_thp_mode ();
-      /*
-	 Only enable THP madvise usage if system does support it and
-	 has 'madvise' mode.  Otherwise the madvise() call is wasteful.
-       */
-      if (thp_mode == malloc_thp_mode_madvise)
+      mp_.thp_mode = __malloc_thp_mode ();
+      if (mp_.thp_mode == malloc_thp_mode_madvise
+          || mp_.thp_mode == malloc_thp_mode_always)
 	mp_.thp_pagesize = __malloc_default_thp_pagesize ();
     }
   else if (value >= 2)
