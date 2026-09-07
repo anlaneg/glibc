@@ -35,11 +35,11 @@
 
 /* Functions for resolving symbols in the VDSO link map.  */
 static inline void *
-dl_vdso_vsym (const char *name)
+dl_vdso_vsym (const char *name/*VDSO函数名称*/)
 {
   struct link_map *map = GLRO (dl_sysinfo_map);
   if (map == NULL)
-    return NULL;
+    return NULL;/*map为空，直接返回NULL*/
 
   /* Use a WEAK REF so we don't error out if the symbol is not found.  */
   ElfW (Sym) wsym = { 0 };
@@ -49,7 +49,7 @@ dl_vdso_vsym (const char *name)
 
   /* Search the scope of the vdso map.  */
   const ElfW (Sym) *ref = &wsym;
-  lookup_t result = GLRO (dl_lookup_symbol_x) (name, map, &ref,
+  lookup_t result = GLRO (dl_lookup_symbol_x) (name/*VDSO函数名称*/, map, &ref,
 					       map->l_local_scope,
 					       &rfv, 0, 0, NULL);
   return ref != NULL ? DL_SYMBOL_ADDRESS (result, ref) : NULL;

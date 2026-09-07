@@ -23,6 +23,7 @@
 
 #ifndef INTERNAL_VSYSCALL_CALL
 # define INTERNAL_VSYSCALL_CALL(funcptr, nr, args...)		      	      \
+	/*直接进行函数调用*/\
      funcptr (args)
 #endif
 

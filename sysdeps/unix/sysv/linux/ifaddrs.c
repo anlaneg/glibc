@@ -316,13 +316,13 @@ getifaddrs_internal (struct ifaddrs **ifap)
   *ifap = NULL;
 
   if (__netlink_open (&nh) < 0)
-    return -1;
+    return -1;/* 打开NETLINK socket失败 */
 
   /* Tell the kernel that we wish to get a list of all
      active interfaces, collect all data for every interface.  */
   if (__netlink_request (&nh, RTM_GETLINK) < 0)
     {
-      result = -1;
+      result = -1;/* 获取接口列表失败 */
       goto exit_free;
     }
 
@@ -828,7 +828,7 @@ __getifaddrs (struct ifaddrs **ifap)
   int res;
 
   do
-    res = getifaddrs_internal (ifap);
+    res = getifaddrs_internal (ifap);/**利用netlink获取接口列表 */
   while (res == -EAGAIN);
 
   return res;

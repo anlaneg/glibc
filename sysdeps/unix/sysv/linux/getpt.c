@@ -27,6 +27,7 @@
 int
 __posix_openpt (int oflag)
 {
+	/*依据oflag打开ptmx设备*/
   return __open (_PATH_DEVPTMX, oflag);
 }
 weak_alias (__posix_openpt, posix_openpt)
@@ -35,6 +36,7 @@ weak_alias (__posix_openpt, posix_openpt)
 int
 __getpt (void)
 {
+	/*以读写方式打开ptmx*/
   return __posix_openpt (O_RDWR);
 }
 libc_hidden_def (__getpt)

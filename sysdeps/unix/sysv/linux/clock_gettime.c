@@ -36,10 +36,10 @@ __clock_gettime64 (clockid_t clock_id, struct __timespec64 *tp)
 
 #ifdef HAVE_CLOCK_GETTIME64_VSYSCALL
   int (*vdso_time64) (clockid_t clock_id, struct __timespec64 *tp)
-    = GLRO(dl_vdso_clock_gettime64);
+    = GLRO(dl_vdso_clock_gettime64);/*取得回调*/
   if (vdso_time64 != NULL)
     {
-      r = INTERNAL_VSYSCALL_CALL (vdso_time64, 2, clock_id, tp);
+      r = INTERNAL_VSYSCALL_CALL (vdso_time64, 2, clock_id, tp);/*触发VSYSCALL*/
       if (r == 0)
 	return 0;
       return INLINE_SYSCALL_ERROR_RETURN_VALUE (-r);
